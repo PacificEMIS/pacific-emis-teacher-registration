@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock title %}
+{% block extra_head %}{% endblock extra_head %}
+
+{% block content %}
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap flex-md-nowrap mb-4">
+    <h1 class="h3 mb-0">Dashboard</h1>
+    <div class="btn-toolbar">
+      <div class="btn-group me-2">        
+        <a href="#" class="btn btn-sm btn-outline-secondary">Refresh</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards ordered by access level: Admins / System Users / School Staff / Teachers -->
+  <div class="row g-3">
+    <!-- Admins -->
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-body-secondary">Admins</span>
+            <i class="bi bi-shield-lock fs-4"></i>
+          </div>
+          <div class="display-6 fw-semibold mt-2">
+            {{ staff_admin_count|default:"0" }}
+          </div>
+          <div class="small mt-1 text-body-secondary">
+            Users in the <code>Admins</code> group
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total MOE Staff (System Users) -->
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-body-secondary">Total MOE Staff</span>
+            <i class="bi bi-person-badge fs-4"></i>
+          </div>
+          <div class="display-6 fw-semibold mt-2">
+            {{ total_system_users|default:"0" }}
+          </div>
+          <div class="small mt-1 text-body-secondary">
+            {{ system_users_added_recent|default:"0" }} added in the last 30 days
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Total School Staff -->
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-body-secondary">Total School Staff</span>
+            <i class="bi bi-people fs-4"></i>
+          </div>
+          <div class="display-6 fw-semibold mt-2">
+            {{ total_staff|default:"0" }}
+          </div>
+          <div class="small mt-1 text-body-secondary">
+            {{ staff_added_recent|default:"0" }} added in the last 30 days
+          </div>
+          <div class="small mt-1 text-body-secondary">
+            {{ staff_unassigned|default:"0" }} unassigned (no school memberships)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teachers -->
+    <div class="col-12 col-sm-6 col-lg-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="text-body-secondary">Teachers</span>
+            <i class="bi bi-person-video3 fs-4"></i>
+          </div>
+          <div class="display-6 fw-semibold mt-2">
+            {{ staff_teacher_count|default:"0" }}
+          </div>
+          <div class="small mt-1 text-body-secondary">
+            School Staff in the <code>Teachers</code> group
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent activity -->
+  <div class="card mt-4 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <span class="fw-semibold">Recent Updates</span>
+      <a class="btn btn-sm btn-outline-secondary" href="#">View all</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th scope="col">When</th>
+            <th scope="col">Entity</th>
+            <th scope="col">Action</th>
+            <th scope="col">By</th>
+            <th scope="col" class="text-end">Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if recent_events %}
+            {% for ev in recent_events %}
+              <tr>
+                <td>{{ ev.when|date:"Y-m-d H:i" }}</td>
+                <td>{{ ev.entity }}</td>
+                <td>{{ ev.action }}</td>
+                <td>
+                  {% if ev.by %}
+                    {{ ev.by }}
+                  {% else %}
+                    <span class="text-body-secondary">system</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if ev.url %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ ev.url }}">Open</a>
+                  {% else %}
+                    <span class="text-body-secondary small">N/A</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-body-secondary py-4">
+                No recent updates found.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+{% endblock content %}
