@@ -3,17 +3,21 @@ Context processors for core app.
 
 Provides template context variables related to user profiles (SchoolStaff, SystemUser).
 """
+from typing import Any
+
+from django.http import HttpRequest
 from django.urls import reverse
+
 from core.models import SchoolStaff, SystemUser
 
 
-def staff_context(request):
+def staff_context(request: HttpRequest) -> dict[str, Any]:
     """
     Adds user_profile_url for linking to the user's own profile page.
     Checks for SchoolStaff, then SystemUser, then falls back to admin user page.
     """
     user = request.user
-    context = {
+    context: dict[str, int | str | None] = {
         "staff_pk_for_request_user": None,
         "system_user_pk_for_request_user": None,
         "user_profile_url": None,

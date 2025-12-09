@@ -1,6 +1,8 @@
 """
 Forms for core models.
 """
+from typing import cast
+
 from django import forms
 from django.forms import ModelForm
 
@@ -33,19 +35,22 @@ class SchoolStaffAssignmentForm(ModelForm):
         """
         super().__init__(*args, **kwargs)
 
+        # Get the school field as ModelChoiceField for type checking
+        school_field = cast(forms.ModelChoiceField, self.fields["school"])
+
         # Restrict school choices based on user permissions
         if user and user.is_authenticated:
             if user.is_superuser or is_admin(user):
                 # System admins see all active schools
-                self.fields["school"].queryset = EmisSchool.objects.filter(
+                school_field.queryset = EmisSchool.objects.filter(
                     active=True
                 ).order_by("emis_school_name")
             else:
                 # School admins see only their active schools
                 user_schools = get_user_schools(user)
-                self.fields["school"].queryset = user_schools.order_by(
+                school_field.queryset = user_schools.order_by(
                     "emis_school_name"
                 )
         else:
             # No user context - restrict to nothing
-            self.fields["school"].queryset = EmisSchool.objects.none()
+            school_field.queryset = EmisSchool.objects.none()
