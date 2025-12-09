@@ -1,0 +1,52 @@
+/* Keep sidebar tidy and sign-out pinned at bottom */
+.sidebar .nav-link {
+  border-radius: .5rem;
+  margin: .125rem .5rem;
+  color: var(--bs-body-color);
+}
+.sidebar .nav-link.active {
+  color: #fff;
+  background-color: var(--bs-primary);
+}
+.sidebar .nav-link:hover {
+  color: var(--bs-body-color);
+  background-color: rgba(0,0,0,.08);
+}
+
+/* Make offcanvas look like static sidebar on md+ */
+@media (min-width: 768px) {
+  .offcanvas-md {
+    position: sticky !important;
+    top: 0; /* was 56px */
+    height: 100vh; /* or just auto if you prefer */
+    transform: none !important;
+    visibility: visible !important;
+    border-right: 1px solid var(--bs-border-color);
+  }
+}
+
+/* sidebar content to scroll nicely within its own area */
+/* @media (min-width: 768px) {
+  .offcanvas-md .offcanvas-body {
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+} */
+
+/* Card polish */
+.card {
+  border-radius: .85rem;
+}
+
+/* Utility classes to replace inline styles */
+.w-40 {
+  width: 40%;
+}
+
+.min-vh-60 {
+  min-height: 60vh;
+}
+
+.fs-forbidden-icon {
+  font-size: 6rem;
+}
