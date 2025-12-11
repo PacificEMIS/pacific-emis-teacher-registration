@@ -27,4 +27,21 @@ urlpatterns = [
         views.staff_membership_delete,
         name="staff_membership_delete",
     ),
+    # Pending Users (role assignment)
+    path("pending-users/", views.pending_users_list, name="pending_users_list"),
+    path(
+        "pending-users/<int:user_id>/assign-school-staff/",
+        views.assign_school_staff,
+        name="assign_school_staff",
+    ),
+    path(
+        "pending-users/<int:user_id>/assign-system-user/",
+        views.assign_system_user,
+        name="assign_system_user",
+    ),
+    path(
+        "pending-users/<int:user_id>/delete/",
+        views.delete_pending_user,
+        name="delete_pending_user",
+    ),
 ]

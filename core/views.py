@@ -9,8 +9,10 @@ This module provides views for managing:
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q, Prefetch, OuterRef, Subquery
 from django.shortcuts import render, redirect, get_object_or_404
@@ -20,18 +22,22 @@ from django.utils.text import capfirst
 
 from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
-from core.forms import SchoolStaffAssignmentForm
+from core.forms import SchoolStaffAssignmentForm, AssignSchoolStaffForm, AssignSystemUserForm
 from core.permissions import (
     filter_staff_for_user,
     can_view_staff,
     can_create_staff_membership,
     can_edit_staff_membership,
     can_delete_staff_membership,
+    can_access_system_users,
+    is_admins_group,
     GROUP_ADMINS,
     GROUP_SCHOOL_STAFF,
     GROUP_TEACHERS,
 )
 from integrations.models import EmisSchool
+
+User = get_user_model()
 
 
 PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -269,6 +275,9 @@ def system_user_list(request):
     """
     List all system users with search, filtering, and sorting capabilities.
 
+    Only accessible by system-level users (Admins, System Admins, System Staff).
+    School-level users (School Admins, School Staff, Teachers) cannot access this view.
+
     Query parameters:
         q: Search by name
         email: Filter by email
@@ -278,6 +287,10 @@ def system_user_list(request):
         per_page: Number of results per page
         page: Current page number
     """
+    # Check if user can access MOE Staff UI
+    if not can_access_system_users(request.user):
+        return render(request, "accounts/forbidden.html", status=403)
+
     q = (request.GET.get("q") or "").strip()
 
     # Filters
@@ -361,12 +374,19 @@ def system_user_detail(request, pk):
     """
     Display detailed information for a single system user.
 
+    Only accessible by system-level users (Admins, System Admins, System Staff).
+    School-level users (School Admins, School Staff, Teachers) cannot access this view.
+
     Shows:
     - User account details
     - Organization and position
     - Groups and permissions
     - Audit information
     """
+    # Check if user can access MOE Staff UI
+    if not can_access_system_users(request.user):
+        return render(request, "accounts/forbidden.html", status=403)
+
     system_user = get_object_or_404(
         SystemUser.objects.select_related("user", "created_by", "last_updated_by").prefetch_related(
             "user__groups__permissions",
@@ -434,7 +454,7 @@ def staff_list(request):
         per_page = 25
 
     # Picklists (active only; adjust if you want all)
-    schools = EmisSchool.objects.filter(active=True).order_by("emis_school_no")
+    schools = EmisSchool.objects.filter(active=True).order_by("emis_school_name")
 
     # ---- Latest assignment subqueries (for "current appointment" + filtering/sorting helper)
     assignment_qs = SchoolStaffAssignment.objects.filter(school_staff=OuterRef("pk")).order_by(
@@ -456,7 +476,8 @@ def staff_list(request):
                 queryset=SchoolStaffAssignment.objects.select_related(
                     "school", "job_title"
                 ),
-            )
+            ),
+            "user__groups",
         )
     )
 
@@ -706,3 +727,222 @@ def staff_membership_delete(request, staff_id, pk):
         "membership": membership,
     }
     return render(request, "core/staff_membership_confirm_delete.html", context)
+
+
+# ============================================================================
+# Pending Users (User Role Assignment)
+# ============================================================================
+
+
+@login_required
+@require_app_access
+def pending_users_list(request):
+    """
+    List users who have signed in (via Google OAuth) but don't yet have
+    a SchoolStaff or SystemUser profile assigned.
+
+    Only accessible to users in the Admins group.
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    q = (request.GET.get("q") or "").strip()
+
+    # Per-page
+    try:
+        per_page = int(request.GET.get("per_page", 25))
+    except ValueError:
+        per_page = 25
+    if per_page not in PAGE_SIZE_OPTIONS:
+        per_page = 25
+
+    # Users without either profile (exclude superusers - they have full access already)
+    pending_users_qs = User.objects.filter(
+        school_staff__isnull=True,
+        system_user__isnull=True,
+        is_superuser=False,
+    ).order_by("-date_joined")
+
+    # Search by name or email
+    if q:
+        pending_users_qs = pending_users_qs.filter(
+            Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(email__icontains=q)
+            | Q(username__icontains=q)
+        )
+
+    # Pagination
+    paginator = Paginator(pending_users_qs, per_page)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+
+    return render(
+        request,
+        "core/pending_users_list.html",
+        {
+            "active": "pending_users",
+            "page_obj": page_obj,
+            "q": q,
+            "per_page": per_page,
+            "page_size_options": PAGE_SIZE_OPTIONS,
+            "page_links": _page_window(page_obj),
+        },
+    )
+
+
+@login_required
+@require_app_access
+def assign_school_staff(request, user_id):
+    """
+    Assign a pending user as School Staff.
+
+    Creates a SchoolStaff profile and assigns them to selected groups.
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Check if user already has a SchoolStaff profile
+    if hasattr(target_user, "school_staff"):
+        messages.warning(request, f"{target_user} already has a School Staff profile.")
+        return redirect("core:pending_users_list")
+
+    if request.method == "POST":
+        form = AssignSchoolStaffForm(request.POST)
+        if form.is_valid():
+            # Create SchoolStaff profile
+            staff = SchoolStaff.objects.create(
+                user=target_user,
+                staff_type=form.cleaned_data["staff_type"],
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+            # Assign groups
+            groups = form.cleaned_data["groups"]
+            target_user.groups.add(*groups)
+
+            messages.success(
+                request,
+                f"{target_user.get_full_name() or target_user.username} has been assigned as School Staff.",
+            )
+            return redirect("core:staff_detail", pk=staff.pk)
+    else:
+        form = AssignSchoolStaffForm()
+
+    return render(
+        request,
+        "core/assign_school_staff.html",
+        {
+            "active": "pending_users",
+            "target_user": target_user,
+            "form": form,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def assign_system_user(request, user_id):
+    """
+    Assign a pending user as a System User.
+
+    Creates a SystemUser profile and assigns them to selected groups.
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Check if user already has a SystemUser profile
+    if hasattr(target_user, "system_user"):
+        messages.warning(request, f"{target_user} already has a System User profile.")
+        return redirect("core:pending_users_list")
+
+    if request.method == "POST":
+        form = AssignSystemUserForm(request.POST)
+        if form.is_valid():
+            # Create SystemUser profile
+            system_user = SystemUser.objects.create(
+                user=target_user,
+                organization=form.cleaned_data.get("organization", ""),
+                position_title=form.cleaned_data.get("position_title", ""),
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+            # Assign groups
+            groups = form.cleaned_data["groups"]
+            target_user.groups.add(*groups)
+
+            messages.success(
+                request,
+                f"{target_user.get_full_name() or target_user.username} has been assigned as a System User.",
+            )
+            return redirect("core:system_user_detail", pk=system_user.pk)
+    else:
+        form = AssignSystemUserForm()
+
+    return render(
+        request,
+        "core/assign_system_user.html",
+        {
+            "active": "pending_users",
+            "target_user": target_user,
+            "form": form,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def delete_pending_user(request, user_id):
+    """
+    Delete a pending user who has not been assigned a role.
+
+    Only Admins group can delete users, and only users without SchoolStaff or SystemUser profiles.
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Safety check: only allow deletion of users without profiles
+    has_school_staff = hasattr(target_user, "school_staff") and target_user.school_staff is not None
+    has_system_user = hasattr(target_user, "system_user") and target_user.system_user is not None
+
+    if has_school_staff or has_system_user:
+        messages.error(
+            request,
+            f"{target_user} already has a role assigned and cannot be deleted from here. "
+            "Use the Django admin to manage this user.",
+        )
+        return redirect("core:pending_users_list")
+
+    # Prevent deleting yourself
+    if target_user == request.user:
+        messages.error(request, "You cannot delete your own account.")
+        return redirect("core:pending_users_list")
+
+    # Prevent deleting superusers
+    if target_user.is_superuser:
+        messages.error(request, "Superusers cannot be deleted from here. Use the Django admin.")
+        return redirect("core:pending_users_list")
+
+    if request.method == "POST":
+        username = target_user.username
+        full_name = target_user.get_full_name() or username
+        target_user.delete()
+        messages.success(request, f"User '{full_name}' has been deleted.")
+        return redirect("core:pending_users_list")
+
+    return render(
+        request,
+        "core/delete_pending_user.html",
+        {
+            "active": "pending_users",
+            "target_user": target_user,
+        },
+    )

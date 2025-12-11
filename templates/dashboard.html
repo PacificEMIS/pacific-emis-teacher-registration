@@ -33,23 +33,25 @@
       </div>
     </div>
 
-    <!-- Total MOE Staff (System Users) -->
-    <div class="col-12 col-sm-6 col-lg-3">
-      <div class="card shadow-sm h-100">
-        <div class="card-body">
-          <div class="d-flex align-items-center justify-content-between">
-            <span class="text-body-secondary">Total MOE Staff</span>
-            <i class="bi bi-person-badge fs-4"></i>
-          </div>
-          <div class="display-6 fw-semibold mt-2">
-            {{ total_system_users|default:"0" }}
-          </div>
-          <div class="small mt-1 text-body-secondary">
-            {{ system_users_added_recent|default:"0" }} added in the last 30 days
+    <!-- Total MOE Staff (System Users) - only visible to system-level users -->
+    {% if can_access_system_users %}
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="text-body-secondary">Total MOE Staff</span>
+              <i class="bi bi-person-badge fs-4"></i>
+            </div>
+            <div class="display-6 fw-semibold mt-2">
+              {{ total_system_users|default:"0" }}
+            </div>
+            <div class="small mt-1 text-body-secondary">
+              {{ system_users_added_recent|default:"0" }} added in the last 30 days
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    {% endif %}
 
     <!-- Total School Staff -->
     <div class="col-12 col-sm-6 col-lg-3">
