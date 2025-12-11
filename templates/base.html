@@ -106,12 +106,25 @@
                       <i class="bi bi-people me-2"></i> School Staff
                     </a>
                   </li>
-                  <li>
-                    <a class="nav-link d-flex align-items-center text-light {% if active == 'system_users' %}active bg-secondary{% endif %}"
-                       href="{% url 'core:system_user_list' %}">
-                      <i class="bi bi-building me-2"></i> {{ terminology.system_users_plural }}
-                    </a>
-                  </li>
+                  {% if can_access_system_users %}
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'system_users' %}active bg-secondary{% endif %}"
+                         href="{% url 'core:system_user_list' %}">
+                        <i class="bi bi-building me-2"></i> {{ terminology.system_users_plural }}
+                      </a>
+                    </li>
+                  {% endif %}
+                  {% if is_admins_group_user %}
+                    <li class="nav-item mt-3">
+                      <span class="nav-link text-secondary small text-uppercase">Admin</span>
+                    </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'pending_users' %}active bg-secondary{% endif %}"
+                         href="{% url 'core:pending_users_list' %}">
+                        <i class="bi bi-person-plus me-2"></i> Pending Users
+                      </a>
+                    </li>
+                  {% endif %}
                 </ul>
               </nav>
             </div>
@@ -125,7 +138,7 @@
             <footer class="pt-5 small text-body-secondary">
               <hr>
               <div>
-                © {% now "Y" %} {{ emis_context }} —
+                © {% now "Y" %} {{ emis_context }} — {{ app_name }} |
                 Last updated: {% now "Y-m-d H:i" as current_time %}
                 {% localtime on %}{{ current_time }}{% endlocaltime %}
               </div>

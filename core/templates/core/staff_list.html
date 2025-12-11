@@ -46,7 +46,7 @@
             {% for s in schools %}
               <option value="{{ s.emis_school_no }}"
                       {% if school == s.emis_school_no %}selected{% endif %}>
-                {{ s.emis_school_no }} — {{ s.emis_school_name }}
+                {{ s.emis_school_name }} ({{ s.emis_school_no }})
               </option>
             {% endfor %}
           </select>
@@ -108,6 +108,8 @@
                 {% endif %}
               </a>
             </th>
+            {# Groups: not sortable #}
+            <th scope="col">Groups</th>
             {# Current Appointments (sort=appointment) #}
             <th scope="col">
               <a href="?sort=appointment&dir={% if sort == 'appointment' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
@@ -140,6 +142,17 @@
                   <!-- <div class="small">{{ s.user.username }}</div> -->
                 </td>
                 <td>
+                  {% with groups=s.user.groups.all %}
+                    {% if groups %}
+                      {% for g in groups %}
+                        <span class="badge bg-secondary">{{ g.name }}</span>{% if not forloop.last %} {% endif %}
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-body-secondary">—</span>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+                <td>
                   {% with active_memberships=s.memberships.all %}
                     {% if active_memberships %}
                       <ul class="mb-0 ps-3">
@@ -166,7 +179,7 @@
             {% endfor %}
           {% else %}
             <tr>
-              <td colspan="4" class="text-center text-body-secondary py-4">No staff found.</td>
+              <td colspan="5" class="text-center text-body-secondary py-4">No staff found.</td>
             </tr>
           {% endif %}
         </tbody>

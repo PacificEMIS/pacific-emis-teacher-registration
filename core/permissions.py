@@ -116,6 +116,48 @@ def is_system_staff(user) -> bool:
     return _in_group(user, GROUP_SYSTEM_STAFF)
 
 
+def can_access_system_users(user) -> bool:
+    """
+    Check if user can access the MOE Staff (System Users) UI.
+
+    Only system-level users should see/access MOE Staff:
+    - Superusers: always
+    - Admins: always (system-wide full access)
+    - System Admins: always
+    - System Staff: always (read-only system-wide)
+
+    School-level groups should NOT access MOE Staff:
+    - School Admins: no access
+    - School Staff: no access
+    - Teachers: no access
+    """
+    if not user or not user.is_authenticated:
+        return False
+
+    if user.is_superuser:
+        return True
+
+    # Admins and System-level groups can access
+    if is_admin(user) or is_system_staff(user):
+        return True
+
+    return False
+
+
+def is_admins_group(user) -> bool:
+    """
+    Check if user is in the 'Admins' group specifically.
+
+    Used for features that should only be accessible to the Admins group,
+    like the Pending Users management.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return _in_group(user, GROUP_ADMINS)
+
+
 def has_app_access(user) -> bool:
     """
     Check if user has any role that grants access to the application.
@@ -179,11 +221,11 @@ def get_user_schools(user):
     # SchoolStaffAssignment uses:
     #   school_staff -> SchoolStaff
     #   school_staff.user -> AUTH_USER
-    #   school -> EmisSchool (related_name="assignments")
+    #   school -> EmisSchool (related_name="staff_assignments")
     #   end_date (nullable)
     return EmisSchool.objects.filter(
-        assignments__school_staff__user=user,
-        assignments__end_date__isnull=True,
+        staff_assignments__school_staff__user=user,
+        staff_assignments__end_date__isnull=True,
     ).distinct()
 
 

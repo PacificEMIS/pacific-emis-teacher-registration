@@ -5,13 +5,13 @@
     <meta charset="utf-8">
     {% block meta %}
       <meta name="description"
-            content="Pacific EMIS — Disability Inclusive Education: secure school data and user access for Pacific education systems.">
+            content="Pacific EMIS — {{ app_name }}: secure school data and user access for Pacific education systems.">
       <meta name="keywords"
-            content="Pacific EMIS, EMIS, disability education, education data, school data, inclusive education">
+            content="Pacific EMIS, EMIS, education data, school data, teacher registration">
     {% endblock meta %}
     <title>
       {% block subject %}
-        Disability Inclusive Education notification
+        {{ app_name }} notification
       {% endblock subject %}
     </title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -50,7 +50,7 @@
                          font-weight:600;
                          border-bottom:1px solid #dee2e6">
                 {% block header_title %}
-                  Disability Inclusive Education
+                  {{ app_name }}
                 {% endblock header_title %}
               </td>
             </tr>
@@ -72,7 +72,7 @@
                          font-size:11px;
                          color:#6c757d">
                 {% block footer %}
-                  This message was sent by the {{ emis_context }} Disability Inclusive Education app.
+                  This message was sent by the {{ emis_context }} {{ app_name }} app.
                   If you believe you received it in error, please contact your EMIS administrator.
                 {% endblock footer %}
               </td>
