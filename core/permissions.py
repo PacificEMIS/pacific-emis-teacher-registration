@@ -398,3 +398,143 @@ def can_delete_staff_membership(user, membership) -> bool:
         return user_schools.filter(pk=membership.school.pk).exists()
 
     return False
+
+
+# ============================================================================
+# SchoolStaff Edit Permissions
+# ============================================================================
+
+
+def can_edit_staff(user, staff) -> bool:
+    """
+    Who can *edit* a school staff member's profile (staff_type, groups)?
+
+    - Superusers: always.
+    - Admins group: always.
+    - System Admins group: always (system-wide access).
+    - School Admins group: only if they share at least one active school membership.
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    if _in_group(user, GROUP_SYSTEM_ADMINS):
+        return True
+    if is_school_admin(user):
+        return user_has_school_access_to_staff(user, staff)
+    return False
+
+
+def can_edit_staff_groups(user, staff) -> bool:
+    """
+    Who can *change group memberships* for a school staff member?
+
+    - Superusers: always (can assign any group including Admins).
+    - Admins group: always (can assign any group including Admins).
+    - System Admins group: yes, but cannot assign the Admins group.
+    - School Admins group: yes (for staff they have school access to),
+      but cannot assign the Admins group.
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    if _in_group(user, GROUP_SYSTEM_ADMINS):
+        return True
+    if is_school_admin(user):
+        return user_has_school_access_to_staff(user, staff)
+    return False
+
+
+# ============================================================================
+# SystemUser Edit Permissions
+# ============================================================================
+
+
+def can_edit_system_user(user, system_user) -> bool:
+    """
+    Who can *edit* a system user's profile (organization, position, groups)?
+
+    - Superusers: always.
+    - Admins group: always.
+    - System Admins group: yes (but with group restrictions).
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    if _in_group(user, GROUP_SYSTEM_ADMINS):
+        return True
+    return False
+
+
+def can_edit_system_user_groups(user, system_user) -> bool:
+    """
+    Who can *change group memberships* for a system user?
+
+    - Superusers: always (can assign any group including Admins).
+    - Admins group: always (can assign any group including Admins).
+    - System Admins group: yes, but cannot assign the Admins group.
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    if _in_group(user, GROUP_SYSTEM_ADMINS):
+        return True
+    return False
+
+
+# ============================================================================
+# Pending Users Permissions
+# ============================================================================
+
+
+def can_manage_pending_users(user) -> bool:
+    """
+    Who can manage pending users (view list, assign roles, delete)?
+
+    - Superusers: always.
+    - Admins group: always.
+    - System Admins group: yes.
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    if _in_group(user, GROUP_SYSTEM_ADMINS):
+        return True
+    return False
+
+
+def can_assign_admins_group(user) -> bool:
+    """
+    Who can assign the 'Admins' group to users?
+
+    - Superusers: always.
+    - Admins group: yes.
+    - System Admins group: NO (they cannot elevate to Admins).
+    - Others: never.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    if is_admins_group(user):
+        return True
+    return False

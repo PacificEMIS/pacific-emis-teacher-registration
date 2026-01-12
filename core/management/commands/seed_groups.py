@@ -108,6 +108,7 @@ class Command(BaseCommand):
             ],
             # School Admins
             "School Admins": [
+                "auth.change_user",  # For group membership management
                 "core.add_schoolstaff",
                 "core.add_schoolstaffassignment",
                 "core.change_schoolstaff",
@@ -136,6 +137,7 @@ class Command(BaseCommand):
                 "account.view_emailaddress",
                 "account.view_emailconfirmation",
                 "admin.view_logentry",
+                "auth.change_user",  # For group membership management
                 "core.add_schoolstaff",
                 "core.add_schoolstaffassignment",
                 "core.add_systemuser",
