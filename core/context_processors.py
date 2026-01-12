@@ -9,7 +9,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 
 from core.models import SchoolStaff, SystemUser
-from core.permissions import can_access_system_users, is_admins_group
+from core.permissions import can_access_system_users, can_manage_pending_users
 
 
 def staff_context(request: HttpRequest) -> dict[str, Any]:
@@ -19,7 +19,7 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
 
     Also provides:
     - can_access_system_users: for MOE Staff nav visibility control
-    - is_admins_group_user: for Pending Users management visibility
+    - can_manage_pending_users: for Pending Users management visibility (Admins or System Admins)
     """
     user = request.user
     context: dict[str, Any] = {
@@ -27,7 +27,7 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
         "system_user_pk_for_request_user": None,
         "user_profile_url": None,
         "can_access_system_users": can_access_system_users(user),
-        "is_admins_group_user": is_admins_group(user),
+        "can_manage_pending_users": can_manage_pending_users(user),
     }
 
     if user.is_authenticated:

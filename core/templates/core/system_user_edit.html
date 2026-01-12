@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Edit profile — {{ system_user.user.get_full_name|default:system_user.user.username }}{% endblock title %}
+{% block content %}
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-0">Edit {{ terminology.system_users_singular|default:"system user" }} profile</h1>
+            <div class="small text-body-secondary">
+                For:
+                {% if system_user.user.first_name or system_user.user.last_name %}
+                    {{ system_user.user.first_name }} {{ system_user.user.last_name }}
+                {% else %}
+                    {{ system_user.user.username }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'core:system_user_detail' system_user.pk %}"
+               class="btn btn-sm btn-outline-secondary">← Back to profile</a>
+        </div>
+    </div>
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h2 class="h6 mb-0">Profile details</h2>
+        </div>
+        <div class="card-body">
+            <form method="post" class="row g-3">
+                {% csrf_token %}
+                <div class="col-12 col-md-6">
+                    <label for="{{ form.organization.id_for_label }}" class="form-label form-label-sm">Organization</label>
+                    {{ form.organization }}
+                    {% if form.organization.errors %}<div class="invalid-feedback d-block">{{ form.organization.errors|striptags }}</div>{% endif %}
+                    <div class="form-text">{{ form.organization.help_text }}</div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="{{ form.position_title.id_for_label }}" class="form-label form-label-sm">Position title</label>
+                    {{ form.position_title }}
+                    {% if form.position_title.errors %}<div class="invalid-feedback d-block">{{ form.position_title.errors|striptags }}</div>{% endif %}
+                    <div class="form-text">{{ form.position_title.help_text }}</div>
+                </div>
+
+                {% if can_edit_groups %}
+                <div class="col-12">
+                    <label class="form-label form-label-sm">Groups</label>
+                    <div class="border rounded p-2">
+                        {% for checkbox in form.groups %}
+                            <div class="form-check">
+                                {{ checkbox.tag }}
+                                <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                    {{ checkbox.choice_label }}
+                                </label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% if form.groups.errors %}<div class="invalid-feedback d-block">{{ form.groups.errors|striptags }}</div>{% endif %}
+                    <div class="form-text">{{ form.groups.help_text }}</div>
+                </div>
+                {% endif %}
+
+                <div class="col-12 d-flex justify-content-between mt-3">
+                    <a href="{% url 'core:system_user_detail' system_user.pk %}"
+                       class="btn btn-sm btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-sm btn-primary">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+{% endblock content %}

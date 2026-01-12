@@ -22,18 +22,32 @@ from django.utils.text import capfirst
 
 from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
-from core.forms import SchoolStaffAssignmentForm, AssignSchoolStaffForm, AssignSystemUserForm
+from core.forms import (
+    SchoolStaffAssignmentForm,
+    SchoolStaffEditForm,
+    AssignSchoolStaffForm,
+    AssignSystemUserForm,
+    SystemUserEditForm,
+)
 from core.permissions import (
     filter_staff_for_user,
     can_view_staff,
+    can_edit_staff,
+    can_edit_staff_groups,
     can_create_staff_membership,
     can_edit_staff_membership,
     can_delete_staff_membership,
     can_access_system_users,
+    can_edit_system_user,
+    can_edit_system_user_groups,
+    can_manage_pending_users,
     is_admins_group,
+    is_school_admin,
     GROUP_ADMINS,
     GROUP_SCHOOL_STAFF,
     GROUP_TEACHERS,
+    GROUP_SYSTEM_ADMINS,
+    _in_group,
 )
 from integrations.models import EmisSchool
 
@@ -348,6 +362,13 @@ def system_user_list(request):
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
 
+    # Check if user can edit any system user (for showing Edit buttons)
+    # This is a simple check - user must be superuser, Admins, or System Admins
+    user_can_edit = (
+        request.user.is_superuser
+        or request.user.groups.filter(name__in=["Admins", "System Admins"]).exists()
+    )
+
     return render(
         request,
         "core/system_user_list.html",
@@ -364,6 +385,8 @@ def system_user_list(request):
             # sorting
             "sort": sort,
             "dir": dir_,
+            # permissions
+            "user_can_edit": user_can_edit,
         },
     )
 
@@ -421,8 +444,84 @@ def system_user_detail(request, pk):
         "active": "system_users",
         "group_permissions": group_permissions,
         "direct_permission_sections": direct_permission_sections,
+        "can_edit": can_edit_system_user(request.user, system_user),
     }
     return render(request, "core/system_user_detail.html", context)
+
+
+@login_required
+@require_app_access
+def system_user_edit(request, pk):
+    """
+    Edit a system user's organization, position, and group memberships.
+
+    Permissions:
+    - Django Super Users: full access (all fields including groups)
+    - Admins group: full access (all fields including groups)
+    - System Admins group: can edit organization/position, and can edit groups
+      but cannot assign the Admins group.
+    - System Staff group: read-only, no edit access
+    """
+    # Check system-level access first
+    if not can_access_system_users(request.user):
+        raise PermissionDenied
+
+    system_user = get_object_or_404(
+        SystemUser.objects.select_related("user", "created_by", "last_updated_by"),
+        pk=pk,
+    )
+
+    # Check edit permission
+    if not can_edit_system_user(request.user, system_user):
+        messages.error(request, "You do not have permission to edit this system user.")
+        return redirect("core:system_user_detail", pk=pk)
+
+    # Determine if user can edit groups
+    can_edit_groups = can_edit_system_user_groups(request.user, system_user)
+
+    if request.method == "POST":
+        form = SystemUserEditForm(
+            request.POST,
+            user=request.user,
+            system_user=system_user,
+        )
+        if form.is_valid():
+            # Update SystemUser fields
+            system_user.organization = form.cleaned_data["organization"]
+            system_user.position_title = form.cleaned_data["position_title"]
+            system_user.last_updated_by = request.user
+            system_user.save()
+
+            # Update groups only if user has permission
+            if can_edit_groups:
+                new_groups = form.cleaned_data["groups"]
+                # Only update system-level groups, preserve any other groups
+                system_groups = ["Admins", "System Admins", "System Staff"]
+                # Remove old system-level groups
+                system_user.user.groups.remove(
+                    *system_user.user.groups.filter(name__in=system_groups)
+                )
+                # Add new groups
+                system_user.user.groups.add(*new_groups)
+
+            messages.success(
+                request,
+                f"System user {system_user.user.get_full_name() or system_user.user.username} updated successfully.",
+            )
+            return redirect("core:system_user_detail", pk=pk)
+    else:
+        form = SystemUserEditForm(
+            user=request.user,
+            system_user=system_user,
+        )
+
+    context = {
+        "system_user": system_user,
+        "form": form,
+        "can_edit_groups": can_edit_groups,
+        "active": "system_users",
+    }
+    return render(request, "core/system_user_edit.html", context)
 
 
 # Note: SPECIAL_PERMISSIONS dictionary removed - no longer needed
@@ -526,6 +625,15 @@ def staff_list(request):
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
 
+    # Check if user can edit staff (for showing Edit buttons)
+    # Superusers, Admins, System Admins, and School Admins can edit
+    user_can_edit = (
+        request.user.is_superuser
+        or is_admins_group(request.user)
+        or _in_group(request.user, GROUP_SYSTEM_ADMINS)
+        or is_school_admin(request.user)
+    )
+
     return render(
         request,
         "core/staff_list.html",
@@ -543,6 +651,8 @@ def staff_list(request):
             # sorting
             "sort": sort,
             "dir": dir_,
+            # permissions
+            "user_can_edit": user_can_edit,
         },
     )
 
@@ -639,8 +749,80 @@ def staff_detail(request, pk):
         "assignment_permissions": assignment_permissions,
         "group_permissions": group_permissions,
         "direct_permission_sections": direct_permission_sections,
+        "can_edit": can_edit_staff(request.user, staff),
     }
     return render(request, "core/staff_detail.html", context)
+
+
+@login_required
+@require_app_access
+def staff_edit(request, pk):
+    """
+    Edit a school staff member's staff_type and group memberships.
+
+    Permissions:
+    - Django Super Users: full access (all fields including groups)
+    - Admins group: full access (all fields including groups)
+    - System Admins group: can edit all fields including groups,
+      but cannot assign the Admins group.
+    - School Admins group: can edit staff_type and groups for staff at their schools,
+      but cannot assign the Admins group.
+    """
+    staff = get_object_or_404(
+        SchoolStaff.objects.select_related("user", "created_by", "last_updated_by"),
+        pk=pk,
+    )
+
+    # Check edit permission
+    if not can_edit_staff(request.user, staff):
+        messages.error(request, "You do not have permission to edit this staff member.")
+        return redirect("core:staff_detail", pk=pk)
+
+    # Determine if user can edit groups
+    can_edit_groups = can_edit_staff_groups(request.user, staff)
+
+    if request.method == "POST":
+        form = SchoolStaffEditForm(
+            request.POST,
+            user=request.user,
+            school_staff=staff,
+        )
+        if form.is_valid():
+            # Update SchoolStaff fields
+            staff.staff_type = form.cleaned_data["staff_type"]
+            staff.last_updated_by = request.user
+            staff.save()
+
+            # Update groups only if user has permission
+            if can_edit_groups:
+                new_groups = form.cleaned_data["groups"]
+                # Only update school-level groups, preserve any other groups
+                school_groups = ["Admins", "School Admins", "School Staff", "Teachers"]
+                # Remove old school-level groups
+                staff.user.groups.remove(
+                    *staff.user.groups.filter(name__in=school_groups)
+                )
+                # Add new groups
+                staff.user.groups.add(*new_groups)
+
+            messages.success(
+                request,
+                f"Staff member {staff.user.get_full_name() or staff.user.username} updated successfully.",
+            )
+            return redirect("core:staff_detail", pk=pk)
+    else:
+        form = SchoolStaffEditForm(
+            user=request.user,
+            school_staff=staff,
+        )
+
+    context = {
+        "staff": staff,
+        "form": form,
+        "can_edit_groups": can_edit_groups,
+        "active": "school_staff",
+    }
+    return render(request, "core/staff_edit.html", context)
 
 
 @login_required
@@ -741,9 +923,9 @@ def pending_users_list(request):
     List users who have signed in (via Google OAuth) but don't yet have
     a SchoolStaff or SystemUser profile assigned.
 
-    Only accessible to users in the Admins group.
+    Accessible to users in the Admins or System Admins groups.
     """
-    if not is_admins_group(request.user):
+    if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     q = (request.GET.get("q") or "").strip()
@@ -798,8 +980,9 @@ def assign_school_staff(request, user_id):
     Assign a pending user as School Staff.
 
     Creates a SchoolStaff profile and assigns them to selected groups.
+    Accessible to users in the Admins or System Admins groups.
     """
-    if not is_admins_group(request.user):
+    if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     target_user = get_object_or_404(User, pk=user_id)
@@ -810,7 +993,7 @@ def assign_school_staff(request, user_id):
         return redirect("core:pending_users_list")
 
     if request.method == "POST":
-        form = AssignSchoolStaffForm(request.POST)
+        form = AssignSchoolStaffForm(request.POST, user=request.user)
         if form.is_valid():
             # Create SchoolStaff profile
             staff = SchoolStaff.objects.create(
@@ -830,7 +1013,7 @@ def assign_school_staff(request, user_id):
             )
             return redirect("core:staff_detail", pk=staff.pk)
     else:
-        form = AssignSchoolStaffForm()
+        form = AssignSchoolStaffForm(user=request.user)
 
     return render(
         request,
@@ -850,8 +1033,9 @@ def assign_system_user(request, user_id):
     Assign a pending user as a System User.
 
     Creates a SystemUser profile and assigns them to selected groups.
+    Accessible to users in the Admins or System Admins groups.
     """
-    if not is_admins_group(request.user):
+    if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     target_user = get_object_or_404(User, pk=user_id)
@@ -862,7 +1046,7 @@ def assign_system_user(request, user_id):
         return redirect("core:pending_users_list")
 
     if request.method == "POST":
-        form = AssignSystemUserForm(request.POST)
+        form = AssignSystemUserForm(request.POST, user=request.user)
         if form.is_valid():
             # Create SystemUser profile
             system_user = SystemUser.objects.create(
@@ -883,7 +1067,7 @@ def assign_system_user(request, user_id):
             )
             return redirect("core:system_user_detail", pk=system_user.pk)
     else:
-        form = AssignSystemUserForm()
+        form = AssignSystemUserForm(user=request.user)
 
     return render(
         request,
@@ -902,9 +1086,10 @@ def delete_pending_user(request, user_id):
     """
     Delete a pending user who has not been assigned a role.
 
-    Only Admins group can delete users, and only users without SchoolStaff or SystemUser profiles.
+    Accessible to users in the Admins or System Admins groups.
+    Only users without SchoolStaff or SystemUser profiles can be deleted.
     """
-    if not is_admins_group(request.user):
+    if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     target_user = get_object_or_404(User, pk=user_id)
