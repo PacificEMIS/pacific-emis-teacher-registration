@@ -4,18 +4,42 @@
   <div class="container d-flex justify-content-center">
     <div class="w-100">
       <div class="py-4 px-3 text-center">
-        <h1>Sign in</h1>
-        <p>Use your organization Google account to access the {{ emis_context }} — Disability Inclusive Education.</p>
+        {% if is_registration_flow %}
+          {# Registration flow - teacher self-registration #}
+          <i class="bi bi-mortarboard display-1 text-primary"></i>
+          <h1 class="mt-3">Teacher Registration</h1>
+          <p class="lead text-muted">Sign in to start or continue your teacher registration</p>
 
-        <p class="mt-4">
-          <a href="{% provider_login_url 'google' %}" class="btn btn-primary px-4 py-2">
-            Continue with Google
-          </a>
-        </p>
+          <p class="mt-4">
+            <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary btn-lg px-4 py-2">
+              <i class="bi bi-google me-2"></i> Sign in with Google
+            </a>
+          </p>
 
-        <p class="mt-3 text-muted small">
-          Don’t have access yet? Sign in first, then an administrator can grant permissions.
-        </p>
+          <p class="mt-3 text-muted small">
+            Use your provided Ministry of Education email or personal Google account to verify your identity and secure your registration data.
+          </p>
+
+          <div class="mt-4">
+            <a href="{% url 'teacher_registration:public_landing' %}" class="text-muted small">
+              <i class="bi bi-arrow-left me-1"></i> Back to registration info
+            </a>
+          </div>
+        {% else %}
+          {# Standard admin/staff login #}
+          <h1>Sign in</h1>
+          <p>Use your organization Google account to access the {{ emis_context }} — {{ app_name }}.</p>
+
+          <p class="mt-4">
+            <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary px-4 py-2">
+              Continue with Google
+            </a>
+          </p>
+
+          <p class="mt-3 text-muted small">
+            Don't have access yet? Sign in first, then an administrator can grant permissions.
+          </p>
+        {% endif %}
       </div>
     </div>
   </div>

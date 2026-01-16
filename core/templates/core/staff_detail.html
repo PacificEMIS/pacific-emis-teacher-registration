@@ -23,6 +23,10 @@
         <a href="{% url 'core:staff_edit' staff.pk %}"
            class="btn btn-sm btn-primary">Edit</a>
       {% endif %}
+      {% if can_delete %}
+        <a href="{% url 'core:staff_delete' staff.pk %}"
+           class="btn btn-sm btn-outline-danger">Delete</a>
+      {% endif %}
     </div>
   </div>
   {# FIRST ROW: Profile + Permissions #}

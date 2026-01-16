@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Delete Staff{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{% url 'core:staff_list' %}">School Staff</a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'core:staff_detail' staff.pk %}">{{ staff.user.get_full_name|default:staff.user.username }}</a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">Delete</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Confirm Staff Deletion
+          </h1>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-circle me-1"></i>
+            <strong>Warning:</strong> This will delete the staff profile and all associated school assignments.
+            The user account will remain and become a pending user.
+          </div>
+
+          <p class="mb-3">Are you sure you want to delete this staff profile?</p>
+
+          <!-- Staff Info -->
+          <div class="border rounded p-3 bg-light mb-4">
+            <dl class="row mb-0 small">
+              <dt class="col-sm-4">Name</dt>
+              <dd class="col-sm-8">
+                {% if staff.user.first_name or staff.user.last_name %}
+                  {{ staff.user.first_name }} {{ staff.user.last_name }}
+                {% else %}
+                  <span class="text-body-secondary">Not set</span>
+                {% endif %}
+              </dd>
+              <dt class="col-sm-4">Email</dt>
+              <dd class="col-sm-8">{{ staff.user.email|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Username</dt>
+              <dd class="col-sm-8">{{ staff.user.username }}</dd>
+              <dt class="col-sm-4">Staff Type</dt>
+              <dd class="col-sm-8">{{ staff.get_staff_type_display }}</dd>
+              <dt class="col-sm-4">Assignments</dt>
+              <dd class="col-sm-8 mb-0">{{ staff.assignments.count }} school assignment(s)</dd>
+            </dl>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'core:staff_detail' staff.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Cancel
+              </a>
+              <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash me-1"></i> Delete Staff Profile
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

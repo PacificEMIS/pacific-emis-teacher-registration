@@ -1,0 +1,23 @@
+{{ emis_context }} {{ app_name }}: Your registration requires attention
+================================================================================
+
+Hello {{ user.first_name|default:user.username }},
+
+Your teacher registration in the {{ emis_context }} {{ app_name }} app
+has been reviewed and requires attention.
+
+Registration Status
+-------------------
+Status: Rejected
+{% if rejection_reason %}Reason: {{ rejection_reason }}{% endif %}
+
+Please review the feedback above and contact your education authority or
+EMIS administrator if you have questions or need to resubmit your registration.
+
+{% if my_registration_url %}
+View My Registration: {{ my_registration_url }}
+{% endif %}
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.

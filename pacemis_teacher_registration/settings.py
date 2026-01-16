@@ -177,6 +177,9 @@ ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
 ACCOUNT_LOGIN_METHODS = {"username", "email"}
 SOCIALACCOUNT_LOGIN_ON_GET = True
 
+# Custom adapters - use email as username for social logins
+SOCIALACCOUNT_ADAPTER = "accounts.account_adapter.EmailAsUsernameSocialAdapter"
+
 # Before, without allauth
 # LOGIN_URL = "accounts:login"
 # LOGIN_REDIRECT_URL = "teacher_registration:dashboard"

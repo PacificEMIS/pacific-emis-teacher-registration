@@ -1,0 +1,26 @@
+{{ emis_context }} {{ app_name }}: Teacher registration submitted for review
+================================================================================
+
+Hello,
+
+A teacher has submitted their registration for review in the
+{{ emis_context }} {{ app_name }} app.
+
+Registration Details
+--------------------
+Name: {% if registration.user.first_name or registration.user.last_name %}{{ registration.user.first_name }} {{ registration.user.last_name }}{% else %}Not provided{% endif %}
+Email: {{ registration.user.email|default:"Not provided" }}
+Preferred School: {{ registration.preferred_school.emis_school_name|default:"Not specified" }}
+Status: Submitted
+Submitted: {{ registration.submitted_at|date:"Y-m-d H:i" }}
+
+This registration is now ready for review. Please review the submitted
+information and documents, then approve or reject the registration.
+
+{% if review_url %}
+Review Registration: {{ review_url }}
+{% endif %}
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.

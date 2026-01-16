@@ -97,3 +97,259 @@ def send_new_pending_user_email_async(new_user, pending_users_url=None):
             )
 
     Thread(target=_worker, daemon=True).start()
+
+
+def send_new_teacher_registration_email(*, registration, pending_registrations_url=None):
+    """
+    Send HTML + text email when a teacher starts a self-registration.
+
+    Recipients: all users in the "Admins" and "System Admins" groups.
+    """
+    # Get emails of users who can manage pending users
+    recipients = _get_pending_user_manager_emails()
+
+    if not recipients:
+        logger.info("send_new_teacher_registration_email: no recipients, skipping.")
+        return
+
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+
+    context = {
+        "registration": registration,
+        "pending_registrations_url": pending_registrations_url,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+
+    subject = f"{emis_context} {app_name}: New teacher registration started"
+
+    text_body = render_to_string("emails/new_teacher_registration.txt", context)
+    html_body = render_to_string("emails/new_teacher_registration.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=recipients,
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_new_teacher_registration_email_async(registration, pending_registrations_url=None):
+    """
+    Fire-and-forget wrapper: send the email on a background thread so the
+    HTTP request isn't blocked by SMTP latency.
+    """
+
+    def _worker():
+        try:
+            send_new_teacher_registration_email(
+                registration=registration,
+                pending_registrations_url=pending_registrations_url,
+            )
+        except Exception:
+            logger.warning(
+                "send_new_teacher_registration_email_async: error sending email "
+                "for registration %s",
+                registration.pk,
+                exc_info=True,
+            )
+
+    Thread(target=_worker, daemon=True).start()
+
+
+def send_teacher_registration_submitted_email(*, registration, review_url=None):
+    """
+    Send HTML + text email when a teacher submits their registration for review.
+
+    Recipients: all users in the "Admins" and "System Admins" groups.
+    """
+    # Get emails of users who can manage pending users
+    recipients = _get_pending_user_manager_emails()
+
+    if not recipients:
+        logger.info("send_teacher_registration_submitted_email: no recipients, skipping.")
+        return
+
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+
+    context = {
+        "registration": registration,
+        "review_url": review_url,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+
+    subject = f"{emis_context} {app_name}: Teacher registration submitted for review"
+
+    text_body = render_to_string("emails/teacher_registration_submitted.txt", context)
+    html_body = render_to_string("emails/teacher_registration_submitted.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=recipients,
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_teacher_registration_submitted_email_async(registration, review_url=None):
+    """
+    Fire-and-forget wrapper: send the email on a background thread so the
+    HTTP request isn't blocked by SMTP latency.
+    """
+
+    def _worker():
+        try:
+            send_teacher_registration_submitted_email(
+                registration=registration,
+                review_url=review_url,
+            )
+        except Exception:
+            logger.warning(
+                "send_teacher_registration_submitted_email_async: error sending email "
+                "for registration %s",
+                registration.pk,
+                exc_info=True,
+            )
+
+    Thread(target=_worker, daemon=True).start()
+
+
+def send_teacher_registration_approved_email(*, registration, dashboard_url=None):
+    """
+    Send HTML + text email to the teacher when their registration is approved.
+
+    Recipients: the teacher who submitted the registration.
+    """
+    user = registration.user
+
+    # Skip if no email
+    if not user.email or "@placeholder" in user.email:
+        logger.info(
+            "send_teacher_registration_approved_email: no valid email for user %s, skipping.",
+            user.pk,
+        )
+        return
+
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+
+    context = {
+        "registration": registration,
+        "user": user,
+        "dashboard_url": dashboard_url,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+
+    subject = f"{emis_context} {app_name}: Your registration has been approved"
+
+    text_body = render_to_string("emails/teacher_registration_approved.txt", context)
+    html_body = render_to_string("emails/teacher_registration_approved.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_teacher_registration_approved_email_async(registration, dashboard_url=None):
+    """
+    Fire-and-forget wrapper: send the approval email on a background thread.
+    """
+
+    def _worker():
+        try:
+            send_teacher_registration_approved_email(
+                registration=registration,
+                dashboard_url=dashboard_url,
+            )
+        except Exception:
+            logger.warning(
+                "send_teacher_registration_approved_email_async: error sending email "
+                "for registration %s",
+                registration.pk,
+                exc_info=True,
+            )
+
+    Thread(target=_worker, daemon=True).start()
+
+
+def send_teacher_registration_rejected_email(
+    *, registration, rejection_reason=None, my_registration_url=None
+):
+    """
+    Send HTML + text email to the teacher when their registration is rejected.
+
+    Recipients: the teacher who submitted the registration.
+    """
+    user = registration.user
+
+    # Skip if no email
+    if not user.email or "@placeholder" in user.email:
+        logger.info(
+            "send_teacher_registration_rejected_email: no valid email for user %s, skipping.",
+            user.pk,
+        )
+        return
+
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+
+    context = {
+        "registration": registration,
+        "user": user,
+        "rejection_reason": rejection_reason,
+        "my_registration_url": my_registration_url,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+
+    subject = f"{emis_context} {app_name}: Your registration requires attention"
+
+    text_body = render_to_string("emails/teacher_registration_rejected.txt", context)
+    html_body = render_to_string("emails/teacher_registration_rejected.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_teacher_registration_rejected_email_async(
+    registration, rejection_reason=None, my_registration_url=None
+):
+    """
+    Fire-and-forget wrapper: send the rejection email on a background thread.
+    """
+
+    def _worker():
+        try:
+            send_teacher_registration_rejected_email(
+                registration=registration,
+                rejection_reason=rejection_reason,
+                my_registration_url=my_registration_url,
+            )
+        except Exception:
+            logger.warning(
+                "send_teacher_registration_rejected_email_async: error sending email "
+                "for registration %s",
+                registration.pk,
+                exc_info=True,
+            )
+
+    Thread(target=_worker, daemon=True).start()

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}My Registration{% endblock title %}
+{% block content %}
+  <div class="card shadow-sm">
+    <div class="card-header">
+      <h1 class="h4 mb-0">My Registration</h1>
+    </div>
+    <div class="card-body">
+      {% if registrations %}
+        {# Status message at the top #}
+        {% with latest=registrations.first %}
+          {% if latest.status == 'submitted' or latest.status == 'under_review' %}
+            <div class="alert alert-info">
+              <i class="bi bi-hourglass-split me-1"></i>
+              Your registration is pending review. You will be notified when it is processed.
+            </div>
+          {% elif latest.status == 'rejected' %}
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Your registration was rejected.
+              {% if latest.reviewer_comments %}
+                <hr>
+                <strong>Reason:</strong> {{ latest.reviewer_comments }}
+              {% endif %}
+            </div>
+          {% elif latest.status == 'approved' or is_approved %}
+            <div class="alert alert-success">
+              <i class="bi bi-check-circle me-1"></i>
+              <strong>Congratulations!</strong> You are a registered teacher.
+              Your registration has been approved and your profile is now active.
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {# Registration History with Change Logs #}
+        <h5 class="mb-3">Registration History</h5>
+        {% for reg in registrations %}
+          <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div>
+                <strong>{{ reg.get_registration_type_display|default:"Initial Registration" }}</strong>
+                <span class="text-body-secondary small ms-2">
+                  Created {{ reg.created_at|date:"Y-m-d H:i" }}
+                </span>
+              </div>
+              <div>
+                {% if reg.status == 'draft' %}
+                  <span class="badge bg-secondary">Draft</span>
+                {% elif reg.status == 'submitted' %}
+                  <span class="badge bg-warning text-dark">Submitted</span>
+                {% elif reg.status == 'under_review' %}
+                  <span class="badge bg-info">Under Review</span>
+                {% elif reg.status == 'approved' %}
+                  <span class="badge bg-success">Approved</span>
+                {% elif reg.status == 'rejected' %}
+                  <span class="badge bg-danger">Rejected</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="card-body p-0">
+              {# Workflow timeline from change logs #}
+              {% if reg.change_logs.all %}
+                <div class="small">
+                  <table class="table table-sm table-borderless mb-0">
+                    <tbody>
+                      {% for log in reg.change_logs.all reversed %}
+                        <tr>
+                          <td class="ps-3" style="width: 140px;">
+                            <span class="text-body-secondary">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
+                          </td>
+                          <td>
+                            {% if log.old_value %}
+                              <span class="badge bg-secondary">{{ log.old_value }}</span>
+                              &rarr;
+                            {% endif %}
+                            <span class="badge bg-primary">{{ log.new_value }}</span>
+                            {% if log.notes %}
+                              <span class="text-body-secondary ms-1">— {{ log.notes }}</span>
+                            {% endif %}
+                          </td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                {# Fallback if no change logs (old registrations) #}
+                <div class="p-3 small text-body-secondary">
+                  {% if reg.submitted_at %}
+                    Submitted: {{ reg.submitted_at|date:"Y-m-d H:i" }}
+                  {% endif %}
+                  {% if reg.reviewed_at %}
+                    · Reviewed: {{ reg.reviewed_at|date:"Y-m-d H:i" }}
+                  {% endif %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+
+      {% else %}
+        <div class="text-center py-5">
+          <i class="bi bi-person-badge display-1 text-muted mb-3"></i>
+          <h4>Welcome to Teacher Registration</h4>
+          <p class="text-muted mb-4">
+            You have not started a registration yet. Click below to begin.
+          </p>
+          <a href="{% url 'teacher_registration:create' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-pencil-square me-1"></i> Start Registration
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock content %}

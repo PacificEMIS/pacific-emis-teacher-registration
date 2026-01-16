@@ -76,9 +76,9 @@
         </div>
       {% endif %}
     </header>
-    <div class="{% if request.user.is_authenticated %}container-fluid{% else %}container py-5{% endif %}">
+    <div class="{% if request.user.is_authenticated and not hide_sidebar %}container-fluid{% else %}container py-5{% endif %}">
       <div class="row">
-        {% if request.user.is_authenticated %}
+        {% if request.user.is_authenticated and not hide_sidebar %}
           <!-- Sidebar -->
           <div class="offcanvas-md offcanvas-start col-md-3 col-lg-2 p-0 bg-dark text-light"
                tabindex="-1"
@@ -94,36 +94,68 @@
             <div class="offcanvas-body d-flex flex-column p-0 sidebar">
               <nav class="h-100 d-flex flex-column">
                 <ul class="nav nav-pills flex-column mb-auto pt-3">
-                  <li class="nav-item">
-                    <a class="nav-link d-flex align-items-center text-light {% if active == 'dashboard' %}active bg-secondary{% endif %}"
-                       href="{% url 'dashboard' %}">
-                      <i class="bi bi-speedometer2 me-2"></i> Dashboard
-                    </a>
-                  </li>
-                  <li>
-                    <a class="nav-link d-flex align-items-center text-light {% if active == 'school_staff' %}active bg-secondary{% endif %}"
-                       href="{% url 'core:staff_list' %}">
-                      <i class="bi bi-people me-2"></i> School Staff
-                    </a>
-                  </li>
-                  {% if can_access_system_users %}
-                    <li>
-                      <a class="nav-link d-flex align-items-center text-light {% if active == 'system_users' %}active bg-secondary{% endif %}"
-                         href="{% url 'core:system_user_list' %}">
-                        <i class="bi bi-building me-2"></i> {{ terminology.system_users_plural }}
+                  {% if user_registration_url and not has_app_access %}
+                    {# Show ONLY My Registration for users without app access (registering/approved teachers) #}
+                    <li class="nav-item">
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'my_registration' %}active bg-secondary{% endif %}"
+                         href="{{ user_registration_url }}">
+                        <i class="bi bi-file-earmark-person me-2"></i> My Registration
                       </a>
                     </li>
-                  {% endif %}
-                  {% if can_manage_pending_users %}
-                    <li class="nav-item mt-3">
-                      <span class="nav-link text-secondary small text-uppercase">Admin</span>
-                    </li>
-                    <li>
-                      <a class="nav-link d-flex align-items-center text-light {% if active == 'pending_users' %}active bg-secondary{% endif %}"
-                         href="{% url 'core:pending_users_list' %}">
-                        <i class="bi bi-person-plus me-2"></i> Pending Users
+                  {% elif has_app_access %}
+                    {# Full navigation for users with app access #}
+                    <li class="nav-item">
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'dashboard' %}active bg-secondary{% endif %}"
+                         href="{% url 'dashboard' %}">
+                        <i class="bi bi-speedometer2 me-2"></i> Dashboard
                       </a>
                     </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'teachers' %}active bg-secondary{% endif %}"
+                         href="{% url 'teacher_registration:teachers_list' %}">
+                        <i class="bi bi-mortarboard me-2"></i> Teachers
+                      </a>
+                    </li>
+                    {% comment %}
+                    School Staff hidden - using Teachers view instead for this app (teacher registration focus)
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'school_staff' %}active bg-secondary{% endif %}"
+                         href="{% url 'core:staff_list' %}">
+                        <i class="bi bi-people me-2"></i> School Staff
+                      </a>
+                    </li>
+                    {% endcomment %}
+                    {% if can_access_system_users %}
+                      <li>
+                        <a class="nav-link d-flex align-items-center text-light {% if active == 'system_users' %}active bg-secondary{% endif %}"
+                           href="{% url 'core:system_user_list' %}">
+                          <i class="bi bi-building me-2"></i> {{ terminology.system_users_plural }}
+                        </a>
+                      </li>
+                    {% endif %}
+                    {% if can_manage_pending_users %}
+                      <li class="nav-item mt-3">
+                        <span class="nav-link text-secondary small text-uppercase">Admin</span>
+                      </li>
+                      <li>
+                        <a class="nav-link d-flex align-items-center text-light {% if active == 'register_teacher' %}active bg-secondary{% endif %}"
+                           href="{% url 'teacher_registration:public_landing' %}">
+                          <i class="bi bi-pencil-square me-2"></i> Register a Teacher
+                        </a>
+                      </li>
+                      <li>
+                        <a class="nav-link d-flex align-items-center text-light {% if active == 'pending_registrations' %}active bg-secondary{% endif %}"
+                           href="{% url 'teacher_registration:pending_list' %}">
+                          <i class="bi bi-person-badge me-2"></i> Pending Registrations
+                        </a>
+                      </li>
+                      <li>
+                        <a class="nav-link d-flex align-items-center text-light {% if active == 'pending_users' %}active bg-secondary{% endif %}"
+                           href="{% url 'core:pending_users_list' %}">
+                          <i class="bi bi-person-plus me-2"></i> Pending Users
+                        </a>
+                      </li>
+                    {% endif %}
                   {% endif %}
                 </ul>
               </nav>
@@ -131,10 +163,10 @@
           </div>
         {% endif %}
         <!-- Main -->
-        <main class="{% if request.user.is_authenticated %}col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4{% else %}py-4{% endif %}">
+        <main class="{% if request.user.is_authenticated and not hide_sidebar %}col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4{% else %}py-4{% endif %}">
           {% block content %}
           {% endblock content %}
-          {% if request.user.is_authenticated %}
+          {% if request.user.is_authenticated and not hide_sidebar %}
             <footer class="pt-5 small text-body-secondary">
               <hr>
               <div>

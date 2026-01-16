@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Review Registration{% endblock title %}
+{% block content %}
+  <div class="row">
+    <!-- Registration details -->
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h1 class="h4 mb-0">Review Registration</h1>
+          <span class="badge bg-info">Under Review</span>
+        </div>
+        <div class="card-body">
+          <!-- Applicant Info -->
+          <h5 class="border-bottom pb-2 mb-3">Applicant Information</h5>
+          <dl class="row">
+            <dt class="col-sm-4">Name</dt>
+            <dd class="col-sm-8">{{ registration.user.get_full_name|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Email</dt>
+            <dd class="col-sm-8">{{ registration.user.email }}</dd>
+
+            <dt class="col-sm-4">Date of Birth</dt>
+            <dd class="col-sm-8">{{ registration.date_of_birth|date:"Y-m-d"|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Gender</dt>
+            <dd class="col-sm-8">{{ registration.get_gender_display|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Nationality</dt>
+            <dd class="col-sm-8">{{ registration.nationality|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">National ID</dt>
+            <dd class="col-sm-8">{{ registration.national_id_number|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Phone</dt>
+            <dd class="col-sm-8">{{ registration.phone_number|default:"Not provided" }}</dd>
+          </dl>
+
+          <!-- Address -->
+          <h5 class="border-bottom pb-2 mb-3">Address</h5>
+          <dl class="row">
+            <dt class="col-sm-4">Address</dt>
+            <dd class="col-sm-8">
+              {% if registration.address_line_1 %}
+                {{ registration.address_line_1 }}<br>
+                {% if registration.address_line_2 %}{{ registration.address_line_2 }}<br>{% endif %}
+                {{ registration.city }}{% if registration.city and registration.province %}, {% endif %}{{ registration.province }}
+              {% else %}
+                Not provided
+              {% endif %}
+            </dd>
+          </dl>
+
+          <!-- Professional Info -->
+          <h5 class="border-bottom pb-2 mb-3">Professional Information</h5>
+          <dl class="row">
+            <dt class="col-sm-4">Teaching Certificate</dt>
+            <dd class="col-sm-8">{{ registration.teaching_certificate_number|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Qualification</dt>
+            <dd class="col-sm-8">{{ registration.get_highest_qualification_display|default:"Not provided" }}</dd>
+
+            <dt class="col-sm-4">Experience</dt>
+            <dd class="col-sm-8">
+              {% if registration.years_of_experience is not None %}
+                {{ registration.years_of_experience }} year{{ registration.years_of_experience|pluralize }}
+              {% else %}
+                Not provided
+              {% endif %}
+            </dd>
+          </dl>
+
+          <!-- School Preference -->
+          <h5 class="border-bottom pb-2 mb-3">School Preference</h5>
+          <dl class="row">
+            <dt class="col-sm-4">Preferred School</dt>
+            <dd class="col-sm-8">{{ registration.preferred_school|default:"Not specified" }}</dd>
+
+            <dt class="col-sm-4">Preferred Position</dt>
+            <dd class="col-sm-8">{{ registration.preferred_job_title|default:"Not specified" }}</dd>
+          </dl>
+
+          <!-- Submission Info -->
+          <h5 class="border-bottom pb-2 mb-3">Submission Details</h5>
+          <dl class="row">
+            <dt class="col-sm-4">Submitted</dt>
+            <dd class="col-sm-8">{{ registration.submitted_at|date:"Y-m-d H:i" }}</dd>
+
+            <dt class="col-sm-4">Registration Type</dt>
+            <dd class="col-sm-8">{{ registration.get_registration_type_display }}</dd>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Documents -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">Documents ({{ registration.documents.count }})</h5>
+        </div>
+        <div class="card-body">
+          {% if registration.documents.exists %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Filename</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for doc in registration.documents.all %}
+                    <tr>
+                      <td>{{ doc.get_document_type_display }}</td>
+                      <td>{{ doc.original_filename }}</td>
+                      <td>{{ doc.file_size|filesizeformat }}</td>
+                      <td>
+                        <a href="{{ doc.file.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                          <i class="bi bi-download"></i> View
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No documents uploaded.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Review form -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm sticky-top" style="top: 80px;">
+        <div class="card-header">
+          <h5 class="mb-0">Review Decision</h5>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label class="form-label">Decision</label>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" id="action_approve" value="approve" checked>
+                <label class="form-check-label text-success" for="action_approve">
+                  <i class="bi bi-check-circle me-1"></i> Approve
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="action" id="action_reject" value="reject">
+                <label class="form-check-label text-danger" for="action_reject">
+                  <i class="bi bi-x-circle me-1"></i> Reject
+                </label>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="id_comments" class="form-label">Comments</label>
+              {{ form.comments }}
+              <div class="form-text">Required for rejection, optional for approval.</div>
+              {% if form.comments.errors %}
+                <div class="invalid-feedback d-block">{{ form.comments.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {{ form.non_field_errors.0 }}
+              </div>
+            {% endif %}
+
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary">
+                Submit Decision
+              </button>
+              <a href="{% url 'teacher_registration:pending_list' %}" class="btn btn-outline-secondary">
+                Back to List
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

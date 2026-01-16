@@ -1,0 +1,29 @@
+{{ emis_context }} {{ app_name }}: New teacher registration started
+================================================================================
+
+Hello,
+
+A new teacher has started the self-registration process in the
+{{ emis_context }} {{ app_name }} app.
+
+Registration Details
+--------------------
+Name: {% if registration.user.first_name or registration.user.last_name %}{{ registration.user.first_name }} {{ registration.user.last_name }}{% else %}Not provided yet{% endif %}
+Email: {{ registration.user.email|default:"Not provided" }}
+Status: Draft
+Started: {{ registration.created_at|date:"Y-m-d H:i" }}
+
+This registration is currently in draft status. The teacher is filling out
+their information. You will receive another notification when they submit
+for review.
+
+You can view and assist with pending registrations from the Pending
+Registrations page.
+
+{% if pending_registrations_url %}
+View Pending Registrations: {{ pending_registrations_url }}
+{% endif %}
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.
