@@ -1,0 +1,23 @@
+{{ emis_context }} {{ app_name }}: Your registration has been approved
+================================================================================
+
+Hello {{ user.first_name|default:user.username }},
+
+Congratulations! Your teacher registration in the {{ emis_context }} {{ app_name }} app
+has been approved.
+
+Registration Status
+-------------------
+Status: Approved
+Name: {{ user.first_name }} {{ user.last_name }}
+
+You are now a registered teacher. You can access the system to view your profile
+and manage your information.
+
+{% if dashboard_url %}
+View My Registration: {{ dashboard_url }}
+{% endif %}
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.

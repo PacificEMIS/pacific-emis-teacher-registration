@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block title %}Teacher — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">
+        {% if teacher.user.first_name or teacher.user.last_name %}
+          {{ teacher.user.first_name }} {{ teacher.user.last_name }}
+        {% else %}
+          {{ teacher.user.username }}
+        {% endif %}
+      </h1>
+      <div class="small text-body-secondary">
+        {% if teacher.user.email %}{{ teacher.user.email }}{% endif %}
+        {% if teacher.registration_status %}
+          ·
+          {% if teacher.registration_status == 'valid' %}
+            <span class="badge bg-success">Registration Valid</span>
+          {% elif teacher.registration_status == 'expired' %}
+            <span class="badge bg-danger">Registration Expired</span>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'teacher_registration:teachers_list' %}"
+         class="btn btn-sm btn-outline-secondary">&larr; Back to teachers</a>
+      {% if can_delete %}
+        <a href="{% url 'teacher_registration:teacher_delete' teacher.pk %}"
+           class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-trash me-1"></i> Delete
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# FIRST ROW: Profile + Registration Info #}
+  <div class="row g-3">
+    <!-- Profile summary -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Profile</h2>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-2">
+            <dt class="col-5">Name</dt>
+            <dd class="col-7">
+              {% if teacher.user.first_name or teacher.user.last_name %}
+                {{ teacher.user.first_name }} {{ teacher.user.last_name }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Email</dt>
+            <dd class="col-7">
+              {% if teacher.user.email %}
+                {{ teacher.user.email }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Phone</dt>
+            <dd class="col-7">
+              {% if teacher.phone_number %}
+                {{ teacher.phone_number }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Date of Birth</dt>
+            <dd class="col-7">
+              {% if teacher.date_of_birth %}
+                {{ teacher.date_of_birth|date:"Y-m-d" }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Gender</dt>
+            <dd class="col-7">
+              {% if teacher.gender %}
+                {{ teacher.gender|capfirst }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Nationality</dt>
+            <dd class="col-7">
+              {% if teacher.nationality %}
+                {{ teacher.nationality }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">National ID</dt>
+            <dd class="col-7">
+              {% if teacher.national_id_number %}
+                {{ teacher.national_id_number }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+          </dl>
+          <hr>
+          <dl class="row mb-0">
+            <dt class="col-5">Address</dt>
+            <dd class="col-7">
+              {% if teacher.address_line_1 or teacher.city or teacher.province %}
+                {% if teacher.address_line_1 %}{{ teacher.address_line_1 }}<br>{% endif %}
+                {% if teacher.address_line_2 %}{{ teacher.address_line_2 }}<br>{% endif %}
+                {% if teacher.city %}{{ teacher.city }}{% endif %}
+                {% if teacher.province %}, {{ teacher.province }}{% endif %}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <!-- Professional information -->
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Professional Information</h2>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-2">
+            <dt class="col-5">Teaching Certificate</dt>
+            <dd class="col-7">
+              {% if teacher.teaching_certificate_number %}
+                {{ teacher.teaching_certificate_number }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Highest Qualification</dt>
+            <dd class="col-7">
+              {% if teacher.highest_qualification %}
+                {{ teacher.get_highest_qualification_display|default:teacher.highest_qualification }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Years of Experience</dt>
+            <dd class="col-7">
+              {% if teacher.years_of_experience is not None %}
+                {{ teacher.years_of_experience }} years
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+          </dl>
+          <hr>
+          <dl class="row mb-0">
+            <dt class="col-5">Registration Status</dt>
+            <dd class="col-7">
+              {% if teacher.registration_status == 'valid' %}
+                <span class="badge bg-success">Valid</span>
+              {% elif teacher.registration_status == 'expired' %}
+                <span class="badge bg-danger">Expired</span>
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Valid Until</dt>
+            <dd class="col-7">
+              {% if teacher.registration_valid_until %}
+                {{ teacher.registration_valid_until|date:"Y-m-d" }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Account Status</dt>
+            <dd class="col-7">
+              {% if teacher.user.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# SECOND ROW: School Assignments #}
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h2 class="h6 mb-0">School Assignments</h2>
+          <span class="badge bg-light text-body-secondary">{{ active_assignments|length }} active</span>
+        </div>
+        <div class="card-body p-0">
+          {% if active_assignments %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">School</th>
+                    <th scope="col">Position</th>
+                    <th scope="col">Period</th>
+                    <th scope="col" class="text-end">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for assignment in active_assignments %}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{{ assignment.school.emis_school_name }}</div>
+                        <div class="small text-body-secondary">{{ assignment.school.emis_school_no }}</div>
+                      </td>
+                      <td>
+                        {% if assignment.job_title %}
+                          {{ assignment.job_title.label }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if assignment.start_date %}
+                          From {{ assignment.start_date|date:"Y-m-d" }}
+                        {% else %}
+                          From <span class="text-body-secondary">—</span>
+                        {% endif %}
+                        <br>
+                        {% if assignment.end_date %}
+                          To {{ assignment.end_date|date:"Y-m-d" }}
+                        {% else %}
+                          To <span class="text-body-secondary">ongoing</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {% if assignment.is_active %}
+                          <span class="badge bg-success">Active</span>
+                        {% else %}
+                          <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No school assignments recorded for this teacher.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# THIRD ROW: Registration History (if applicable) #}
+  {% if registration_history %}
+    <div class="row g-3 mt-2">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h2 class="h6 mb-0">Registration History</h2>
+          </div>
+          <div class="card-body p-0">
+            {% for reg in registration_history %}
+              {# Registration summary #}
+              <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <strong>{{ reg.get_registration_type_display|default:"Initial Registration" }}</strong>
+                    <span class="text-body-secondary small ms-2">
+                      Created {{ reg.created_at|date:"Y-m-d H:i" }}
+                    </span>
+                  </div>
+                  <div>
+                    {% if reg.status == 'approved' %}
+                      <span class="badge bg-success">Approved</span>
+                    {% elif reg.status == 'rejected' %}
+                      <span class="badge bg-danger">Rejected</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ reg.get_status_display }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+                {# Workflow timeline from change logs #}
+                {% if reg.change_logs.all %}
+                  <div class="small">
+                    <table class="table table-sm table-borderless mb-0">
+                      <tbody>
+                        {% for log in reg.change_logs.all reversed %}
+                          <tr>
+                            <td class="ps-0" style="width: 140px;">
+                              <span class="text-body-secondary">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
+                            </td>
+                            <td>
+                              {% if log.old_value %}
+                                <span class="badge bg-secondary">{{ log.old_value }}</span>
+                                &rarr;
+                              {% endif %}
+                              <span class="badge bg-primary">{{ log.new_value }}</span>
+                              {% if log.notes %}
+                                <span class="text-body-secondary ms-1">— {{ log.notes }}</span>
+                              {% endif %}
+                            </td>
+                            <td class="text-end pe-0">
+                              {% if log.changed_by %}
+                                <span class="text-body-secondary">
+                                  {{ log.changed_by.get_full_name|default:log.changed_by.username }}
+                                </span>
+                              {% endif %}
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </div>
+                {% else %}
+                  {# Fallback if no change logs (old registrations) #}
+                  <div class="small text-body-secondary">
+                    {% if reg.submitted_at %}
+                      Submitted: {{ reg.submitted_at|date:"Y-m-d H:i" }}
+                    {% endif %}
+                    {% if reg.reviewed_at %}
+                      · Reviewed: {{ reg.reviewed_at|date:"Y-m-d H:i" }}
+                      {% if reg.reviewed_by %}by {{ reg.reviewed_by.get_full_name|default:reg.reviewed_by.username }}{% endif %}
+                    {% endif %}
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Audit Information #}
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Audit Information</h2>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-0">
+            <dt class="col-3">Created</dt>
+            <dd class="col-9">
+              {{ teacher.created_at|date:"Y-m-d H:i" }}
+              {% if teacher.created_by %}
+                <span class="text-body-secondary">
+                  · by {{ teacher.created_by.get_full_name|default:teacher.created_by.username }}
+                </span>
+              {% endif %}
+            </dd>
+            <dt class="col-3">Last Updated</dt>
+            <dd class="col-9">
+              {{ teacher.last_updated_at|date:"Y-m-d H:i" }}
+              {% if teacher.last_updated_by %}
+                <span class="text-body-secondary">
+                  · by {{ teacher.last_updated_by.get_full_name|default:teacher.last_updated_by.username }}
+                </span>
+              {% endif %}
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Delete Registration{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{% url 'teacher_registration:pending_list' %}">Pending Registrations</a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">Delete Registration</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Confirm Registration Deletion
+          </h1>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-circle me-1"></i>
+            <strong>Warning:</strong> This will delete the registration and all uploaded documents.
+            The user account will remain (as a pending user if they have no other profile).
+          </div>
+
+          <p class="mb-3">Are you sure you want to delete this registration?</p>
+
+          <!-- Registration Info -->
+          <div class="border rounded p-3 bg-light mb-4">
+            <dl class="row mb-0 small">
+              <dt class="col-sm-4">Name</dt>
+              <dd class="col-sm-8">
+                {% if registration.user.first_name or registration.user.last_name %}
+                  {{ registration.user.first_name }} {{ registration.user.last_name }}
+                {% else %}
+                  <span class="text-body-secondary">Not set</span>
+                {% endif %}
+              </dd>
+              <dt class="col-sm-4">Email</dt>
+              <dd class="col-sm-8">{{ registration.user.email|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Status</dt>
+              <dd class="col-sm-8">
+                <span class="badge
+                  {% if registration.status == 'draft' %}bg-secondary
+                  {% elif registration.status == 'submitted' %}bg-warning text-dark
+                  {% elif registration.status == 'under_review' %}bg-info
+                  {% elif registration.status == 'approved' %}bg-success
+                  {% elif registration.status == 'rejected' %}bg-danger
+                  {% endif %}">
+                  {{ registration.get_status_display }}
+                </span>
+              </dd>
+              <dt class="col-sm-4">Documents</dt>
+              <dd class="col-sm-8 mb-0">{{ registration.documents.count }} document(s)</dd>
+            </dl>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'teacher_registration:pending_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Cancel
+              </a>
+              <button type="submit" class="btn btn-danger">
+                <i class="bi bi-trash me-1"></i> Delete Registration
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

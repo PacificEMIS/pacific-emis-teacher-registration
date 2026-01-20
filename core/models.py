@@ -98,6 +98,15 @@ class SchoolStaff(AuditModel):
         (NON_TEACHING_STAFF, "Non-Teaching Staff"),
     ]
 
+    # Registration status choices (for teaching staff)
+    REGISTRATION_VALID = "valid"
+    REGISTRATION_EXPIRED = "expired"
+
+    REGISTRATION_STATUS_CHOICES = [
+        (REGISTRATION_VALID, "Valid"),
+        (REGISTRATION_EXPIRED, "Expired"),
+    ]
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -110,6 +119,82 @@ class SchoolStaff(AuditModel):
         choices=STAFF_TYPE_CHOICES,
         default=NON_TEACHING_STAFF,
         help_text="Type of staff member - teaching or non-teaching",
+    )
+
+    # -------------------------------------------------------------------------
+    # Personal information (from teacher registration)
+    # -------------------------------------------------------------------------
+
+    date_of_birth = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Date of birth",
+    )
+    gender = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=[
+            ("male", "Male"),
+            ("female", "Female"),
+            ("other", "Other"),
+        ],
+    )
+    nationality = models.CharField(max_length=100, blank=True)
+    national_id_number = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="National ID number",
+    )
+    phone_number = models.CharField(max_length=30, blank=True)
+
+    # Address
+    address_line_1 = models.CharField(max_length=255, blank=True)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    province = models.CharField(max_length=100, blank=True)
+
+    # -------------------------------------------------------------------------
+    # Professional information (from teacher registration)
+    # -------------------------------------------------------------------------
+
+    teaching_certificate_number = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name="Teaching certificate number",
+    )
+    highest_qualification = models.CharField(
+        max_length=100,
+        blank=True,
+        choices=[
+            ("high_school", "High School"),
+            ("certificate", "Certificate"),
+            ("diploma", "Diploma"),
+            ("bachelors", "Bachelor's Degree"),
+            ("masters", "Master's Degree"),
+            ("doctorate", "Doctorate"),
+        ],
+    )
+    years_of_experience = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Years of teaching experience",
+    )
+
+    # -------------------------------------------------------------------------
+    # Registration status (for teaching staff only)
+    # -------------------------------------------------------------------------
+
+    registration_status = models.CharField(
+        max_length=20,
+        choices=REGISTRATION_STATUS_CHOICES,
+        null=True,
+        blank=True,
+        help_text="Registration status (only applicable for teaching staff)",
+    )
+    registration_valid_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date when current registration expires",
     )
 
     # Many-to-many relationship with schools (through SchoolStaffAssignment)

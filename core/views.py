@@ -142,17 +142,8 @@ def dashboard(request):
     # SchoolStaff with no assignments (unassigned to any school)
     staff_unassigned = SchoolStaff.objects.filter(assignments__isnull=True).distinct().count()
 
-    # SchoolStaff by groups
-    staff_admin_count = (
-        SchoolStaff.objects.filter(user__groups__name=GROUP_ADMINS)
-        .distinct()
-        .count()
-    )
-    staff_staff_count = (
-        SchoolStaff.objects.filter(user__groups__name=GROUP_SCHOOL_STAFF)
-        .distinct()
-        .count()
-    )
+    # Users by groups (count ALL users in these groups, not just SchoolStaff)
+    admin_count = User.objects.filter(groups__name=GROUP_ADMINS).distinct().count()
     staff_teacher_count = (
         SchoolStaff.objects.filter(user__groups__name=GROUP_TEACHERS)
         .distinct()
@@ -165,6 +156,25 @@ def dashboard(request):
 
     # --- Schools KPIs ---
     active_schools = EmisSchool.objects.filter(active=True).count()
+
+    # --- Pending Registrations KPIs ---
+    from teacher_registration.models import TeacherRegistration
+
+    pending_reg_draft = TeacherRegistration.objects.filter(
+        status=TeacherRegistration.DRAFT
+    ).count()
+    pending_reg_submitted = TeacherRegistration.objects.filter(
+        status=TeacherRegistration.SUBMITTED
+    ).count()
+    pending_reg_under_review = TeacherRegistration.objects.filter(
+        status=TeacherRegistration.UNDER_REVIEW
+    ).count()
+    pending_reg_rejected = TeacherRegistration.objects.filter(
+        status=TeacherRegistration.REJECTED
+    ).count()
+    pending_reg_total = (
+        pending_reg_draft + pending_reg_submitted + pending_reg_under_review + pending_reg_rejected
+    )
 
     # --- Recent activity (simple unified event log across core models) ---
     events = []
@@ -233,18 +243,20 @@ def dashboard(request):
 
     context = {
         "active": "dashboard",
-        # SchoolStaff KPIs
-        "total_staff": total_staff,
-        "staff_added_recent": staff_added_recent,
-        "staff_unassigned": staff_unassigned,
-        "staff_admin_count": staff_admin_count,
-        "staff_staff_count": staff_staff_count,
+        # User KPIs
+        "admin_count": admin_count,
         "staff_teacher_count": staff_teacher_count,
         # SystemUser (MOE Staff) KPIs
         "total_system_users": total_system_users,
         "system_users_added_recent": system_users_added_recent,
         # Schools KPIs
         "active_schools": active_schools,
+        # Pending Registrations KPIs
+        "pending_reg_total": pending_reg_total,
+        "pending_reg_draft": pending_reg_draft,
+        "pending_reg_submitted": pending_reg_submitted,
+        "pending_reg_under_review": pending_reg_under_review,
+        "pending_reg_rejected": pending_reg_rejected,
         # Activity
         "recent_events": events,
     }
@@ -634,6 +646,10 @@ def staff_list(request):
         or is_school_admin(request.user)
     )
 
+    # Check if user can delete staff (for showing Delete buttons)
+    # Only Admins and System Admins can delete
+    user_can_delete = can_manage_pending_users(request.user)
+
     return render(
         request,
         "core/staff_list.html",
@@ -653,6 +669,7 @@ def staff_list(request):
             "dir": dir_,
             # permissions
             "user_can_edit": user_can_edit,
+            "user_can_delete": user_can_delete,
         },
     )
 
@@ -750,6 +767,7 @@ def staff_detail(request, pk):
         "group_permissions": group_permissions,
         "direct_permission_sections": direct_permission_sections,
         "can_edit": can_edit_staff(request.user, staff),
+        "can_delete": can_manage_pending_users(request.user) and staff.user != request.user,
     }
     return render(request, "core/staff_detail.html", context)
 
@@ -923,6 +941,9 @@ def pending_users_list(request):
     List users who have signed in (via Google OAuth) but don't yet have
     a SchoolStaff or SystemUser profile assigned.
 
+    Excludes users who have an active teacher registration (draft/submitted/under_review),
+    as those are tracked in Pending Registrations instead.
+
     Accessible to users in the Admins or System Admins groups.
     """
     if not can_manage_pending_users(request.user):
@@ -938,11 +959,26 @@ def pending_users_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
+    # Get user IDs with active registrations (these are tracked in Pending Registrations)
+    from teacher_registration.models import TeacherRegistration
+
+    users_with_active_registration = TeacherRegistration.objects.filter(
+        status__in=[
+            TeacherRegistration.DRAFT,
+            TeacherRegistration.SUBMITTED,
+            TeacherRegistration.UNDER_REVIEW,
+            TeacherRegistration.REJECTED,
+        ]
+    ).values_list("user_id", flat=True)
+
     # Users without either profile (exclude superusers - they have full access already)
+    # Also exclude users with active registrations
     pending_users_qs = User.objects.filter(
         school_staff__isnull=True,
         system_user__isnull=True,
         is_superuser=False,
+    ).exclude(
+        id__in=users_with_active_registration
     ).order_by("-date_joined")
 
     # Search by name or email
@@ -1129,5 +1165,47 @@ def delete_pending_user(request, user_id):
         {
             "active": "pending_users",
             "target_user": target_user,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def staff_delete(request, pk):
+    """
+    Delete a School Staff record.
+
+    Deletes the SchoolStaff profile (and related assignments/documents),
+    leaving the Django User intact as a pending user.
+
+    Accessible to users in the Admins or System Admins groups.
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    staff = get_object_or_404(SchoolStaff.objects.select_related("user"), pk=pk)
+
+    # Prevent deleting yourself
+    if staff.user == request.user:
+        messages.error(request, "You cannot delete your own staff profile.")
+        return redirect("core:staff_detail", pk=pk)
+
+    if request.method == "POST":
+        user = staff.user
+        full_name = user.get_full_name() or user.username
+        staff.delete()
+        messages.success(
+            request,
+            f"Staff profile for '{full_name}' has been deleted. "
+            f"The user account remains as a pending user.",
+        )
+        return redirect("core:staff_list")
+
+    return render(
+        request,
+        "core/staff_delete.html",
+        {
+            "active": "school_staff",
+            "staff": staff,
         },
     )

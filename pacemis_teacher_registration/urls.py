@@ -26,6 +26,7 @@ urlpatterns = [
     # my apps
     path("accounts/", include("accounts.urls")),
     path("core/", include("core.urls")),
+    path("registration/", include("teacher_registration.urls")),
     # allauth URLs (login, logout, Google, etc.)
     path("accounts/", include("allauth.urls")),
 ]

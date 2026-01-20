@@ -12,6 +12,19 @@ from core.emails import send_new_pending_user_email_async
 User = get_user_model()
 
 
+def _is_registration_flow(request):
+    """
+    Check if the user signed up via the teacher registration flow.
+
+    We check the session 'next' URL which is set when users start registration.
+    """
+    if not request:
+        return False
+
+    next_url = request.session.get("next", "") or request.GET.get("next", "")
+    return "registration" in next_url
+
+
 @receiver(user_signed_up)
 def notify_admins_on_signup(request, user, **kwargs):
     """
@@ -20,7 +33,16 @@ def notify_admins_on_signup(request, user, **kwargs):
 
     The user is NOT automatically assigned a profile; they remain as a
     'pending user' until an Admin assigns them a role.
+
+    NOTE: If the user is signing up via the teacher self-registration flow,
+    we skip this email. They will receive a different notification when they
+    start their registration (see teacher_registration.views.registration_create).
     """
+    # Skip notification if user came from teacher registration flow
+    # They'll get a specific "registration started" email instead
+    if _is_registration_flow(request):
+        return
+
     # Build the pending users list URL for the email
     from django.urls import reverse
 
