@@ -1,5 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Edit Teacher Registration{% endblock title %}
+
+{% block extra_css %}
+<style>
+  .formset-row {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+  }
+  .formset-row.to-delete {
+    opacity: 0.5;
+    background: #ffebee;
+  }
+  .remove-formset-row {
+    cursor: pointer;
+  }
+  /* Hidden sections */
+  .conditional-section {
+    display: none !important;
+  }
+  .conditional-section.show {
+    display: block !important;
+  }
+</style>
+{% endblock extra_css %}
+
 {% block content %}
   {% if messages %}
     <div class="mb-3">
@@ -12,11 +38,11 @@
     </div>
   {% endif %}
 
-  <div class="row">
-    <!-- Main form -->
-    <div class="col-lg-8">
-      <form method="post" id="registration-form">
-        {% csrf_token %}
+  <form method="post" id="registration-form">
+    {% csrf_token %}
+    <div class="row">
+      <!-- Main form -->
+      <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
             <div>
@@ -25,20 +51,48 @@
                 For: {{ registration.user.email }}
               </div>
             </div>
-            <span class="badge bg-secondary">Draft</span>
+            <span class="badge bg-secondary">{{ registration.get_status_display }}</span>
           </div>
           <div class="card-body">
-            <!-- Personal Information -->
-            <h5 class="border-bottom pb-2 mb-3">Personal Information</h5>
+
+            <!-- Teacher Category Selection -->
+            <div class="mb-4 p-3 bg-light rounded">
+              <label class="form-label fw-bold">Teacher Category: <span class="text-danger">*</span></label>
+              <div class="d-flex gap-4">
+                {% for choice in form.teacher_category %}
+                  <div class="form-check">
+                    {{ choice.tag }}
+                    <label class="form-check-label" for="{{ choice.id_for_label }}">
+                      {{ choice.choice_label }}
+                    </label>
+                  </div>
+                {% endfor %}
+              </div>
+              {% if form.teacher_category.errors %}
+                <div class="invalid-feedback d-block">{{ form.teacher_category.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            {# ============================================================================ #}
+            {# SYNC REGION START: Form fields below must be kept in sync with registration_form.html #}
+            {# Changes to form fields, formsets, or their layout should be mirrored in both files. #}
+            {# ============================================================================ #}
+
+            <!-- Section 1: Personal Details -->
+            <h5 class="border-bottom pb-2 mb-3">Section 1: Personal Details</h5>
             <div class="row g-3 mb-4">
-              <div class="col-md-6">
+              <div class="col-md-2">
+                <label for="id_title" class="form-label">Title</label>
+                {{ form.title }}
+              </div>
+              <div class="col-md-5">
                 <label for="id_first_name" class="form-label">First Name <span class="text-danger">*</span></label>
                 {{ form.first_name }}
                 {% if form.first_name.errors %}
                   <div class="invalid-feedback d-block">{{ form.first_name.errors.0 }}</div>
                 {% endif %}
               </div>
-              <div class="col-md-6">
+              <div class="col-md-5">
                 <label for="id_last_name" class="form-label">Last Name <span class="text-danger">*</span></label>
                 {{ form.last_name }}
                 {% if form.last_name.errors %}
@@ -50,76 +104,262 @@
                 {{ form.date_of_birth }}
               </div>
               <div class="col-md-4">
-                <label for="id_gender" class="form-label">Gender</label>
-                {{ form.gender }}
+                <label for="id_gender_emis" class="form-label">Gender</label>
+                {{ form.gender_emis }}
               </div>
               <div class="col-md-4">
-                <label for="id_nationality" class="form-label">Nationality</label>
-                {{ form.nationality }}
+                <label for="id_marital_status" class="form-label">Marital Status</label>
+                {{ form.marital_status }}
               </div>
               <div class="col-md-6">
                 <label for="id_national_id_number" class="form-label">National ID Number</label>
                 {{ form.national_id_number }}
               </div>
               <div class="col-md-6">
-                <label for="id_phone_number" class="form-label">Phone Number</label>
+                <label for="id_home_island" class="form-label">Home Island</label>
+                {{ form.home_island }}
+              </div>
+              <div class="col-md-6">
+                <label for="id_nationality" class="form-label">Nationality</label>
+                {{ form.nationality }}
+              </div>
+            </div>
+            <!-- Hidden legacy gender field -->
+            <div class="d-none">{{ form.gender }}</div>
+
+            <!-- Section 2: Contact Details -->
+            <h5 class="border-bottom pb-2 mb-3">Section 2: Contact Details</h5>
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <label for="id_phone_number" class="form-label">Mobile Phone</label>
                 {{ form.phone_number }}
               </div>
-            </div>
-
-            <!-- Address -->
-            <h5 class="border-bottom pb-2 mb-3">Address</h5>
-            <div class="row g-3 mb-4">
-              <div class="col-12">
-                <label for="id_address_line_1" class="form-label">Address Line 1</label>
-                {{ form.address_line_1 }}
-              </div>
-              <div class="col-12">
-                <label for="id_address_line_2" class="form-label">Address Line 2</label>
-                {{ form.address_line_2 }}
-              </div>
               <div class="col-md-6">
-                <label for="id_city" class="form-label">City</label>
-                {{ form.city }}
-              </div>
-              <div class="col-md-6">
-                <label for="id_province" class="form-label">Province/State</label>
-                {{ form.province }}
+                <label for="id_phone_home" class="form-label">Home Phone</label>
+                {{ form.phone_home }}
               </div>
             </div>
 
-            <!-- Professional Information -->
-            <h5 class="border-bottom pb-2 mb-3">Professional Information</h5>
+            <!-- Residential Address -->
+            <h6 class="text-muted mb-2">Residential Address</h6>
             <div class="row g-3 mb-4">
-              <div class="col-md-6">
-                <label for="id_teaching_certificate_number" class="form-label">Teaching Certificate Number</label>
-                {{ form.teaching_certificate_number }}
+              <div class="col-md-8">
+                <label for="id_residential_address" class="form-label">Residential Address <span class="text-danger">*</span></label>
+                {{ form.residential_address }}
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
+                <label for="id_nearby_school" class="form-label">Nearest School</label>
+                {{ form.nearby_school }}
+              </div>
+            </div>
+
+            <!-- Business Address (collapsible) -->
+            <div class="mb-4">
+              <a class="text-decoration-none" data-bs-toggle="collapse" href="#businessAddress" role="button" aria-expanded="false">
+                <i class="bi bi-plus-circle me-1"></i> Business Address (Optional)
+              </a>
+              <div class="collapse" id="businessAddress">
+                <div class="row g-3 mt-2">
+                  <div class="col-12">
+                    <label for="id_business_address" class="form-label">Business Address</label>
+                    {{ form.business_address }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 3: Education and Training -->
+            <h5 class="border-bottom pb-2 mb-3">Section 3: Education and Training</h5>
+
+            <!-- Education Records -->
+            <h6 class="text-muted mb-2">Education Background</h6>
+            {{ education_formset.management_form }}
+            <div id="education-formset">
+              {% for edu_form in education_formset %}
+                <div class="formset-row education-row mt-3 {% if edu_form.instance.pk and edu_form.DELETE.value %}to-delete{% endif %}">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-secondary">Education Qualification #{{ forloop.counter }}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-formset-row" title="Remove">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <label class="form-label small">Institution Name</label>
+                      {{ edu_form.institution_name }}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small">Qualification</label>
+                      {{ edu_form.qualification }}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small">Program Name</label>
+                      {{ edu_form.program_name }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Major</label>
+                      {{ edu_form.major }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Minor</label>
+                      {{ edu_form.minor }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Completion Year</label>
+                      {{ edu_form.completion_year }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Duration</label>
+                      {{ edu_form.duration }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Unit</label>
+                      {{ edu_form.duration_unit }}
+                    </div>
+                    <div class="col-md-3">
+                      <div class="form-check mt-4">
+                        {{ edu_form.completed }}
+                        <label class="form-check-label small">Completed</label>
+                      </div>
+                    </div>
+                  </div>
+                  {{ edu_form.id }}
+                  <div class="d-none">{{ edu_form.DELETE }}</div>
+                </div>
+              {% endfor %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary add-formset-row mt-3 mb-4" data-formset="education">
+              <i class="bi bi-plus-circle me-1"></i> Add Education Record
+            </button>
+
+            <!-- Training Records -->
+            <h6 class="text-muted mb-2">Training & Professional Development</h6>
+
+            <!-- Datalist for training title autocomplete -->
+            <datalist id="training-title-options">
+              {% for pd_type in pd_types %}
+                <option value="{{ pd_type.label }}">
+              {% endfor %}
+            </datalist>
+
+            {{ training_formset.management_form }}
+            <div id="training-formset">
+              {% for training_form in training_formset %}
+                <div class="formset-row training-row mt-3 {% if training_form.instance.pk and training_form.DELETE.value %}to-delete{% endif %}">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-info">Training #{{ forloop.counter }}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-formset-row" title="Remove">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-md-6">
+                      <label class="form-label small">Training Provider</label>
+                      {{ training_form.provider_institution }}
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small">Title</label>
+                      {{ training_form.title }}
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Focus</label>
+                      {{ training_form.focus }}
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Format</label>
+                      {{ training_form.format }}
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Completion Year</label>
+                      {{ training_form.completion_year }}
+                    </div>
+                  </div>
+                  {{ training_form.id }}
+                  <div class="d-none">{{ training_form.DELETE }}</div>
+                </div>
+              {% endfor %}
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-primary add-formset-row mt-3 mb-4" data-formset="training">
+              <i class="bi bi-plus-circle me-1"></i> Add Training Record
+            </button>
+
+            <!-- Section 4: Teaching Details (Current Teachers Only) -->
+            <div id="teaching-details-section" class="conditional-section {% if form.instance.teacher_category == 'current' %}show{% endif %}" style="{% if form.instance.teacher_category != 'current' %}display: none;{% endif %}">
+              <h5 class="border-bottom pb-2 mb-3">Section 4: Teaching Details</h5>
+              {{ appointment_formset.management_form }}
+              <div id="appointment-formset">
+                {% for appt_form in appointment_formset %}
+                  <div class="formset-row appointment-row mt-3 {% if appt_form.instance.pk and appt_form.DELETE.value %}to-delete{% endif %}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                      <span class="badge bg-success">School Appointment #{{ forloop.counter }}</span>
+                      <button type="button" class="btn btn-sm btn-outline-danger remove-formset-row" title="Remove">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Teacher Level</label>
+                        {{ appt_form.teacher_level_type }}
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Island/Station</label>
+                        {{ appt_form.current_island_station }}
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Current School</label>
+                        {{ appt_form.current_school }}
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Position</label>
+                        {{ appt_form.employment_position }}
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Status</label>
+                        {{ appt_form.employment_status }}
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Years Experience</label>
+                        {{ appt_form.years_of_experience }}
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">Class Type</label>
+                        {{ appt_form.class_type }}
+                      </div>
+                    </div>
+                    {{ appt_form.id }}
+                    <div class="d-none">{{ appt_form.DELETE }}</div>
+                  </div>
+                {% endfor %}
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary add-formset-row mt-3 mb-4" data-formset="appointment">
+                <i class="bi bi-plus-circle me-1"></i> Add School Appointment
+              </button>
+            </div>
+
+            <!-- Additional Information -->
+            <h5 class="border-bottom pb-2 mb-3">Additional Information</h5>
+            <div class="row g-3 mb-4">
+              <div class="col-md-4">
+                <label for="id_teacher_payroll_number" class="form-label">Teacher Payroll Number (PF Number)</label>
+                {{ form.teacher_payroll_number }}
+              </div>
+              <div class="col-md-4">
                 <label for="id_highest_qualification" class="form-label">Highest Qualification</label>
                 {{ form.highest_qualification }}
               </div>
               <div class="col-md-4">
-                <label for="id_years_of_experience" class="form-label">Years of Experience</label>
+                <label for="id_years_of_experience" class="form-label">Total Years of Experience</label>
                 {{ form.years_of_experience }}
               </div>
             </div>
 
-            <!-- School Preference -->
-            <h5 class="border-bottom pb-2 mb-3">School Preference</h5>
-            <div class="row g-3 mb-4">
-              <div class="col-md-6">
-                <label for="id_preferred_school" class="form-label">Preferred School</label>
-                {{ form.preferred_school }}
-              </div>
-              <div class="col-md-6">
-                <label for="id_preferred_job_title" class="form-label">Preferred Position</label>
-                {{ form.preferred_job_title }}
-              </div>
-            </div>
+            {# ============================================================================ #}
+            {# SYNC REGION END: Form fields above must be kept in sync with registration_form.html #}
+            {# ============================================================================ #}
+
           </div>
           <div class="card-footer d-flex justify-content-between">
-            <a href="{% url 'teacher_registration:admin_register' %}" class="btn btn-outline-secondary">
+            <a href="{% url 'teacher_registration:pending_list' %}" class="btn btn-outline-secondary">
               Cancel
             </a>
             <div>
@@ -148,7 +388,7 @@
                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                   <div>
                     <i class="bi bi-file-earmark me-1"></i>
-                    <span class="small">{{ doc.get_document_type_display }}</span>
+                    <span class="small">{{ doc.doc_link_type.label|default:"Document" }}</span>
                     <br>
                     <span class="text-muted small">{{ doc.original_filename|truncatechars:30 }}</span>
                   </div>
@@ -182,17 +422,26 @@
           {% csrf_token %}
           <div class="card-body">
             <div class="mb-3">
-              <label for="id_document_type" class="form-label">Document Type</label>
-              {{ document_form.document_type }}
+              <label for="id_doc_link_type" class="form-label">Document Type <span class="text-danger">*</span></label>
+              {{ document_form.doc_link_type }}
             </div>
             <div class="mb-3">
-              <label for="id_file" class="form-label">File</label>
+              <label for="id_doc_title" class="form-label">Title (optional)</label>
+              {{ document_form.doc_title }}
+            </div>
+            <div class="mb-3">
+              <label for="id_doc_description" class="form-label">Description (optional)</label>
+              {{ document_form.doc_description }}
+            </div>
+            <div class="mb-3">
+              <label for="id_doc_date" class="form-label">Date (optional)</label>
+              {{ document_form.doc_date }}
+              <div class="form-text">Date of the document (e.g., certificate issue date)</div>
+            </div>
+            <div class="mb-3">
+              <label for="id_file" class="form-label">File <span class="text-danger">*</span></label>
               {{ document_form.file }}
               <div class="form-text">PDF or image files up to 10MB</div>
-            </div>
-            <div class="mb-3">
-              <label for="id_description" class="form-label">Description (optional)</label>
-              {{ document_form.description }}
             </div>
             <button type="submit" class="btn btn-outline-primary w-100">
               <i class="bi bi-upload me-1"></i> Upload Document
@@ -203,3 +452,97 @@
     </div>
   </div>
 {% endblock content %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Teacher Category Toggle - Show/hide Teaching Details for Current teachers
+  const teacherCategoryInputs = document.querySelectorAll('input[name="teacher_category"]');
+  const teachingDetailsSection = document.getElementById('teaching-details-section');
+
+  function updateTeacherCategorySections() {
+    const selectedValue = document.querySelector('input[name="teacher_category"]:checked')?.value;
+    if (selectedValue === 'current') {
+      teachingDetailsSection?.classList.add('show');
+      if (teachingDetailsSection) teachingDetailsSection.style.display = 'block';
+    } else {
+      teachingDetailsSection?.classList.remove('show');
+      if (teachingDetailsSection) teachingDetailsSection.style.display = 'none';
+    }
+  }
+
+  teacherCategoryInputs.forEach(input => {
+    input.addEventListener('change', updateTeacherCategorySections);
+  });
+  updateTeacherCategorySections();
+
+  // Formset management
+  function getFormsetInfo(formsetType) {
+    const config = {
+      'education': { container: '#education-formset', prefix: 'education_records', rowClass: 'education-row', badgeText: 'Education' },
+      'training': { container: '#training-formset', prefix: 'training_records', rowClass: 'training-row', badgeText: 'Training' },
+      'appointment': { container: '#appointment-formset', prefix: 'claimed_appointments', rowClass: 'appointment-row', badgeText: 'School Appointment' }
+    };
+    return config[formsetType];
+  }
+
+  document.querySelectorAll('.add-formset-row').forEach(button => {
+    button.addEventListener('click', function() {
+      const formsetType = this.dataset.formset;
+      const info = getFormsetInfo(formsetType);
+      if (!info) return;
+
+      const container = document.querySelector(info.container);
+      const totalFormsInput = document.querySelector(`#id_${info.prefix}-TOTAL_FORMS`);
+      if (!container || !totalFormsInput) return;
+
+      const currentCount = parseInt(totalFormsInput.value);
+      const existingRows = container.querySelectorAll(`.${info.rowClass}`);
+
+      if (existingRows.length > 0) {
+        const newRow = existingRows[existingRows.length - 1].cloneNode(true);
+        newRow.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), select, textarea').forEach(input => {
+          input.value = '';
+        });
+        const idInput = newRow.querySelector('input[name$="-id"]');
+        if (idInput) idInput.value = '';
+        const deleteInput = newRow.querySelector('input[name$="-DELETE"]');
+        if (deleteInput) deleteInput.checked = false;
+
+        newRow.querySelectorAll('[name], [id]').forEach(element => {
+          if (element.name) element.name = element.name.replace(/-\d+-/, `-${currentCount}-`);
+          if (element.id) element.id = element.id.replace(/-\d+-/, `-${currentCount}-`);
+        });
+
+        const badge = newRow.querySelector('.badge');
+        if (badge) badge.textContent = `${info.badgeText} #${currentCount + 1}`;
+
+        newRow.classList.remove('to-delete');
+        container.appendChild(newRow);
+        totalFormsInput.value = currentCount + 1;
+        bindRemoveButtons();
+      }
+    });
+  });
+
+  function bindRemoveButtons() {
+    document.querySelectorAll('.remove-formset-row').forEach(button => {
+      button.onclick = function() {
+        const row = this.closest('.formset-row');
+        const deleteInput = row.querySelector('input[name$="-DELETE"]');
+        const idInput = row.querySelector('input[name$="-id"]');
+
+        if (idInput && idInput.value) {
+          deleteInput.checked = true;
+          row.classList.add('to-delete');
+        } else {
+          row.remove();
+        }
+      };
+    });
+  }
+
+  bindRemoveButtons();
+});
+</script>
+{% endblock extra_js %}

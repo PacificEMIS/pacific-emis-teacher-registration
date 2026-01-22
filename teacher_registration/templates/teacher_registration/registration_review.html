@@ -38,23 +38,19 @@
           <!-- Address -->
           <h5 class="border-bottom pb-2 mb-3">Address</h5>
           <dl class="row">
-            <dt class="col-sm-4">Address</dt>
-            <dd class="col-sm-8">
-              {% if registration.address_line_1 %}
-                {{ registration.address_line_1 }}<br>
-                {% if registration.address_line_2 %}{{ registration.address_line_2 }}<br>{% endif %}
-                {{ registration.city }}{% if registration.city and registration.province %}, {% endif %}{{ registration.province }}
-              {% else %}
-                Not provided
-              {% endif %}
-            </dd>
+            <dt class="col-sm-4">Residential Address</dt>
+            <dd class="col-sm-8" style="white-space: pre-line;">{{ registration.residential_address|default:"Not provided" }}</dd>
+            {% if registration.business_address %}
+            <dt class="col-sm-4">Business Address</dt>
+            <dd class="col-sm-8" style="white-space: pre-line;">{{ registration.business_address }}</dd>
+            {% endif %}
           </dl>
 
           <!-- Professional Info -->
           <h5 class="border-bottom pb-2 mb-3">Professional Information</h5>
           <dl class="row">
-            <dt class="col-sm-4">Teaching Certificate</dt>
-            <dd class="col-sm-8">{{ registration.teaching_certificate_number|default:"Not provided" }}</dd>
+            <dt class="col-sm-4">Payroll Number (PF Number)</dt>
+            <dd class="col-sm-8">{{ registration.teacher_payroll_number|default:"Not provided" }}</dd>
 
             <dt class="col-sm-4">Qualification</dt>
             <dd class="col-sm-8">{{ registration.get_highest_qualification_display|default:"Not provided" }}</dd>
@@ -111,7 +107,7 @@
                 <tbody>
                   {% for doc in registration.documents.all %}
                     <tr>
-                      <td>{{ doc.get_document_type_display }}</td>
+                      <td>{{ doc.doc_link_type.label|default:"Document" }}</td>
                       <td>{{ doc.original_filename }}</td>
                       <td>{{ doc.file_size|filesizeformat }}</td>
                       <td>

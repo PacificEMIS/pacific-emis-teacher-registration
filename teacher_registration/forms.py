@@ -4,9 +4,33 @@ Forms for teacher registration.
 
 from django import forms
 from django.contrib.auth import get_user_model
+from django.forms import inlineformset_factory
 
-from teacher_registration.models import TeacherRegistration, RegistrationDocument
-from integrations.models import EmisSchool, EmisJobTitle
+from teacher_registration.models import (
+    TeacherRegistration,
+    RegistrationDocument,
+    EducationRecord,
+    TrainingRecord,
+    ClaimedSchoolAppointment,
+    ClaimedDuty,
+)
+from integrations.models import (
+    EmisSchool,
+    EmisJobTitle,
+    EmisGender,
+    EmisMaritalStatus,
+    EmisIsland,
+    EmisTeacherQual,
+    EmisSubject,
+    EmisEducationLevel,
+    EmisTeacherStatus,
+    EmisClassLevel,
+    EmisTeacherPdFocus,
+    EmisTeacherPdFormat,
+    EmisTeacherPdType,
+    EmisNationality,
+    EmisTeacherLinkType,
+)
 
 User = get_user_model()
 
@@ -35,46 +59,54 @@ class TeacherRegistrationForm(forms.ModelForm):
     class Meta:
         model = TeacherRegistration
         fields = [
+            # Teacher category (determines form sections)
+            "teacher_category",
             # Personal information
+            "title",
             "date_of_birth",
             "gender",
+            "gender_emis",
+            "marital_status",
             "nationality",
             "national_id_number",
+            "home_island",
+            # Contact information
             "phone_number",
-            # Address
-            "address_line_1",
-            "address_line_2",
-            "city",
-            "province",
-            # Professional information
-            "teaching_certificate_number",
+            "phone_home",
+            # Residential address
+            "residential_address",
+            "nearby_school",
+            # Business address
+            "business_address",
+            # Professional information (legacy - may be derived from EducationRecords)
+            "teacher_payroll_number",
             "highest_qualification",
             "years_of_experience",
-            # School preference
-            "preferred_school",
-            "preferred_job_title",
         ]
         widgets = {
+            "teacher_category": forms.RadioSelect(attrs={"class": "form-check-input"}),
+            "title": forms.Select(attrs={"class": "form-select"}),
             "date_of_birth": forms.DateInput(
                 attrs={"type": "date", "class": "form-control"}
             ),
             "gender": forms.Select(attrs={"class": "form-select"}),
-            "nationality": forms.TextInput(attrs={"class": "form-control"}),
+            "gender_emis": forms.Select(attrs={"class": "form-select"}),
+            "marital_status": forms.Select(attrs={"class": "form-select"}),
+            "nationality": forms.Select(attrs={"class": "form-select"}),
             "national_id_number": forms.TextInput(attrs={"class": "form-control"}),
-            "phone_number": forms.TextInput(attrs={"class": "form-control"}),
-            "address_line_1": forms.TextInput(attrs={"class": "form-control"}),
-            "address_line_2": forms.TextInput(attrs={"class": "form-control"}),
-            "city": forms.TextInput(attrs={"class": "form-control"}),
-            "province": forms.TextInput(attrs={"class": "form-control"}),
-            "teaching_certificate_number": forms.TextInput(
+            "home_island": forms.Select(attrs={"class": "form-select"}),
+            "phone_number": forms.TextInput(attrs={"class": "form-control", "placeholder": "Mobile"}),
+            "phone_home": forms.TextInput(attrs={"class": "form-control", "placeholder": "Home"}),
+            "residential_address": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "nearby_school": forms.Select(attrs={"class": "form-select"}),
+            "business_address": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "teacher_payroll_number": forms.TextInput(
                 attrs={"class": "form-control"}
             ),
             "highest_qualification": forms.Select(attrs={"class": "form-select"}),
             "years_of_experience": forms.NumberInput(
                 attrs={"class": "form-control", "min": "0"}
             ),
-            "preferred_school": forms.Select(attrs={"class": "form-select"}),
-            "preferred_job_title": forms.Select(attrs={"class": "form-select"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -93,11 +125,20 @@ class TeacherRegistrationForm(forms.ModelForm):
         kwargs["initial"] = initial
         super().__init__(*args, **kwargs)
 
-        # Filter school and job title choices to active only
-        self.fields["preferred_school"].queryset = EmisSchool.objects.filter(
+        # Filter FK querysets to active records only
+        self.fields["gender_emis"].queryset = EmisGender.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["marital_status"].queryset = EmisMaritalStatus.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["home_island"].queryset = EmisIsland.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["nearby_school"].queryset = EmisSchool.objects.filter(
             active=True
         ).order_by("emis_school_name")
-        self.fields["preferred_job_title"].queryset = EmisJobTitle.objects.filter(
+        self.fields["nationality"].queryset = EmisNationality.objects.filter(
             active=True
         ).order_by("label")
 
@@ -123,18 +164,43 @@ class TeacherRegistrationForm(forms.ModelForm):
 class RegistrationDocumentForm(forms.ModelForm):
     """
     Form for uploading a document to a registration.
+
+    Fields:
+    - doc_link_type: Required - document type from EMIS lookup
+    - doc_title: Optional - custom title for the document
+    - doc_description: Optional - description/notes
+    - doc_date: Optional - date associated with the document (e.g., issue date)
+    - file: Required - the file to upload
+
+    Auto-computed on save:
+    - original_filename: from uploaded file
+    - file_size: from uploaded file
+    - doc_type: file extension extracted from filename
     """
 
     class Meta:
         model = RegistrationDocument
-        fields = ["document_type", "file", "description"]
+        fields = ["doc_link_type", "doc_title", "doc_description", "doc_date", "file"]
         widgets = {
-            "document_type": forms.Select(attrs={"class": "form-select"}),
-            "file": forms.FileInput(attrs={"class": "form-control"}),
-            "description": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Optional description"}
+            "doc_link_type": forms.Select(attrs={"class": "form-select"}),
+            "doc_title": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Optional title"}
             ),
+            "doc_description": forms.Textarea(
+                attrs={"class": "form-control", "rows": 2, "placeholder": "Optional description"}
+            ),
+            "doc_date": forms.DateInput(
+                attrs={"type": "date", "class": "form-control"}
+            ),
+            "file": forms.FileInput(attrs={"class": "form-control"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter to active document types only
+        self.fields["doc_link_type"].queryset = EmisTeacherLinkType.objects.filter(
+            active=True
+        ).order_by("label")
 
     def clean_file(self):
         """Validate file size and type."""
@@ -162,12 +228,16 @@ class RegistrationDocumentForm(forms.ModelForm):
         return file
 
     def save(self, commit=True):
-        """Save document with original filename and size."""
+        """Save document with auto-computed fields."""
         instance = super().save(commit=False)
 
         if self.cleaned_data.get("file"):
-            instance.original_filename = self.cleaned_data["file"].name
+            filename = self.cleaned_data["file"].name
+            instance.original_filename = filename
             instance.file_size = self.cleaned_data["file"].size
+            # Extract file extension for doc_type
+            if "." in filename:
+                instance.doc_type = filename.rsplit(".", 1)[-1].lower()
 
         if commit:
             instance.save()
@@ -228,32 +298,17 @@ class AdminTeacherRegistrationForm(forms.Form):
     )
 
     # Address
-    address_line_1 = forms.CharField(
-        max_length=255,
+    residential_address = forms.CharField(
         required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    address_line_2 = forms.CharField(
-        max_length=255,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    city = forms.CharField(
-        max_length=100,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-    province = forms.CharField(
-        max_length=100,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
     )
 
     # Professional information
-    teaching_certificate_number = forms.CharField(
+    teacher_payroll_number = forms.CharField(
         max_length=50,
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
+        label="Teacher Payroll Number (PF Number)",
     )
     highest_qualification = forms.ChoiceField(
         required=False,
@@ -328,3 +383,226 @@ class RegistrationReviewForm(forms.Form):
             )
 
         return cleaned_data
+
+
+# =============================================================================
+# Education and Training Record Forms
+# =============================================================================
+
+
+class EducationRecordForm(forms.ModelForm):
+    """
+    Form for adding/editing education records.
+    """
+
+    class Meta:
+        model = EducationRecord
+        fields = [
+            "institution_name",
+            "qualification",
+            "program_name",
+            "major",
+            "minor",
+            "completion_year",
+            "duration",
+            "duration_unit",
+            "completed",
+            "percentage_progress",
+            "comment",
+        ]
+        widgets = {
+            "institution_name": forms.TextInput(attrs={"class": "form-control"}),
+            "qualification": forms.Select(attrs={"class": "form-select"}),
+            "program_name": forms.TextInput(attrs={"class": "form-control"}),
+            "major": forms.Select(attrs={"class": "form-select"}),
+            "minor": forms.Select(attrs={"class": "form-select"}),
+            "completion_year": forms.NumberInput(attrs={"class": "form-control", "min": "1950", "max": "2100"}),
+            "duration": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+            "duration_unit": forms.Select(attrs={"class": "form-select"}),
+            "completed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "percentage_progress": forms.NumberInput(attrs={"class": "form-control", "min": "0", "max": "100"}),
+            "comment": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter FK querysets to active records only
+        self.fields["qualification"].queryset = EmisTeacherQual.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["major"].queryset = EmisSubject.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["minor"].queryset = EmisSubject.objects.filter(
+            active=True
+        ).order_by("label")
+
+
+class TrainingRecordForm(forms.ModelForm):
+    """
+    Form for adding/editing training records.
+    """
+
+    class Meta:
+        model = TrainingRecord
+        fields = [
+            "provider_institution",
+            "title",
+            "focus",
+            "format",
+            "completion_year",
+            "duration",
+            "duration_unit",
+            "effective_date",
+            "expiration_date",
+        ]
+        widgets = {
+            "provider_institution": forms.TextInput(attrs={"class": "form-control"}),
+            "title": forms.TextInput(attrs={"class": "form-control", "list": "training-title-options"}),
+            "focus": forms.Select(attrs={"class": "form-select"}),
+            "format": forms.Select(attrs={"class": "form-select"}),
+            "completion_year": forms.NumberInput(attrs={"class": "form-control", "min": "1950", "max": "2100"}),
+            "duration": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+            "duration_unit": forms.Select(attrs={"class": "form-select"}),
+            "effective_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "expiration_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter FK querysets to active records only
+        self.fields["focus"].queryset = EmisTeacherPdFocus.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["format"].queryset = EmisTeacherPdFormat.objects.filter(
+            active=True
+        ).order_by("label")
+
+
+# =============================================================================
+# Current Teacher - School Appointment Forms
+# =============================================================================
+
+
+class ClaimedSchoolAppointmentForm(forms.ModelForm):
+    """
+    Form for current teachers to claim their school appointment.
+    """
+
+    class Meta:
+        model = ClaimedSchoolAppointment
+        fields = [
+            "teacher_level_type",
+            "current_island_station",
+            "current_school",
+            "start_date",
+            "years_of_experience",
+            "employment_position",
+            "employment_status",
+            "class_type",
+        ]
+        widgets = {
+            "teacher_level_type": forms.Select(attrs={"class": "form-select", "id": "id_teacher_level_type"}),
+            "current_island_station": forms.Select(attrs={"class": "form-select"}),
+            "current_school": forms.Select(attrs={"class": "form-select"}),
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "years_of_experience": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+            "employment_position": forms.Select(attrs={"class": "form-select"}),
+            "employment_status": forms.Select(attrs={"class": "form-select"}),
+            "class_type": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter FK querysets to active records only
+        self.fields["teacher_level_type"].queryset = EmisEducationLevel.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["current_island_station"].queryset = EmisIsland.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["current_school"].queryset = EmisSchool.objects.filter(
+            active=True
+        ).order_by("emis_school_name")
+        self.fields["employment_position"].queryset = EmisJobTitle.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["employment_status"].queryset = EmisTeacherStatus.objects.filter(
+            active=True
+        ).order_by("label")
+
+
+class ClaimedDutyForm(forms.ModelForm):
+    """
+    Form for JSS/SSS teachers to claim their teaching duties (subjects/year levels).
+    """
+
+    class Meta:
+        model = ClaimedDuty
+        fields = [
+            "year_level",
+            "subject",
+        ]
+        widgets = {
+            "year_level": forms.Select(attrs={"class": "form-select"}),
+            "subject": forms.Select(attrs={"class": "form-select"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter FK querysets to active records only
+        self.fields["year_level"].queryset = EmisClassLevel.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["subject"].queryset = EmisSubject.objects.filter(
+            active=True
+        ).order_by("label")
+
+
+# =============================================================================
+# Formsets for inline editing
+# =============================================================================
+
+# Education record formset - allows adding multiple education records
+EducationRecordFormSet = inlineformset_factory(
+    TeacherRegistration,
+    EducationRecord,
+    form=EducationRecordForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+# Training record formset - allows adding multiple training records
+TrainingRecordFormSet = inlineformset_factory(
+    TeacherRegistration,
+    TrainingRecord,
+    form=TrainingRecordForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+# Claimed school appointment formset - for current teachers
+ClaimedSchoolAppointmentFormSet = inlineformset_factory(
+    TeacherRegistration,
+    ClaimedSchoolAppointment,
+    form=ClaimedSchoolAppointmentForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)
+
+# Claimed duty formset - nested under school appointment (for JSS/SSS teachers)
+ClaimedDutyFormSet = inlineformset_factory(
+    ClaimedSchoolAppointment,
+    ClaimedDuty,
+    form=ClaimedDutyForm,
+    extra=1,
+    can_delete=True,
+    min_num=0,
+    validate_min=False,
+)

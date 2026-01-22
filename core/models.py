@@ -6,9 +6,12 @@ multiple applications within the Pacific EMIS ecosystem.
 
 Models:
     AuditModel: Abstract base model with audit fields (created_at, created_by, etc.)
+    EducationInstitution: Lookup table for education/training institutions
     SchoolStaff: School-level user profiles (teachers, principals, etc.)
     SystemUser: System-level user profiles (MOE officials, analysts, etc.)
     SchoolStaffAssignment: Links school staff to schools with job titles
+    StaffEducationRecord: Education records for approved staff members
+    StaffTrainingRecord: Training/PD records for approved staff members
 """
 
 from typing import TYPE_CHECKING
@@ -24,6 +27,15 @@ from integrations.models import (
     EmisJobTitle,
     EmisWarehouseYear,
     EmisClassLevel,
+    EmisGender,
+    EmisMaritalStatus,
+    EmisIsland,
+    EmisTeacherQual,
+    EmisSubject,
+    EmisTeacherPdType,
+    EmisTeacherPdFocus,
+    EmisTeacherPdFormat,
+    EmisNationality,
 )
 
 if TYPE_CHECKING:
@@ -57,6 +69,42 @@ class AuditModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class EducationInstitution(models.Model):
+    """
+    Lookup table for education and training institutions.
+
+    Used for autocomplete in education/training record forms.
+    Examples: Universities, colleges, training centers, etc.
+
+    Attributes:
+        code (str): Unique institution code (primary key)
+        name (str): Institution name
+        active (bool): Whether this institution is active for selection
+    """
+
+    code = models.CharField(
+        max_length=32,
+        primary_key=True,
+        help_text="Unique institution code",
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Institution name",
+    )
+    active = models.BooleanField(
+        default=True,
+        help_text="Whether this institution is available for selection",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Education Institution"
+        verbose_name_plural = "Education Institutions"
+
+    def __str__(self):
+        return self.name
 
 
 class SchoolStaff(AuditModel):
@@ -107,6 +155,21 @@ class SchoolStaff(AuditModel):
         (REGISTRATION_EXPIRED, "Expired"),
     ]
 
+    # Title choices
+    TITLE_MR = "Mr"
+    TITLE_MRS = "Mrs"
+    TITLE_MISS = "Miss"
+    TITLE_MS = "Ms"
+    TITLE_DR = "Dr"
+
+    TITLE_CHOICES = [
+        (TITLE_MR, "Mr"),
+        (TITLE_MRS, "Mrs"),
+        (TITLE_MISS, "Miss"),
+        (TITLE_MS, "Ms"),
+        (TITLE_DR, "Dr"),
+    ]
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -125,6 +188,12 @@ class SchoolStaff(AuditModel):
     # Personal information (from teacher registration)
     # -------------------------------------------------------------------------
 
+    title = models.CharField(
+        max_length=10,
+        choices=TITLE_CHOICES,
+        blank=True,
+        verbose_name="Title",
+    )
     date_of_birth = models.DateField(
         null=True,
         blank=True,
@@ -139,28 +208,88 @@ class SchoolStaff(AuditModel):
             ("other", "Other"),
         ],
     )
-    nationality = models.CharField(max_length=100, blank=True)
+    gender_emis = models.ForeignKey(
+        EmisGender,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="school_staff",
+        verbose_name="Gender (EMIS)",
+        help_text="Gender from EMIS lookup",
+    )
+    marital_status = models.ForeignKey(
+        EmisMaritalStatus,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="school_staff",
+        verbose_name="Marital status",
+    )
+    nationality = models.ForeignKey(
+        EmisNationality,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="school_staff",
+        verbose_name="Nationality",
+    )
     national_id_number = models.CharField(
         max_length=50,
         blank=True,
         verbose_name="National ID number",
     )
-    phone_number = models.CharField(max_length=30, blank=True)
+    home_island = models.ForeignKey(
+        EmisIsland,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="school_staff",
+        verbose_name="Home island",
+    )
 
-    # Address
-    address_line_1 = models.CharField(max_length=255, blank=True)
-    address_line_2 = models.CharField(max_length=255, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    province = models.CharField(max_length=100, blank=True)
+    # Contact information
+    phone_number = models.CharField(
+        max_length=30,
+        blank=True,
+        verbose_name="Mobile phone",
+    )
+    phone_home = models.CharField(
+        max_length=30,
+        blank=True,
+        verbose_name="Home phone",
+    )
+
+    # Residential Address (required)
+    residential_address = models.TextField(
+        blank=True,
+        verbose_name="Residential address",
+        help_text="Full residential/home address",
+    )
+    nearby_school = models.ForeignKey(
+        EmisSchool,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="nearby_staff",
+        verbose_name="Nearest school",
+        help_text="Nearest school to residential address",
+    )
+
+    # Business Address (optional)
+    business_address = models.TextField(
+        blank=True,
+        verbose_name="Business address",
+        help_text="Full business/work address (optional)",
+    )
 
     # -------------------------------------------------------------------------
     # Professional information (from teacher registration)
     # -------------------------------------------------------------------------
 
-    teaching_certificate_number = models.CharField(
+    teacher_payroll_number = models.CharField(
         max_length=50,
         blank=True,
-        verbose_name="Teaching certificate number",
+        verbose_name="Teacher Payroll Number (PF Number)",
     )
     highest_qualification = models.CharField(
         max_length=100,
@@ -398,3 +527,223 @@ class SystemUser(AuditModel):
         if self.organization:
             return f"{name} ({self.organization})"
         return name
+
+
+class StaffEducationRecord(AuditModel):
+    """
+    Education record for an approved staff member.
+
+    Mirrors EducationRecord structure. Created on registration approval
+    by copying from EducationRecord. The original EducationRecord is
+    preserved as an audit trail of what was claimed at application time.
+
+    Attributes:
+        school_staff: Staff member this record belongs to
+        institution_name: Name of the educational institution
+        qualification: Type of qualification (FK to EmisTeacherQual)
+        program_name: Name of the program/course
+        major: Primary subject area (FK to EmisSubject)
+        minor: Secondary subject area (FK to EmisSubject, optional)
+        completion_year: Year of completion
+        duration: Length of program
+        duration_unit: Unit for duration (years/months)
+        completed: Whether the program was completed
+        percentage_progress: Progress percentage if not completed
+        comment: Additional notes
+    """
+
+    # Duration unit choices
+    YEARS = "years"
+    MONTHS = "months"
+
+    DURATION_UNIT_CHOICES = [
+        (YEARS, "Years"),
+        (MONTHS, "Months"),
+    ]
+
+    school_staff = models.ForeignKey(
+        SchoolStaff,
+        on_delete=models.CASCADE,
+        related_name="education_records",
+        help_text="Staff member this education record belongs to",
+    )
+
+    institution_name = models.CharField(
+        max_length=255,
+        help_text="Name of the educational institution",
+    )
+
+    qualification = models.ForeignKey(
+        EmisTeacherQual,
+        on_delete=models.PROTECT,
+        related_name="staff_education_records",
+        verbose_name="Qualification type",
+    )
+
+    program_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Name of the program or course",
+    )
+
+    major = models.ForeignKey(
+        EmisSubject,
+        on_delete=models.PROTECT,
+        related_name="staff_education_major_records",
+        verbose_name="Major subject",
+    )
+
+    minor = models.ForeignKey(
+        EmisSubject,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="staff_education_minor_records",
+        verbose_name="Minor subject",
+    )
+
+    completion_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Year of completion",
+    )
+
+    duration = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration of the program",
+    )
+
+    duration_unit = models.CharField(
+        max_length=10,
+        choices=DURATION_UNIT_CHOICES,
+        default=YEARS,
+    )
+
+    completed = models.BooleanField(
+        default=True,
+        help_text="Whether the program was completed",
+    )
+
+    percentage_progress = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Progress percentage if not completed (0-100)",
+    )
+
+    comment = models.TextField(
+        blank=True,
+        help_text="Additional notes or comments",
+    )
+
+    class Meta:
+        ordering = ["-completion_year", "institution_name"]
+        verbose_name = "Staff Education Record"
+        verbose_name_plural = "Staff Education Records"
+
+    def __str__(self):
+        return f"{self.qualification} - {self.institution_name}"
+
+
+class StaffTrainingRecord(AuditModel):
+    """
+    Training/Professional Development record for an approved staff member.
+
+    Mirrors TrainingRecord structure. Created on registration approval
+    by copying from TrainingRecord. The original TrainingRecord is
+    preserved as an audit trail of what was claimed at application time.
+
+    Attributes:
+        school_staff: Staff member this record belongs to
+        provider_institution: Name of the training provider
+        title: Title of the training/PD program
+        focus: Area of focus (FK to EmisTeacherPdFocus)
+        format: Delivery format (FK to EmisTeacherPdFormat)
+        completion_year: Year of completion
+        duration: Length of training
+        duration_unit: Unit for duration (days/hours)
+        effective_date: When certification becomes effective
+        expiration_date: When certification expires
+    """
+
+    # Duration unit choices for training
+    DAYS = "days"
+    HOURS = "hours"
+
+    DURATION_UNIT_CHOICES = [
+        (DAYS, "Days"),
+        (HOURS, "Hours"),
+    ]
+
+    school_staff = models.ForeignKey(
+        SchoolStaff,
+        on_delete=models.CASCADE,
+        related_name="training_records",
+        help_text="Staff member this training record belongs to",
+    )
+
+    provider_institution = models.CharField(
+        max_length=255,
+        help_text="Name of the training provider",
+    )
+
+    title = models.CharField(
+        max_length=255,
+        help_text="Title of the training or PD program",
+    )
+
+    focus = models.ForeignKey(
+        EmisTeacherPdFocus,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="staff_training_records",
+        verbose_name="Focus area",
+    )
+
+    format = models.ForeignKey(
+        EmisTeacherPdFormat,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="staff_training_records",
+        verbose_name="Delivery format",
+    )
+
+    completion_year = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Year of completion",
+    )
+
+    duration = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration of the training",
+    )
+
+    duration_unit = models.CharField(
+        max_length=10,
+        choices=DURATION_UNIT_CHOICES,
+        default=HOURS,
+    )
+
+    effective_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When certification becomes effective",
+    )
+
+    expiration_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When certification expires",
+    )
+
+    class Meta:
+        ordering = ["-completion_year", "title"]
+        verbose_name = "Staff Training Record"
+        verbose_name_plural = "Staff Training Records"
+
+    def __str__(self):
+        return f"{self.title} - {self.provider_institution}"

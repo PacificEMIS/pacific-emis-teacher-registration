@@ -13,7 +13,14 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils import timezone
 from django.utils.html import format_html
 
-from core.models import SchoolStaff, SchoolStaffAssignment, SystemUser
+from core.models import (
+    EducationInstitution,
+    SchoolStaff,
+    SchoolStaffAssignment,
+    StaffEducationRecord,
+    StaffTrainingRecord,
+    SystemUser,
+)
 from core.mixins import CreatedUpdatedAuditMixin
 
 User = get_user_model()
@@ -98,6 +105,22 @@ admin.site.unregister(User)
 admin.site.register(User, CustomUserAdmin)
 
 
+# ---- EducationInstitution ----
+
+@admin.register(EducationInstitution)
+class EducationInstitutionAdmin(admin.ModelAdmin):
+    """
+    Admin interface for EducationInstitution lookup table.
+
+    Provides search for autocomplete fields.
+    """
+
+    list_display = ("code", "name", "active")
+    search_fields = ("code", "name")
+    list_filter = ("active",)
+    ordering = ("name",)
+
+
 # ---- SchoolStaff and SchoolStaffAssignment ----
 
 class SchoolStaffAssignmentInline(admin.TabularInline):
@@ -114,6 +137,46 @@ class SchoolStaffAssignmentInline(admin.TabularInline):
     readonly_fields = []
 
 
+class StaffEducationRecordInline(admin.TabularInline):
+    """
+    Inline admin for StaffEducationRecord.
+
+    Allows viewing/editing education records within the SchoolStaff admin page.
+    """
+    model = StaffEducationRecord
+    extra = 0
+    autocomplete_fields = ["qualification", "major", "minor"]
+    fields = [
+        "institution_name",
+        "qualification",
+        "program_name",
+        "major",
+        "minor",
+        "completion_year",
+        "completed",
+    ]
+
+
+class StaffTrainingRecordInline(admin.TabularInline):
+    """
+    Inline admin for StaffTrainingRecord.
+
+    Allows viewing/editing training records within the SchoolStaff admin page.
+    """
+    model = StaffTrainingRecord
+    extra = 0
+    autocomplete_fields = ["focus", "format"]
+    fields = [
+        "title",
+        "provider_institution",
+        "focus",
+        "format",
+        "completion_year",
+        "effective_date",
+        "expiration_date",
+    ]
+
+
 @admin.register(SchoolStaff)
 class SchoolStaffAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
     """
@@ -127,7 +190,11 @@ class SchoolStaffAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
     list_filter = ["created_at", "schools"]
     readonly_fields = ["created_at", "created_by", "last_updated_at", "last_updated_by"]
     autocomplete_fields = ["user"]
-    inlines = [SchoolStaffAssignmentInline]
+    inlines = [
+        SchoolStaffAssignmentInline,
+        StaffEducationRecordInline,
+        StaffTrainingRecordInline,
+    ]
 
     def user_email(self, obj):
         return obj.user.email

@@ -35,10 +35,60 @@ from teacher_registration.forms import (
     TeacherRegistrationForm,
     RegistrationDocumentForm,
     RegistrationReviewForm,
+    EducationRecordFormSet,
+    TrainingRecordFormSet,
+    ClaimedSchoolAppointmentFormSet,
 )
+from integrations.models import EmisTeacherPdType
 
 
 PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
+
+# Required documents checklist with mapping to EMIS document type codes
+# Each item: (display_label, list_of_matching_doc_type_codes)
+# Multiple codes per item allow for flexible matching (e.g., birth cert OR passport)
+# Codes from EmisTeacherLinkType table
+REQUIRED_DOCUMENTS = [
+    ("Birth Certificate or Passport", ["BIRTHCERT", "PASSPORT"]),
+    ("National ID Card", ["NATIONID"]),
+    ("Academic Certificate", ["ACACERT"]),
+    ("Academic Transcript", ["ACATRANS", "STATERES"]),
+    ("Teaching Certificate", ["TEACHCERT", "TEACHINGQUAL"]),
+    ("Teaching Transcript", ["TEACHTRANS"]),
+    ("Training/Workshop Certificates", ["TRAINCERT"]),
+    ("Police Clearance", ["POLCLEAR"]),
+    ("Medical Clearance", ["MEDCLEAR"]),
+    ("Passport Photo", ["PHOTO", "PORTRAIT"]),
+    ("Church Character Reference", ["CHURCHREF"]),
+    ("School Leader/Supervisor Reference", ["SCHREF"]),
+    ("Registration Fee Receipt", ["REGRECEIPT"]),
+]
+
+
+def get_required_documents_status(documents):
+    """
+    Build a list of required documents with their upload status.
+
+    Args:
+        documents: QuerySet of RegistrationDocument objects
+
+    Returns:
+        List of dicts: [{"label": str, "uploaded": bool}, ...]
+    """
+    # Get all uploaded document type codes (uppercase for case-insensitive matching)
+    uploaded_codes = set()
+    for doc in documents:
+        if doc.doc_link_type:
+            uploaded_codes.add(doc.doc_link_type.code.upper())
+
+    # Build status list
+    result = []
+    for label, codes in REQUIRED_DOCUMENTS:
+        # Check if any of the matching codes have been uploaded
+        is_uploaded = any(code.upper() in uploaded_codes for code in codes)
+        result.append({"label": label, "uploaded": is_uploaded})
+
+    return result
 
 
 # =============================================================================
@@ -273,9 +323,18 @@ def registration_edit(request, pk):
 
     if request.method == "POST":
         form = TeacherRegistrationForm(request.POST, instance=registration)
+        education_formset = EducationRecordFormSet(request.POST, instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(request.POST, instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(request.POST, instance=registration, prefix="claimed_appointments")
         is_submitting = "submit" in request.POST
 
-        if form.is_valid():
+        # Check all forms are valid
+        form_valid = form.is_valid()
+        education_valid = education_formset.is_valid()
+        training_valid = training_formset.is_valid()
+        appointment_valid = appointment_formset.is_valid()
+
+        if form_valid and education_valid and training_valid and appointment_valid:
             # If submitting, validate required fields
             if is_submitting:
                 errors = []
@@ -292,15 +351,20 @@ def registration_edit(request, pk):
                         messages.error(request, error)
                     # Re-render the form with errors
                     documents = registration.documents.all()
+                    required_docs_status = get_required_documents_status(documents)
                     return render(
                         request,
                         "teacher_registration/registration_form.html",
                         {
                             "form": form,
+                            "education_formset": education_formset,
+                            "training_formset": training_formset,
+                            "appointment_formset": appointment_formset,
                             "registration": registration,
                             "documents": documents,
                             "document_form": RegistrationDocumentForm(),
                             "is_admin": is_admin,
+                            "required_docs_status": required_docs_status,
                         },
                     )
 
@@ -308,6 +372,15 @@ def registration_edit(request, pk):
             registration = form.save(commit=False)
             registration.last_updated_by = request.user
             registration.save()
+
+            # Save the formsets
+            education_formset.instance = registration
+            education_formset.save()
+            training_formset.instance = registration
+            training_formset.save()
+            appointment_formset.instance = registration
+            appointment_formset.save()
+
             # Also save the user's name
             first_name = form.cleaned_data.get("first_name", "")
             last_name = form.cleaned_data.get("last_name", "")
@@ -338,25 +411,49 @@ def registration_edit(request, pk):
 
             return redirect("teacher_registration:edit", pk=registration.pk)
         else:
-            # Form is invalid - show errors
+            # Forms are invalid - show errors
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
+            # Show formset errors
+            for formset, name in [
+                (education_formset, "Education"),
+                (training_formset, "Training"),
+                (appointment_formset, "Appointment"),
+            ]:
+                for form_errors in formset.errors:
+                    for field, errors in form_errors.items():
+                        for error in errors:
+                            messages.error(request, f"{name} - {field}: {error}")
     else:
         form = TeacherRegistrationForm(instance=registration, user=registration.user)
+        education_formset = EducationRecordFormSet(instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(instance=registration, prefix="claimed_appointments")
 
     # Get documents for this registration
     documents = registration.documents.all()
+
+    # Get PD types for training title autocomplete
+    pd_types = EmisTeacherPdType.objects.filter(active=True).order_by("label")
+
+    # Build required documents status for checklist
+    required_docs_status = get_required_documents_status(documents)
 
     return render(
         request,
         "teacher_registration/registration_form.html",
         {
             "form": form,
+            "education_formset": education_formset,
+            "training_formset": training_formset,
+            "appointment_formset": appointment_formset,
             "registration": registration,
             "documents": documents,
             "document_form": RegistrationDocumentForm(),
             "is_admin": is_admin,
+            "pd_types": pd_types,
+            "required_docs_status": required_docs_status,
         },
     )
 
@@ -541,7 +638,7 @@ def admin_register(request):
                 address_line_2=form.cleaned_data.get("address_line_2", ""),
                 city=form.cleaned_data.get("city", ""),
                 province=form.cleaned_data.get("province", ""),
-                teaching_certificate_number=form.cleaned_data.get("teaching_certificate_number", ""),
+                teacher_payroll_number=form.cleaned_data.get("teacher_payroll_number", ""),
                 highest_qualification=form.cleaned_data.get("highest_qualification", ""),
                 years_of_experience=form.cleaned_data.get("years_of_experience"),
                 preferred_school=form.cleaned_data.get("preferred_school"),
@@ -595,9 +692,18 @@ def admin_edit(request, pk):
 
     if request.method == "POST":
         form = TeacherRegistrationForm(request.POST, instance=registration)
+        education_formset = EducationRecordFormSet(request.POST, instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(request.POST, instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(request.POST, instance=registration, prefix="claimed_appointments")
         is_submitting = "submit" in request.POST
 
-        if form.is_valid():
+        # Check all forms are valid
+        form_valid = form.is_valid()
+        education_valid = education_formset.is_valid()
+        training_valid = training_formset.is_valid()
+        appointment_valid = appointment_formset.is_valid()
+
+        if form_valid and education_valid and training_valid and appointment_valid:
             # If submitting, validate required fields
             if is_submitting:
                 errors = []
@@ -613,15 +719,20 @@ def admin_edit(request, pk):
                     for error in errors:
                         messages.error(request, error)
                     documents = registration.documents.all()
+                    required_docs_status = get_required_documents_status(documents)
                     return render(
                         request,
                         "teacher_registration/admin_edit.html",
                         {
                             "active": "my_registration",
                             "form": form,
+                            "education_formset": education_formset,
+                            "training_formset": training_formset,
+                            "appointment_formset": appointment_formset,
                             "registration": registration,
                             "documents": documents,
                             "document_form": RegistrationDocumentForm(),
+                            "required_docs_status": required_docs_status,
                         },
                     )
 
@@ -629,6 +740,15 @@ def admin_edit(request, pk):
             registration = form.save(commit=False)
             registration.last_updated_by = request.user
             registration.save()
+
+            # Save the formsets
+            education_formset.instance = registration
+            education_formset.save()
+            training_formset.instance = registration
+            training_formset.save()
+            appointment_formset.instance = registration
+            appointment_formset.save()
+
             # Save the user's name
             first_name = form.cleaned_data.get("first_name", "")
             last_name = form.cleaned_data.get("last_name", "")
@@ -648,10 +768,29 @@ def admin_edit(request, pk):
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
+            # Show formset errors
+            for formset, name in [
+                (education_formset, "Education"),
+                (training_formset, "Training"),
+                (appointment_formset, "Appointment"),
+            ]:
+                for form_errors in formset.errors:
+                    for field, errors in form_errors.items():
+                        for error in errors:
+                            messages.error(request, f"{name} - {field}: {error}")
     else:
         form = TeacherRegistrationForm(instance=registration)
+        education_formset = EducationRecordFormSet(instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(instance=registration, prefix="claimed_appointments")
 
     documents = registration.documents.all()
+
+    # Get PD types for training title autocomplete
+    pd_types = EmisTeacherPdType.objects.filter(active=True).order_by("label")
+
+    # Build required documents status for checklist
+    required_docs_status = get_required_documents_status(documents)
 
     return render(
         request,
@@ -659,9 +798,14 @@ def admin_edit(request, pk):
         {
             "active": "my_registration",
             "form": form,
+            "education_formset": education_formset,
+            "training_formset": training_formset,
+            "appointment_formset": appointment_formset,
             "registration": registration,
             "documents": documents,
             "document_form": RegistrationDocumentForm(),
+            "pd_types": pd_types,
+            "required_docs_status": required_docs_status,
         },
     )
 

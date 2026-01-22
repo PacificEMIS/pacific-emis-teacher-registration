@@ -73,20 +73,8 @@
         <h5 class="border-bottom pb-2 mb-3">Address</h5>
         <div class="row g-3 mb-4">
           <div class="col-12">
-            <label for="id_address_line_1" class="form-label">Address Line 1</label>
-            {{ form.address_line_1 }}
-          </div>
-          <div class="col-12">
-            <label for="id_address_line_2" class="form-label">Address Line 2</label>
-            {{ form.address_line_2 }}
-          </div>
-          <div class="col-md-6">
-            <label for="id_city" class="form-label">City</label>
-            {{ form.city }}
-          </div>
-          <div class="col-md-6">
-            <label for="id_province" class="form-label">Province/State</label>
-            {{ form.province }}
+            <label for="id_residential_address" class="form-label">Residential Address</label>
+            {{ form.residential_address }}
           </div>
         </div>
 
@@ -94,8 +82,8 @@
         <h5 class="border-bottom pb-2 mb-3">Professional Information</h5>
         <div class="row g-3 mb-4">
           <div class="col-md-6">
-            <label for="id_teaching_certificate_number" class="form-label">Teaching Certificate Number</label>
-            {{ form.teaching_certificate_number }}
+            <label for="id_teacher_payroll_number" class="form-label">Teacher Payroll Number (PF Number)</label>
+            {{ form.teacher_payroll_number }}
           </div>
           <div class="col-md-6">
             <label for="id_highest_qualification" class="form-label">Highest Qualification</label>

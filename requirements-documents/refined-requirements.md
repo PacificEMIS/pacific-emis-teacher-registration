@@ -33,8 +33,8 @@ The main difference: **Current Teachers** have an additional **Section 4: Teachi
 | Mobile | ✅ Partially (`phone_number`) |
 | Email Address | Via Django User |
 | Nearby School | ❌ Missing → will add FK to `EmisSchool` (replaces School ID Code + School Name) |
-| Residential Address | ✅ Partially (`address_line_1`, `address_line_2`, `city`, `province`) |
-| Business Address | ❌ Missing → will add (optional) |
+| Residential Address | ✅ `residential_address` (TextField - single field for full address) |
+| Business Address | ✅ `business_address` (TextField - optional, single field for full address) |
 
 ### SECTION 3: EDUCATION AND TRAINING BACKGROUND (Both Forms)
 
@@ -183,11 +183,14 @@ registration_type = models.CharField(max_length=20, choices=REGISTRATION_TYPE_CH
 - teacher_level_type (FK to EmisEducationLevel) - Primary/JSS/SSS
 - current_island_station (FK to EmisIsland)
 - current_school (FK to EmisSchool)
+- start_date (DateField, optional) - When appointment started (maps to SchoolStaffAssignment.start_date on approval)
 - years_of_experience (IntegerField)
 - employment_position (FK to EmisJobTitle)
 - employment_status (FK to EmisTeacherStatus)
 - class_type (choices: Single-grade, Multi-grade; Primary only)
 ```
+
+> **APPROVAL NOTE:** On approval, ClaimedSchoolAppointment records are converted to `SchoolStaffAssignment` records linking the new SchoolStaff to their claimed school with job title and start_date.
 
 **D. `ClaimedDuty`** (Many-to-One with ClaimedSchoolAppointment) - For JSS/SSS Teachers
 ```
@@ -405,3 +408,7 @@ Validation should be more like user notes in the UI rather than hard capture val
 - Both forms require the same documents, but medical clearance validity differs (6 months vs 1 month)
 - The statutory declaration form is for teachers who have changed their name
 - Church reference must come from Pastor, Catechist, Minister, etc.
+
+## Special Notes
+
+- Consider this for Training records: I feel this UI could be better. I think it is the right thing to leave Training Title (title) as CharField. However, I think we need to add a new field with simple dropdown selection (Tuple with options "MAT-PD in country event", "Overseas event"). If the user selects "MAT-PD in country event" then Training Title is hidden (and MAT-PD Title is shown instead which will be a new field mat_pd_event with a link to EmisTeacherPdTypes). If user selects "Overseas event" then it is the Training Title that is shown (free form) and the MAT-PD Title hidden. So both are optional and basically it is one or the other. So that way. Clear dropdown for the MAT-PD Title.

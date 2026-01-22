@@ -103,17 +103,18 @@
           </dl>
           <hr>
           <dl class="row mb-0">
-            <dt class="col-5">Address</dt>
-            <dd class="col-7">
-              {% if teacher.address_line_1 or teacher.city or teacher.province %}
-                {% if teacher.address_line_1 %}{{ teacher.address_line_1 }}<br>{% endif %}
-                {% if teacher.address_line_2 %}{{ teacher.address_line_2 }}<br>{% endif %}
-                {% if teacher.city %}{{ teacher.city }}{% endif %}
-                {% if teacher.province %}, {{ teacher.province }}{% endif %}
+            <dt class="col-5">Residential Address</dt>
+            <dd class="col-7" style="white-space: pre-line;">
+              {% if teacher.residential_address %}
+                {{ teacher.residential_address }}
               {% else %}
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
             </dd>
+            {% if teacher.business_address %}
+            <dt class="col-5">Business Address</dt>
+            <dd class="col-7" style="white-space: pre-line;">{{ teacher.business_address }}</dd>
+            {% endif %}
           </dl>
         </div>
       </div>
@@ -127,10 +128,10 @@
         </div>
         <div class="card-body small">
           <dl class="row mb-2">
-            <dt class="col-5">Teaching Certificate</dt>
+            <dt class="col-5">Payroll Number (PF Number)</dt>
             <dd class="col-7">
-              {% if teacher.teaching_certificate_number %}
-                {{ teacher.teaching_certificate_number }}
+              {% if teacher.teacher_payroll_number %}
+                {{ teacher.teacher_payroll_number }}
               {% else %}
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
