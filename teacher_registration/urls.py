@@ -27,9 +27,6 @@ urlpatterns = [
         views.document_delete,
         name="document_delete",
     ),
-    # Admin-facing (create registration for users)
-    path("admin/register/", views.admin_register, name="admin_register"),
-    path("admin/<int:pk>/edit/", views.admin_edit, name="admin_edit"),
     # Admin-facing (review workflow)
     path("pending/", views.pending_registrations_list, name="pending_list"),
     path("<int:pk>/review/", views.registration_review, name="review"),
