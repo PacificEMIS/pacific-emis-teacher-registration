@@ -128,6 +128,14 @@
         </div>
         <div class="card-body small">
           <dl class="row mb-2">
+            <dt class="col-5">Teacher Registration Number</dt>
+            <dd class="col-7">
+              {% if teacher.teacher_registration_number %}
+                <strong class="text-primary">{{ teacher.teacher_registration_number }}</strong>
+              {% else %}
+                <span class="text-body-secondary">Not assigned</span>
+              {% endif %}
+            </dd>
             <dt class="col-5">Payroll Number (PF Number)</dt>
             <dd class="col-7">
               {% if teacher.teacher_payroll_number %}

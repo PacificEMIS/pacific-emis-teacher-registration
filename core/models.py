@@ -310,6 +310,20 @@ class SchoolStaff(AuditModel):
     )
 
     # -------------------------------------------------------------------------
+    # Teacher registration number (auto-generated on approval)
+    # -------------------------------------------------------------------------
+
+    teacher_registration_number = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name="Teacher Registration Number",
+        help_text="Auto-generated unique registration number (format: TR26-A7K9-C)",
+    )
+
+    # -------------------------------------------------------------------------
     # Registration status (for teaching staff only)
     # -------------------------------------------------------------------------
 

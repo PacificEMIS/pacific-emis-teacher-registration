@@ -185,10 +185,10 @@ class SchoolStaffAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
     Displays user information, active school assignments, and provides
     inline editing of school assignments directly on the staff detail page.
     """
-    list_display = ["user", "user_email", "active_assignments_display", "created_at"]
-    search_fields = ["user__username", "user__email", "user__first_name", "user__last_name"]
+    list_display = ["user", "teacher_registration_number", "user_email", "active_assignments_display", "created_at"]
+    search_fields = ["user__username", "user__email", "user__first_name", "user__last_name", "teacher_registration_number"]
     list_filter = ["created_at", "schools"]
-    readonly_fields = ["created_at", "created_by", "last_updated_at", "last_updated_by"]
+    readonly_fields = ["teacher_registration_number", "created_at", "created_by", "last_updated_at", "last_updated_by"]
     autocomplete_fields = ["user"]
     inlines = [
         SchoolStaffAssignmentInline,

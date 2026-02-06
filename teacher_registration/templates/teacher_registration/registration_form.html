@@ -34,14 +34,22 @@
 {% endblock extra_css %}
 
 {% block content %}
-  {% if messages %}
-    <div class="mb-3">
-      {% for message in messages %}
-        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  <!-- Rejection Feedback Banner (shown when registration was rejected and returned to draft) -->
+  {% if registration.reviewer_comments %}
+    <div class="alert alert-warning border-start border-warning border-4 mb-4" role="alert">
+      <div class="d-flex align-items-start">
+        <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+        <div>
+          <h6 class="alert-heading mb-1">Registration Returned for Corrections</h6>
+          <p class="mb-0">
+            Your registration was reviewed and returned with the following feedback:
+          </p>
+          <p class="mb-0 mt-2"><strong>{{ registration.reviewer_comments }}</strong></p>
+          <p class="mb-0 mt-2 small text-body-secondary">
+            Please make the necessary corrections and submit again.
+          </p>
         </div>
-      {% endfor %}
+      </div>
     </div>
   {% endif %}
 
