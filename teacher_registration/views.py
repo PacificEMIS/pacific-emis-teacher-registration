@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import get_messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
@@ -690,24 +690,39 @@ def registration_review(request, pk):
             comments = form.cleaned_data["comments"]
 
             if action == RegistrationReviewForm.ACTION_APPROVE:
-                staff = registration.approve(reviewer=request.user, comments=comments)
+                try:
+                    staff = registration.approve(reviewer=request.user, comments=comments)
 
-                # Send approval email to the teacher
-                from django.urls import reverse
+                    # Send approval email to the teacher
+                    from django.urls import reverse
 
-                my_registration_url = request.build_absolute_uri(
-                    reverse("teacher_registration:my_registration")
-                )
-                send_teacher_registration_approved_email_async(
-                    registration=registration,
-                    dashboard_url=my_registration_url,
-                )
+                    my_registration_url = request.build_absolute_uri(
+                        reverse("teacher_registration:my_registration")
+                    )
+                    send_teacher_registration_approved_email_async(
+                        registration=registration,
+                        dashboard_url=my_registration_url,
+                    )
 
-                messages.success(
-                    request,
-                    f"Registration approved. {registration.user.get_full_name()} is now a registered teacher.",
-                )
-                return redirect("teacher_registration:teacher_detail", pk=staff.pk)
+                    messages.success(
+                        request,
+                        f"Registration approved. {registration.user.get_full_name()} is now a registered teacher. "
+                        f"Registration Number: {staff.teacher_registration_number}",
+                    )
+                    return redirect("teacher_registration:teacher_detail", pk=staff.pk)
+
+                except ValidationError as e:
+                    # Handle validation errors (e.g., duplicate National ID, missing fields)
+                    # Extract error message from ValidationError
+                    if hasattr(e, 'message'):
+                        error_message = e.message
+                    elif hasattr(e, 'messages') and e.messages:
+                        error_message = ' '.join(str(msg) for msg in e.messages)
+                    else:
+                        error_message = str(e)
+
+                    messages.error(request, f"Cannot approve registration: {error_message}")
+                    # Stay on review page to allow correction
 
             elif action == RegistrationReviewForm.ACTION_REJECT:
                 registration.reject(reviewer=request.user, comments=comments)

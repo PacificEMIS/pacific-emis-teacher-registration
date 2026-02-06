@@ -10,8 +10,11 @@ This module contains models for the teacher self-registration workflow:
 from typing import TYPE_CHECKING
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+
+from .utils import generate_teacher_registration_number
 
 from core.models import (
     AuditModel,
@@ -375,7 +378,9 @@ class TeacherRegistration(AuditModel):
         old_status = self.status
         self.status = self.SUBMITTED
         self.submitted_at = timezone.now()
-        self.save(update_fields=["status", "submitted_at", "last_updated_at"])
+        # Clear previous reviewer comments so the rejection banner doesn't persist
+        self.reviewer_comments = ""
+        self.save(update_fields=["status", "submitted_at", "reviewer_comments", "last_updated_at"])
 
         # Log the status change
         RegistrationChangeLog.log_change(
@@ -415,20 +420,53 @@ class TeacherRegistration(AuditModel):
         Approve the registration and create SchoolStaff profile.
 
         This method:
-        1. Creates SchoolStaff with data from this registration (including new fields)
-        2. Copies EducationRecords to StaffEducationRecords (preserves originals as audit trail)
-        3. Copies TrainingRecords to StaffTrainingRecords (preserves originals as audit trail)
-        4. Converts ClaimedSchoolAppointments to SchoolStaffAssignments
-        5. Moves documents to SchoolStaff (FK swap)
-        6. Marks this registration as approved
+        1. Validates National ID is present (required for registration number)
+        2. Checks for duplicate National ID (prevents collisions)
+        3. Generates unique teacher registration number
+        4. Creates SchoolStaff with data from this registration (including new fields)
+        5. Copies EducationRecords to StaffEducationRecords (preserves originals as audit trail)
+        6. Copies TrainingRecords to StaffTrainingRecords (preserves originals as audit trail)
+        7. Converts ClaimedSchoolAppointments to SchoolStaffAssignments
+        8. Moves documents to SchoolStaff (FK swap)
+        9. Marks this registration as approved
 
         Returns:
             SchoolStaff: The created staff profile
+
+        Raises:
+            ValueError: If registration status is invalid
+            ValidationError: If National ID missing or duplicate National ID exists
         """
         if self.status not in [self.SUBMITTED, self.UNDER_REVIEW]:
             raise ValueError(
                 "Only submitted or under-review registrations can be approved"
             )
+
+        # Validate National ID is present (required for registration number generation)
+        if not self.national_id_number or not self.national_id_number.strip():
+            raise ValidationError(
+                "National ID is required for approval. "
+                "Please ensure the applicant has provided their National ID/Passport number."
+            )
+
+        # Check for duplicate National ID (prevent registration number collisions)
+        existing_staff = SchoolStaff.objects.filter(
+            national_id_number=self.national_id_number
+        ).first()
+
+        if existing_staff:
+            raise ValidationError(
+                f"A teacher with National ID '{self.national_id_number}' already exists. "
+                f"Name: {existing_staff.user.get_full_name() or existing_staff.user.username}. "
+                f"Two teachers cannot have the same National ID. This needs to be corrected."
+            )
+
+        # Generate teacher registration number
+        registration_number = generate_teacher_registration_number(
+            national_id=self.national_id_number,
+            date_of_birth=self.date_of_birth,
+            approval_year=timezone.now().year,
+        )
 
         # Create SchoolStaff profile with all fields
         staff = SchoolStaff.objects.create(
@@ -455,6 +493,8 @@ class TeacherRegistration(AuditModel):
             teacher_payroll_number=self.teacher_payroll_number,
             highest_qualification=self.highest_qualification,
             years_of_experience=self.years_of_experience,
+            # Teacher registration number (auto-generated)
+            teacher_registration_number=registration_number,
             # Registration status
             registration_status=SchoolStaff.REGISTRATION_VALID,
             # Audit
@@ -532,13 +572,21 @@ class TeacherRegistration(AuditModel):
             old_value=old_status,
             new_value=self.status,
             changed_by=reviewer,
-            notes=f"Registration approved. SchoolStaff profile created (ID: {staff.pk})",
+            notes=f"Registration approved. SchoolStaff profile created (ID: {staff.pk}). "
+                  f"Teacher Registration Number: {registration_number}",
         )
 
         return staff
 
     def reject(self, reviewer, comments):
-        """Reject the registration with comments."""
+        """
+        Reject the registration and return it to draft for corrections.
+
+        The rejection is logged in the change log for audit trail, then the
+        registration transitions back to DRAFT so the teacher can correct
+        and resubmit. The reviewer_comments are preserved so the teacher
+        can see the rejection reason on the edit form.
+        """
         if self.status not in [self.SUBMITTED, self.UNDER_REVIEW]:
             raise ValueError(
                 "Only submitted or under-review registrations can be rejected"
@@ -551,18 +599,31 @@ class TeacherRegistration(AuditModel):
         self.reviewer_comments = comments
         self.save()
 
-        # Log the status change
+        # Log the rejection
         RegistrationChangeLog.log_change(
             registration=self,
             field_name="status",
             old_value=old_status,
-            new_value=self.status,
+            new_value=self.REJECTED,
             changed_by=reviewer,
             notes=(
                 f"Registration rejected. Reason: {comments[:100]}"
                 if comments
                 else "Registration rejected"
             ),
+        )
+
+        # Transition back to draft so the teacher can correct and resubmit
+        self.status = self.DRAFT
+        self.save(update_fields=["status", "last_updated_at"])
+
+        RegistrationChangeLog.log_change(
+            registration=self,
+            field_name="status",
+            old_value=self.REJECTED,
+            new_value=self.DRAFT,
+            changed_by=reviewer,
+            notes="Returned to draft for corrections",
         )
 
 

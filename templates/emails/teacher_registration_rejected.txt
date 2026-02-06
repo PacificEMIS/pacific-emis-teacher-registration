@@ -11,8 +11,9 @@ Registration Status
 Status: Rejected
 {% if rejection_reason %}Reason: {{ rejection_reason }}{% endif %}
 
-Please review the feedback above and contact your education authority or
-EMIS administrator if you have questions or need to resubmit your registration.
+Your registration has been returned to draft so you can make the necessary
+corrections. Please log in, review the feedback, update your registration,
+and submit again.
 
 {% if my_registration_url %}
 View My Registration: {{ my_registration_url }}
