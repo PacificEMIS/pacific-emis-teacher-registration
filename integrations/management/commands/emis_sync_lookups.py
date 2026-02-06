@@ -16,6 +16,7 @@ from integrations.models import (
     EmisTeacherPdFocus,
     EmisTeacherPdFormat,
     EmisTeacherPdType,
+    EmisNationality,
 )
 from integrations.emis_client import EmisClient
 
@@ -42,6 +43,7 @@ class Command(BaseCommand):
         pd_focuses = payload.get("teacherPdFocuses", [])
         pd_formats = payload.get("teacherPdFormats", [])
         pd_types = payload.get("teacherPdTypes", [])
+        nationalities = payload.get("nationalities", [])
 
         # Counters: (added, updated) for each entity
         counts = {
@@ -60,6 +62,7 @@ class Command(BaseCommand):
             "pd_focuses": [0, 0],
             "pd_formats": [0, 0],
             "pd_types": [0, 0],
+            "nationalities": [0, 0],
         }
 
         with transaction.atomic():
@@ -228,6 +231,17 @@ class Command(BaseCommand):
                 )
                 counts["pd_types"][0 if created else 1] += 1
 
+            # Nationalities
+            for item in nationalities:
+                code, label = item.get("C"), item.get("N")
+                if not code:
+                    continue
+                obj, created = EmisNationality.objects.update_or_create(
+                    code=str(code),
+                    defaults={"label": label or str(code), "active": True},
+                )
+                counts["nationalities"][0 if created else 1] += 1
+
         msg = (
             "Schools +{}/{}, "
             "Levels +{}/{}, "
@@ -243,7 +257,8 @@ class Command(BaseCommand):
             "Genders +{}/{}, "
             "PD Focuses +{}/{}, "
             "PD Formats +{}/{}, "
-            "PD Types +{}/{}"
+            "PD Types +{}/{}, "
+            "Nationalities +{}/{}"
         ).format(
             counts["schools"][0],
             counts["schools"][1],
@@ -275,6 +290,8 @@ class Command(BaseCommand):
             counts["pd_formats"][1],
             counts["pd_types"][0],
             counts["pd_types"][1],
+            counts["nationalities"][0],
+            counts["nationalities"][1],
         )
 
         self.stdout.write(self.style.SUCCESS(msg))

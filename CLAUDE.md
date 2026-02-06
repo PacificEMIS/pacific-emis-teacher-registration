@@ -10,6 +10,10 @@ On Windows, the Python interpreter is typically at:
 
 When running Django commands, use the full path to the Conda environment's Python interpreter.
 
+## Database Migrations
+
+**IMPORTANT**: Do NOT run `makemigrations` or `migrate` commands automatically. The user runs all database migrations manually. When model changes require migrations, inform the user that they need to run migrations, but do not execute the commands yourself.
+
 ## Project Structure
 
 - Django 5.x project

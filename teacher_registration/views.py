@@ -15,6 +15,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
 from core.models import SchoolStaff, SchoolStaffAssignment
@@ -35,10 +36,60 @@ from teacher_registration.forms import (
     TeacherRegistrationForm,
     RegistrationDocumentForm,
     RegistrationReviewForm,
+    EducationRecordFormSet,
+    TrainingRecordFormSet,
+    ClaimedSchoolAppointmentFormSet,
 )
+from integrations.models import EmisTeacherPdType
 
 
 PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
+
+# Required documents checklist with mapping to EMIS document type codes
+# Each item: (display_label, list_of_matching_doc_type_codes)
+# Multiple codes per item allow for flexible matching (e.g., birth cert OR passport)
+# Codes from EmisTeacherLinkType table
+REQUIRED_DOCUMENTS = [
+    ("Birth Certificate or Passport", ["BIRTHCERT", "PASSPORT"]),
+    ("National ID Card", ["NATIONID"]),
+    ("Academic Certificate", ["ACACERT"]),
+    ("Academic Transcript", ["ACATRANS", "STATERES"]),
+    ("Teaching Certificate", ["TEACHCERT", "TEACHINGQUAL"]),
+    ("Teaching Transcript", ["TEACHTRANS"]),
+    ("Training/Workshop Certificates", ["TRAINCERT"]),
+    ("Police Clearance", ["POLCLEAR"]),
+    ("Medical Clearance", ["MEDCLEAR"]),
+    ("Passport Photo", ["PHOTO", "PORTRAIT"]),
+    ("Church Character Reference", ["CHURCHREF"]),
+    ("School Leader/Supervisor Reference", ["SCHREF"]),
+    ("Registration Fee Receipt", ["REGRECEIPT"]),
+]
+
+
+def get_required_documents_status(documents):
+    """
+    Build a list of required documents with their upload status.
+
+    Args:
+        documents: QuerySet of RegistrationDocument objects
+
+    Returns:
+        List of dicts: [{"label": str, "uploaded": bool}, ...]
+    """
+    # Get all uploaded document type codes (uppercase for case-insensitive matching)
+    uploaded_codes = set()
+    for doc in documents:
+        if doc.doc_link_type:
+            uploaded_codes.add(doc.doc_link_type.code.upper())
+
+    # Build status list
+    result = []
+    for label, codes in REQUIRED_DOCUMENTS:
+        # Check if any of the matching codes have been uploaded
+        is_uploaded = any(code.upper() in uploaded_codes for code in codes)
+        result.append({"label": label, "uploaded": is_uploaded})
+
+    return result
 
 
 # =============================================================================
@@ -121,11 +172,12 @@ def _page_window(page_obj, radius=2, edges=2):
 
 
 @login_required
+@never_cache
 def my_registration(request):
     """
     Show the teacher's current registration status or start a new one.
 
-    - If admin: show the admin registration page
+    - If admin: redirect to pending registrations list
     - If user has SchoolStaff profile: redirect to dashboard
     - If user has draft registration: redirect to edit it
     - If user has submitted registration: show status
@@ -133,9 +185,9 @@ def my_registration(request):
     """
     user = request.user
 
-    # If admin, show the admin registration page
+    # If admin, redirect to pending registrations list
     if can_manage_pending_users(user):
-        return redirect("teacher_registration:admin_register")
+        return redirect("teacher_registration:pending_list")
 
     # Check for existing registrations (prefetch change logs for history display)
     registrations = (
@@ -246,6 +298,7 @@ def registration_create(request):
 
 
 @login_required
+@never_cache
 def registration_edit(request, pk):
     """
     Edit a draft registration.
@@ -273,9 +326,18 @@ def registration_edit(request, pk):
 
     if request.method == "POST":
         form = TeacherRegistrationForm(request.POST, instance=registration)
+        education_formset = EducationRecordFormSet(request.POST, instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(request.POST, instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(request.POST, instance=registration, prefix="claimed_appointments")
         is_submitting = "submit" in request.POST
 
-        if form.is_valid():
+        # Check all forms are valid
+        form_valid = form.is_valid()
+        education_valid = education_formset.is_valid()
+        training_valid = training_formset.is_valid()
+        appointment_valid = appointment_formset.is_valid()
+
+        if form_valid and education_valid and training_valid and appointment_valid:
             # If submitting, validate required fields
             if is_submitting:
                 errors = []
@@ -292,15 +354,20 @@ def registration_edit(request, pk):
                         messages.error(request, error)
                     # Re-render the form with errors
                     documents = registration.documents.all()
+                    required_docs_status = get_required_documents_status(documents)
                     return render(
                         request,
                         "teacher_registration/registration_form.html",
                         {
                             "form": form,
+                            "education_formset": education_formset,
+                            "training_formset": training_formset,
+                            "appointment_formset": appointment_formset,
                             "registration": registration,
                             "documents": documents,
                             "document_form": RegistrationDocumentForm(),
                             "is_admin": is_admin,
+                            "required_docs_status": required_docs_status,
                         },
                     )
 
@@ -308,6 +375,15 @@ def registration_edit(request, pk):
             registration = form.save(commit=False)
             registration.last_updated_by = request.user
             registration.save()
+
+            # Save the formsets
+            education_formset.instance = registration
+            education_formset.save()
+            training_formset.instance = registration
+            training_formset.save()
+            appointment_formset.instance = registration
+            appointment_formset.save()
+
             # Also save the user's name
             first_name = form.cleaned_data.get("first_name", "")
             last_name = form.cleaned_data.get("last_name", "")
@@ -338,25 +414,49 @@ def registration_edit(request, pk):
 
             return redirect("teacher_registration:edit", pk=registration.pk)
         else:
-            # Form is invalid - show errors
+            # Forms are invalid - show errors
             for field, errors in form.errors.items():
                 for error in errors:
                     messages.error(request, f"{field}: {error}")
+            # Show formset errors
+            for formset, name in [
+                (education_formset, "Education"),
+                (training_formset, "Training"),
+                (appointment_formset, "Appointment"),
+            ]:
+                for form_errors in formset.errors:
+                    for field, errors in form_errors.items():
+                        for error in errors:
+                            messages.error(request, f"{name} - {field}: {error}")
     else:
         form = TeacherRegistrationForm(instance=registration, user=registration.user)
+        education_formset = EducationRecordFormSet(instance=registration, prefix="education_records")
+        training_formset = TrainingRecordFormSet(instance=registration, prefix="training_records")
+        appointment_formset = ClaimedSchoolAppointmentFormSet(instance=registration, prefix="claimed_appointments")
 
     # Get documents for this registration
     documents = registration.documents.all()
+
+    # Get PD types for training title autocomplete
+    pd_types = EmisTeacherPdType.objects.filter(active=True).order_by("label")
+
+    # Build required documents status for checklist
+    required_docs_status = get_required_documents_status(documents)
 
     return render(
         request,
         "teacher_registration/registration_form.html",
         {
             "form": form,
+            "education_formset": education_formset,
+            "training_formset": training_formset,
+            "appointment_formset": appointment_formset,
             "registration": registration,
             "documents": documents,
             "document_form": RegistrationDocumentForm(),
             "is_admin": is_admin,
+            "pd_types": pd_types,
+            "required_docs_status": required_docs_status,
         },
     )
 
@@ -423,8 +523,7 @@ def document_upload(request, registration_pk):
     # Check status
     if not registration.is_editable:
         messages.error(request, "Documents cannot be added to this registration.")
-        redirect_url = "teacher_registration:admin_edit" if is_admin else "teacher_registration:edit"
-        return redirect(redirect_url, pk=registration.pk)
+        return redirect("teacher_registration:edit", pk=registration.pk)
 
     if request.method == "POST":
         form = RegistrationDocumentForm(request.POST, request.FILES)
@@ -439,9 +538,8 @@ def document_upload(request, registration_pk):
             for error in form.errors.values():
                 messages.error(request, error)
 
-    # Redirect back to appropriate edit page
-    redirect_url = "teacher_registration:admin_edit" if is_admin and not is_owner else "teacher_registration:edit"
-    return redirect(redirect_url, pk=registration.pk)
+    # Redirect back to edit page
+    return redirect("teacher_registration:edit", pk=registration.pk)
 
 
 @login_required
@@ -461,16 +559,14 @@ def document_delete(request, registration_pk, pk):
     # Check status
     if not registration.is_editable:
         messages.error(request, "Documents cannot be removed from this registration.")
-        redirect_url = "teacher_registration:admin_edit" if is_admin and not is_owner else "teacher_registration:edit"
-        return redirect(redirect_url, pk=registration.pk)
+        return redirect("teacher_registration:edit", pk=registration.pk)
 
     if request.method == "POST":
         document.delete()
         messages.success(request, "Document deleted.")
 
-    # Redirect back to appropriate edit page
-    redirect_url = "teacher_registration:admin_edit" if is_admin and not is_owner else "teacher_registration:edit"
-    return redirect(redirect_url, pk=registration.pk)
+    # Redirect back to edit page
+    return redirect("teacher_registration:edit", pk=registration.pk)
 
 
 # =============================================================================
@@ -480,194 +576,7 @@ def document_delete(request, registration_pk, pk):
 
 @login_required
 @require_app_access
-def admin_register(request):
-    """
-    Admin view to create a new teacher registration on behalf of a teacher.
-
-    Creates a new Django user (if needed) and a registration for them.
-    This is for teachers who don't have email/computer access.
-    """
-    if not can_manage_pending_users(request.user):
-        raise PermissionDenied
-
-    from django.contrib.auth import get_user_model
-    from teacher_registration.forms import AdminTeacherRegistrationForm
-    User = get_user_model()
-
-    if request.method == "POST":
-        form = AdminTeacherRegistrationForm(request.POST)
-        if form.is_valid():
-            # Create a placeholder user for this teacher
-            email = form.cleaned_data.get("email", "").strip()
-            first_name = form.cleaned_data.get("first_name", "").strip()
-            last_name = form.cleaned_data.get("last_name", "").strip()
-
-            # Generate a unique username/email if not provided
-            if not email:
-                import uuid
-                email = f"teacher_{uuid.uuid4().hex[:8]}@placeholder.local"
-
-            # Check if user with this email already exists
-            existing_user = User.objects.filter(email=email).first()
-            if existing_user:
-                messages.error(request, f"A user with email {email} already exists.")
-                return render(
-                    request,
-                    "teacher_registration/admin_register.html",
-                    {"active": "my_registration", "form": form},
-                )
-
-            # Create the user
-            user = User.objects.create_user(
-                username=email,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                password=None,  # No password - can't login
-            )
-
-            # Create the registration
-            registration = TeacherRegistration.objects.create(
-                user=user,
-                registration_type=TeacherRegistration.INITIAL,
-                status=TeacherRegistration.DRAFT,
-                # Copy form data to registration
-                date_of_birth=form.cleaned_data.get("date_of_birth"),
-                gender=form.cleaned_data.get("gender", ""),
-                nationality=form.cleaned_data.get("nationality", ""),
-                national_id_number=form.cleaned_data.get("national_id_number", ""),
-                phone_number=form.cleaned_data.get("phone_number", ""),
-                address_line_1=form.cleaned_data.get("address_line_1", ""),
-                address_line_2=form.cleaned_data.get("address_line_2", ""),
-                city=form.cleaned_data.get("city", ""),
-                province=form.cleaned_data.get("province", ""),
-                teaching_certificate_number=form.cleaned_data.get("teaching_certificate_number", ""),
-                highest_qualification=form.cleaned_data.get("highest_qualification", ""),
-                years_of_experience=form.cleaned_data.get("years_of_experience"),
-                preferred_school=form.cleaned_data.get("preferred_school"),
-                preferred_job_title=form.cleaned_data.get("preferred_job_title"),
-                created_by=request.user,
-                last_updated_by=request.user,
-            )
-
-            # Log registration creation
-            RegistrationChangeLog.log_change(
-                registration=registration,
-                field_name="status",
-                old_value="",
-                new_value=TeacherRegistration.DRAFT,
-                changed_by=request.user,
-                notes=f"Registration created by admin for {first_name} {last_name}",
-            )
-
-            messages.success(request, f"Registration created for {first_name} {last_name}.")
-            return redirect("teacher_registration:admin_edit", pk=registration.pk)
-    else:
-        form = AdminTeacherRegistrationForm()
-
-    return render(
-        request,
-        "teacher_registration/admin_register.html",
-        {
-            "active": "my_registration",
-            "form": form,
-        },
-    )
-
-
-@login_required
-@require_app_access
-def admin_edit(request, pk):
-    """
-    Admin edits a registration on behalf of a user.
-
-    Similar to registration_edit but for admins.
-    """
-    if not can_manage_pending_users(request.user):
-        raise PermissionDenied
-
-    registration = get_object_or_404(TeacherRegistration, pk=pk)
-
-    # Check status
-    if not registration.is_editable:
-        messages.error(request, "This registration can no longer be edited.")
-        return redirect("teacher_registration:pending_list")
-
-    if request.method == "POST":
-        form = TeacherRegistrationForm(request.POST, instance=registration)
-        is_submitting = "submit" in request.POST
-
-        if form.is_valid():
-            # If submitting, validate required fields
-            if is_submitting:
-                errors = []
-                first_name = form.cleaned_data.get("first_name", "").strip()
-                last_name = form.cleaned_data.get("last_name", "").strip()
-
-                if not first_name:
-                    errors.append("First name is required.")
-                if not last_name:
-                    errors.append("Last name is required.")
-
-                if errors:
-                    for error in errors:
-                        messages.error(request, error)
-                    documents = registration.documents.all()
-                    return render(
-                        request,
-                        "teacher_registration/admin_edit.html",
-                        {
-                            "active": "my_registration",
-                            "form": form,
-                            "registration": registration,
-                            "documents": documents,
-                            "document_form": RegistrationDocumentForm(),
-                        },
-                    )
-
-            # Save the registration
-            registration = form.save(commit=False)
-            registration.last_updated_by = request.user
-            registration.save()
-            # Save the user's name
-            first_name = form.cleaned_data.get("first_name", "")
-            last_name = form.cleaned_data.get("last_name", "")
-            registration.user.first_name = first_name
-            registration.user.last_name = last_name
-            registration.user.save(update_fields=["first_name", "last_name"])
-            messages.success(request, "Registration saved.")
-
-            # Submit if requested
-            if is_submitting:
-                registration.submit(user=request.user)
-                messages.success(request, "Registration submitted for review.")
-                return redirect("teacher_registration:pending_list")
-
-            return redirect("teacher_registration:admin_edit", pk=registration.pk)
-        else:
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f"{field}: {error}")
-    else:
-        form = TeacherRegistrationForm(instance=registration)
-
-    documents = registration.documents.all()
-
-    return render(
-        request,
-        "teacher_registration/admin_edit.html",
-        {
-            "active": "my_registration",
-            "form": form,
-            "registration": registration,
-            "documents": documents,
-            "document_form": RegistrationDocumentForm(),
-        },
-    )
-
-
-@login_required
-@require_app_access
+@never_cache
 def pending_registrations_list(request):
     """
     List all pending teacher registrations for admin review.
@@ -746,6 +655,7 @@ def pending_registrations_list(request):
 
 @login_required
 @require_app_access
+@never_cache
 def registration_review(request, pk):
     """
     Review a teacher registration (approve or reject).

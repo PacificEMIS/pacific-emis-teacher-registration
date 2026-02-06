@@ -15,7 +15,7 @@ class EmisSchool(models.Model):
 
 class EmisClassLevel(models.Model):
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.levels.C
     label = models.CharField(max_length=128)  # from core.lookups.levels.N
     active = models.BooleanField(default=True)
@@ -34,7 +34,7 @@ class EmisJobTitle(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherRoles.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherRoles.N
     active = models.BooleanField(default=True)
@@ -54,7 +54,7 @@ class EmisWarehouseYear(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.warehouseYears.C
     label = models.CharField(
         max_length=128
@@ -76,7 +76,7 @@ class EmisSubject(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.subjects.C
     label = models.CharField(max_length=128)  # from core.lookups.subjects.N
     active = models.BooleanField(default=True)
@@ -97,7 +97,7 @@ class EmisTeacherQual(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherQuals.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherQuals.N
     active = models.BooleanField(default=True)
@@ -118,7 +118,7 @@ class EmisMaritalStatus(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.maritalStatus.C
     label = models.CharField(max_length=128)  # from core.lookups.maritalStatus.N
     active = models.BooleanField(default=True)
@@ -139,7 +139,7 @@ class EmisIsland(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.islands.C
     label = models.CharField(max_length=128)  # from core.lookups.islands.N
     active = models.BooleanField(default=True)
@@ -160,7 +160,7 @@ class EmisTeacherStatus(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherRegStatus.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherRegStatus.N
     active = models.BooleanField(default=True)
@@ -181,7 +181,7 @@ class EmisEducationLevel(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.educationLevels.C
     label = models.CharField(max_length=128)  # from core.lookups.educationLevels.N
     active = models.BooleanField(default=True)
@@ -202,7 +202,7 @@ class EmisTeacherLinkType(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherLinkTypes.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherLinkTypes.N
     active = models.BooleanField(default=True)
@@ -223,7 +223,7 @@ class EmisGender(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.gender.C
     label = models.CharField(max_length=128)  # from core.lookups.gender.N
     active = models.BooleanField(default=True)
@@ -244,7 +244,7 @@ class EmisTeacherPdFocus(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherPdFocuses.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherPdFocuses.N
     active = models.BooleanField(default=True)
@@ -265,7 +265,7 @@ class EmisTeacherPdFormat(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherPdFormats.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherPdFormats.N
     active = models.BooleanField(default=True)
@@ -286,7 +286,7 @@ class EmisTeacherPdType(models.Model):
     """
 
     code = models.CharField(
-        max_length=16, primary_key=True
+        max_length=64, primary_key=True
     )  # from core.lookups.teacherPdTypes.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherPdTypes.N
     active = models.BooleanField(default=True)
@@ -295,6 +295,27 @@ class EmisTeacherPdType(models.Model):
         ordering = ["code"]
         verbose_name = "Teacher PD Type"
         verbose_name_plural = "Teacher PD Types"
+
+    def __str__(self):
+        return self.label
+
+
+class EmisNationality(models.Model):
+    """
+    Lookup table for nationalities.
+    Mirrors core.lookups.nationalities.
+    """
+
+    code = models.CharField(
+        max_length=64, primary_key=True
+    )  # from core.lookups.nationalities.C
+    label = models.CharField(max_length=128)  # from core.lookups.nationalities.N
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["label"]
+        verbose_name = "Nationality"
+        verbose_name_plural = "Nationalities"
 
     def __str__(self):
         return self.label
