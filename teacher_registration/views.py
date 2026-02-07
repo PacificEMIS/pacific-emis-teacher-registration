@@ -6,6 +6,8 @@ This module provides views for:
 - Admins: List, review, approve/reject registrations
 """
 
+from collections import defaultdict
+
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
@@ -13,13 +15,14 @@ from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
+from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
 from core.models import SchoolStaff, SchoolStaffAssignment
-from integrations.models import EmisSchool
+from integrations.models import EmisSchool, EmisClassLevel, EmisSubject
 from core.emails import (
     send_new_teacher_registration_email_async,
     send_teacher_registration_submitted_email_async,
@@ -31,6 +34,8 @@ from teacher_registration.models import (
     TeacherRegistration,
     RegistrationDocument,
     RegistrationChangeLog,
+    ClaimedSchoolAppointment,
+    ClaimedDuty,
 )
 from teacher_registration.forms import (
     TeacherRegistrationForm,
@@ -39,6 +44,7 @@ from teacher_registration.forms import (
     EducationRecordFormSet,
     TrainingRecordFormSet,
     ClaimedSchoolAppointmentFormSet,
+    ClaimedDutyFormSet,
 )
 from integrations.models import EmisTeacherPdType
 
@@ -1006,8 +1012,13 @@ def teacher_detail(request, pk):
         pk=pk,
     )
 
-    # Get active assignments
-    active_assignments = teacher.active_assignments.select_related("school", "job_title")
+    # Get active assignments with teaching duties
+    active_assignments = teacher.active_assignments.select_related(
+        "school", "job_title"
+    ).prefetch_related(
+        "teaching_duties__year_level",
+        "teaching_duties__subject",
+    )
 
     # Get registration history (if this teacher was created via registration)
     registration_history = teacher.registration_history.all()
@@ -1075,5 +1086,159 @@ def teacher_delete(request, pk):
         {
             "active": "teachers",
             "teacher": teacher,
+        },
+    )
+
+
+# =============================================================================
+# Claimed Duties Management (Modal)
+# =============================================================================
+
+
+@login_required
+@never_cache
+def manage_claimed_duties(request, appointment_id):
+    """
+    Manage claimed duties for a school appointment (modal view).
+
+    GET: Returns HTML for grouped duty form to render in modal
+    POST: Saves duties (expanding grouped entries into individual records) and returns JSON response
+
+    Permissions:
+    - User must own the registration
+    - Registration must be editable (DRAFT status)
+    """
+    appointment = get_object_or_404(
+        ClaimedSchoolAppointment.objects.select_related("registration"),
+        pk=appointment_id
+    )
+    registration = appointment.registration
+
+    # Check permissions: owner or admin
+    is_owner = registration.user == request.user
+    is_admin = can_manage_pending_users(request.user)
+
+    if not is_owner and not is_admin:
+        if request.method == "POST":
+            return JsonResponse(
+                {"success": False, "error": "Permission denied"},
+                status=403
+            )
+        raise PermissionDenied("You can only manage your own registration.")
+
+    # Check if registration is editable
+    if not registration.is_editable:
+        if request.method == "POST":
+            return JsonResponse(
+                {"success": False, "error": "Registration is no longer editable"},
+                status=400
+            )
+        messages.error(request, "This registration can no longer be edited.")
+        return redirect("teacher_registration:edit", pk=registration.pk)
+
+    if request.method == "POST":
+        # Parse grouped duty data from POST
+        # Format: duties[0][year_level], duties[0][subjects][], duties[1][year_level], etc.
+        try:
+            # Get all existing duties to track what needs deletion
+            existing_duties = list(appointment.claimed_duties.all())
+            existing_duty_ids = {duty.pk for duty in existing_duties}
+            duties_to_keep = set()
+
+            # Parse the grouped duties from the form
+            grouped_duties = []
+            i = 0
+            while f"duties[{i}][year_level]" in request.POST:
+                year_level_id = request.POST.get(f"duties[{i}][year_level]")
+                subject_ids = request.POST.getlist(f"duties[{i}][subjects][]")
+
+                if year_level_id and subject_ids:
+                    try:
+                        year_level = EmisClassLevel.objects.get(pk=year_level_id, active=True)
+                        subjects = EmisSubject.objects.filter(pk__in=subject_ids, active=True)
+
+                        if subjects.exists():
+                            grouped_duties.append({
+                                "year_level": year_level,
+                                "subjects": list(subjects),
+                            })
+                    except EmisClassLevel.DoesNotExist:
+                        pass
+
+                i += 1
+
+            # Expand grouped duties into individual ClaimedDuty records
+            for group in grouped_duties:
+                year_level = group["year_level"]
+                for subject in group["subjects"]:
+                    # Check if this duty already exists
+                    existing_duty = next(
+                        (d for d in existing_duties if d.year_level_id == year_level.pk and d.subject_id == subject.pk),
+                        None
+                    )
+
+                    if existing_duty:
+                        # Keep existing duty
+                        duties_to_keep.add(existing_duty.pk)
+                    else:
+                        # Create new duty
+                        new_duty = ClaimedDuty.objects.create(
+                            appointment=appointment,
+                            year_level=year_level,
+                            subject=subject,
+                            created_by=request.user,
+                            last_updated_by=request.user,
+                        )
+                        duties_to_keep.add(new_duty.pk)
+
+            # Delete duties that are no longer selected
+            duties_to_delete = existing_duty_ids - duties_to_keep
+            ClaimedDuty.objects.filter(pk__in=duties_to_delete).delete()
+
+            # Get updated duties list for response
+            duties = appointment.claimed_duties.select_related("year_level", "subject").all()
+            duties_html = render(request, "teacher_registration/_duty_list.html", {
+                "duties": duties,
+            }).content.decode("utf-8")
+
+            return JsonResponse({
+                "success": True,
+                "message": "Duties saved successfully",
+                "duties_html": duties_html,
+                "duties_count": duties.count(),
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"Error saving duties: {str(e)}",
+            }, status=400)
+
+    # GET: Load existing duties and group them by year_level
+    existing_duties = appointment.claimed_duties.select_related("year_level", "subject").all()
+
+    # Group duties by year_level
+    grouped = defaultdict(list)
+    for duty in existing_duties:
+        grouped[duty.year_level].append(duty.subject)
+
+    # Convert to list of dicts for template
+    grouped_duties = [
+        {"year_level": year_level, "subjects": subjects}
+        for year_level, subjects in grouped.items()
+    ]
+
+    # Get available year levels and subjects for dropdowns
+    year_levels = EmisClassLevel.objects.filter(active=True).order_by("label")
+    subjects = EmisSubject.objects.filter(active=True).order_by("label")
+
+    return render(
+        request,
+        "teacher_registration/_duty_formset.html",
+        {
+            "appointment": appointment,
+            "grouped_duties": grouped_duties,
+            "year_levels": year_levels,
+            "subjects": subjects,
         },
     )

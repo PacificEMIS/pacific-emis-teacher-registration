@@ -349,8 +349,10 @@ class SchoolStaff(AuditModel):
     )
 
     if TYPE_CHECKING:
-        # Type hint for the reverse relation from SchoolStaffAssignment
+        # Type hints for reverse relations
         assignments: "RelatedManager[SchoolStaffAssignment]"
+        education_records: "RelatedManager[StaffEducationRecord]"
+        training_records: "RelatedManager[StaffTrainingRecord]"
 
     class Meta:
         ordering = ["user_id"]
@@ -436,6 +438,10 @@ class SchoolStaffAssignment(AuditModel):
         blank=True,
         help_text="When this assignment ended (null = currently active)",
     )
+
+    if TYPE_CHECKING:
+        # Type hint for reverse relation from StaffTeachingDuty
+        teaching_duties: "RelatedManager[StaffTeachingDuty]"
 
     class Meta:
         indexes = [
@@ -761,3 +767,54 @@ class StaffTrainingRecord(AuditModel):
 
     def __str__(self):
         return f"{self.title} - {self.provider_institution}"
+
+
+class StaffTeachingDuty(AuditModel):
+    """
+    Teaching duty for staff assignments (JSS/SSS teachers).
+
+    Captures specific subject/year level teaching assignments within
+    a SchoolStaffAssignment. Created on registration approval by copying
+    from ClaimedDuty. The original ClaimedDuty is preserved as an audit
+    trail of what was claimed at application time.
+
+    Attributes:
+        assignment: School assignment this duty belongs to
+        year_level: Class/year level being taught
+        subject: Subject being taught
+    """
+
+    assignment = models.ForeignKey(
+        SchoolStaffAssignment,
+        on_delete=models.CASCADE,
+        related_name="teaching_duties",
+        help_text="School assignment this duty belongs to",
+    )
+
+    year_level = models.ForeignKey(
+        EmisClassLevel,
+        on_delete=models.PROTECT,
+        related_name="staff_teaching_duties",
+        verbose_name="Year/Class level",
+    )
+
+    subject = models.ForeignKey(
+        EmisSubject,
+        on_delete=models.PROTECT,
+        related_name="staff_teaching_duties",
+        verbose_name="Subject taught",
+    )
+
+    class Meta:
+        ordering = ["assignment", "year_level", "subject"]
+        verbose_name = "Staff Teaching Duty"
+        verbose_name_plural = "Staff Teaching Duties"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["assignment", "year_level", "subject"],
+                name="uq_staff_teaching_duty",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.year_level} - {self.subject}"

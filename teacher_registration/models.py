@@ -22,6 +22,7 @@ from core.models import (
     SchoolStaffAssignment,
     StaffEducationRecord,
     StaffTrainingRecord,
+    StaffTeachingDuty,
 )
 from integrations.models import (
     EmisSchool,
@@ -427,8 +428,9 @@ class TeacherRegistration(AuditModel):
         5. Copies EducationRecords to StaffEducationRecords (preserves originals as audit trail)
         6. Copies TrainingRecords to StaffTrainingRecords (preserves originals as audit trail)
         7. Converts ClaimedSchoolAppointments to SchoolStaffAssignments
-        8. Moves documents to SchoolStaff (FK swap)
-        9. Marks this registration as approved
+        8. Copies ClaimedDuties to StaffTeachingDuties (preserves originals as audit trail)
+        9. Moves documents to SchoolStaff (FK swap)
+        10. Marks this registration as approved
 
         Returns:
             SchoolStaff: The created staff profile
@@ -539,8 +541,9 @@ class TeacherRegistration(AuditModel):
             )
 
         # Convert ClaimedSchoolAppointments to SchoolStaffAssignments
+        # Also copy ClaimedDuties to StaffTeachingDuties
         for appointment in self.claimed_appointments.all():
-            SchoolStaffAssignment.objects.create(
+            assignment = SchoolStaffAssignment.objects.create(
                 school_staff=staff,
                 school=appointment.current_school,
                 job_title=appointment.employment_position,
@@ -549,6 +552,16 @@ class TeacherRegistration(AuditModel):
                 created_by=reviewer,
                 last_updated_by=reviewer,
             )
+
+            # Copy ClaimedDuties to StaffTeachingDuties (preserves originals)
+            for duty in appointment.claimed_duties.all():
+                StaffTeachingDuty.objects.create(
+                    assignment=assignment,
+                    year_level=duty.year_level,
+                    subject=duty.subject,
+                    created_by=reviewer,
+                    last_updated_by=reviewer,
+                )
 
         # Move documents to SchoolStaff (FK swap)
         self.documents.update(

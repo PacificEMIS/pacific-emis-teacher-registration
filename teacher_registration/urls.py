@@ -27,6 +27,11 @@ urlpatterns = [
         views.document_delete,
         name="document_delete",
     ),
+    path(
+        "appointments/<int:appointment_id>/duties/",
+        views.manage_claimed_duties,
+        name="manage_claimed_duties",
+    ),
     # Admin-facing (review workflow)
     path("pending/", views.pending_registrations_list, name="pending_list"),
     path("<int:pk>/review/", views.registration_review, name="review"),

@@ -463,6 +463,39 @@ class ClaimedDutyForm(forms.ModelForm):
             active=True
         ).order_by("label")
 
+        # Customize display to show only label (not "code -- label")
+        self.fields["year_level"].label_from_instance = lambda obj: obj.label
+        self.fields["subject"].label_from_instance = lambda obj: obj.label
+
+
+class GroupedDutyForm(forms.Form):
+    """
+    Form for entering duties grouped by year level.
+
+    Allows selecting one year level and multiple subjects for that level.
+    This form is not bound to a model - it's used for UI convenience and
+    gets expanded into individual ClaimedDuty records on save.
+    """
+
+    year_level = forms.ModelChoiceField(
+        queryset=EmisClassLevel.objects.filter(active=True).order_by("label"),
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Year/Class Level",
+    )
+
+    subjects = forms.ModelMultipleChoiceField(
+        queryset=EmisSubject.objects.filter(active=True).order_by("label"),
+        widget=forms.SelectMultiple(attrs={"class": "form-select", "size": "6"}),
+        label="Subjects",
+        help_text="Hold Ctrl (Cmd on Mac) to select multiple subjects",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Customize display to show only label
+        self.fields["year_level"].label_from_instance = lambda obj: obj.label
+        self.fields["subjects"].label_from_instance = lambda obj: obj.label
+
 
 # =============================================================================
 # Formsets for inline editing

@@ -414,17 +414,29 @@
                     {{ appt_form.id }}
                     <div class="d-none">{{ appt_form.DELETE }}</div>
 
-                    <!-- Claimed Duties (JSS/SSS teachers) - Nested formset -->
+                    <!-- Claimed Duties (JSS/SSS teachers) -->
                     <div class="claimed-duties-section mt-3" style="display: none;">
-                      <h6 class="text-muted mb-2">Subjects Taught</h6>
-                      <p class="small text-muted">For JSS/SSS teachers: specify the year levels and subjects you teach.</p>
-                      <div class="duties-container">
-                        <!-- Duties will be rendered dynamically or via nested formset -->
-                        <div class="alert alert-info small">
-                          <i class="bi bi-info-circle me-1"></i>
-                          After saving, you can add specific year level/subject combinations from the admin interface.
-                        </div>
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="text-muted mb-0">Subjects Taught</h6>
+                        {% if appt_form.instance.pk %}
+                          <button type="button" class="btn btn-sm btn-outline-primary specify-duties-btn"
+                                  data-appointment-id="{{ appt_form.instance.pk }}"
+                                  data-bs-toggle="modal"
+                                  data-bs-target="#dutiesModal">
+                            <i class="bi bi-pencil me-1"></i> Specify Duties
+                          </button>
+                        {% else %}
+                          <small class="text-muted fst-italic">Save this appointment first to add duties</small>
+                        {% endif %}
                       </div>
+                      <p class="small text-muted">For JSS/SSS teachers: specify the year levels and subjects you teach.</p>
+                      {% if appt_form.instance.pk %}
+                        <div class="duties-list-container" id="duties-list-{{ appt_form.instance.pk }}">
+                          {% with duties=appt_form.instance.claimed_duties.all %}
+                            {% include "teacher_registration/_duty_list.html" with duties=duties %}
+                          {% endwith %}
+                        </div>
+                      {% endif %}
                     </div>
                   </div>
                 {% empty %}
@@ -569,6 +581,31 @@
               </li>
             {% endfor %}
           </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duties Modal -->
+  <div class="modal fade" id="dutiesModal" tabindex="-1" aria-labelledby="dutiesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dutiesModalLabel">Specify Teaching Duties</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="dutiesModalBody">
+          <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="saveDutiesBtn">
+            <i class="bi bi-check-circle me-1"></i> Save Duties
+          </button>
         </div>
       </div>
     </div>
@@ -836,6 +873,215 @@ document.addEventListener('DOMContentLoaded', function() {
       businessCollapse.classList.add('show');
     }
   }
+
+  // =========================================================================
+  // Duties Modal - Load and Save
+  // =========================================================================
+  const dutiesModal = document.getElementById('dutiesModal');
+  const dutiesModalBody = document.getElementById('dutiesModalBody');
+  const saveDutiesBtn = document.getElementById('saveDutiesBtn');
+  let currentAppointmentId = null;
+
+  // Function to initialize duty formset handlers after AJAX load
+  function initializeDutyFormset(appointmentId) {
+    console.log('Initializing grouped duty formset for appointment:', appointmentId);
+
+    const groupsContainer = document.getElementById('duty-groups-' + appointmentId);
+    const emptyGroupTemplate = document.getElementById('empty-duty-group-' + appointmentId);
+    const addButton = document.querySelector('.add-duty-group[data-appointment="' + appointmentId + '"]');
+
+    // Debug: Check if elements exist
+    if (!groupsContainer) {
+      console.error('Groups container not found!');
+      return;
+    }
+    if (!emptyGroupTemplate) {
+      console.error('Empty group template not found!');
+      return;
+    }
+    if (!addButton) {
+      console.error('Add button not found!');
+      return;
+    }
+
+    console.log('Grouped duty formset initialized successfully for appointment ' + appointmentId);
+
+    // Handle add duty group
+    addButton.onclick = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      console.log('Add duty group button clicked!');
+
+      // Remove "no duties" message if it exists
+      const noMsg = document.getElementById('no-duties-msg-' + appointmentId);
+      if (noMsg) {
+        noMsg.remove();
+      }
+
+      // Count existing groups to get next index
+      const existingGroups = groupsContainer.querySelectorAll('.duty-group');
+      const nextIndex = existingGroups.length;
+
+      console.log('Next index:', nextIndex);
+
+      // Clone the empty group template
+      const templateContent = emptyGroupTemplate.firstElementChild.cloneNode(true);
+
+      // Replace __INDEX__ with actual index in the entire HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.appendChild(templateContent);
+      tempDiv.innerHTML = tempDiv.innerHTML.split('__INDEX__').join(nextIndex);
+      const newGroup = tempDiv.firstElementChild;
+
+      // Append to container
+      groupsContainer.appendChild(newGroup);
+      console.log('Added new group');
+
+      return false;
+    };
+
+    // Handle remove duty group - attach to the groups container
+    groupsContainer.addEventListener('click', function(e) {
+      const removeBtn = e.target.closest('.remove-duty-group');
+      if (!removeBtn) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      console.log('Remove group button clicked!');
+
+      const group = removeBtn.closest('.duty-group');
+      if (!group) return;
+
+      // Just remove the group
+      group.remove();
+      console.log('Group removed');
+
+      // Re-index remaining groups
+      const remainingGroups = groupsContainer.querySelectorAll('.duty-group');
+      remainingGroups.forEach((group, index) => {
+        // Update all name attributes to have correct indices
+        const selects = group.querySelectorAll('select');
+        selects.forEach(select => {
+          const name = select.name;
+          // Replace the index in the name (e.g., duties[0][...] -> duties[newIndex][...])
+          select.name = name.replace(/duties\[\d+\]/, `duties[${index}]`);
+        });
+      });
+
+      console.log('Groups re-indexed');
+    });
+
+    console.log('Event handlers attached');
+  }
+
+  // Load duties formset when modal opens
+  dutiesModal.addEventListener('show.bs.modal', function(event) {
+    const button = event.relatedTarget;
+    currentAppointmentId = button.getAttribute('data-appointment-id');
+
+    // Show loading spinner
+    dutiesModalBody.innerHTML = `
+      <div class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    `;
+
+    // Load formset via AJAX
+    fetch(`/registration/appointments/${currentAppointmentId}/duties/`)
+      .then(response => response.text())
+      .then(html => {
+        dutiesModalBody.innerHTML = html;
+        // Initialize duty formset handlers after content is loaded
+        initializeDutyFormset(currentAppointmentId);
+      })
+      .catch(error => {
+        console.error('Error loading duties:', error);
+        dutiesModalBody.innerHTML = `
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Failed to load duties. Please try again.
+          </div>
+        `;
+      });
+  });
+
+  // Save duties via AJAX
+  saveDutiesBtn.addEventListener('click', function() {
+    if (!currentAppointmentId) return;
+
+    const form = document.getElementById(`duty-form-${currentAppointmentId}`);
+    if (!form) return;
+
+    const formData = new FormData(form);
+
+    // Disable save button
+    saveDutiesBtn.disabled = true;
+    saveDutiesBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+    fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Update duties list in the main form
+          const dutiesListContainer = document.getElementById(`duties-list-${currentAppointmentId}`);
+          if (dutiesListContainer) {
+            dutiesListContainer.innerHTML = data.duties_html;
+          }
+
+          // Close modal
+          const modalInstance = bootstrap.Modal.getInstance(dutiesModal);
+          modalInstance.hide();
+
+          // Show success message
+          const alertHtml = `
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+              <i class="bi bi-check-circle me-1"></i>
+              ${data.message}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          `;
+          const messagesContainer = document.querySelector('.messages-container');
+          if (messagesContainer) {
+            messagesContainer.innerHTML = alertHtml + messagesContainer.innerHTML;
+          }
+        } else {
+          // Show error
+          const errorMsg = data.errors ? data.errors.join(', ') : data.error;
+          dutiesModalBody.insertAdjacentHTML('afterbegin', `
+            <div class="alert alert-danger alert-dismissible fade show">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              ${errorMsg}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          `);
+        }
+      })
+      .catch(error => {
+        console.error('Error saving duties:', error);
+        dutiesModalBody.insertAdjacentHTML('afterbegin', `
+          <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Failed to save duties. Please try again.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        `);
+      })
+      .finally(() => {
+        // Re-enable save button
+        saveDutiesBtn.disabled = false;
+        saveDutiesBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Save Duties';
+      });
+  });
 });
 </script>
 {% endblock extra_js %}

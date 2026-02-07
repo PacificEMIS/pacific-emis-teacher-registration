@@ -19,6 +19,7 @@ from core.models import (
     SchoolStaffAssignment,
     StaffEducationRecord,
     StaffTrainingRecord,
+    StaffTeachingDuty,
     SystemUser,
 )
 from core.mixins import CreatedUpdatedAuditMixin
@@ -121,7 +122,20 @@ class EducationInstitutionAdmin(admin.ModelAdmin):
     ordering = ("name",)
 
 
-# ---- SchoolStaff and SchoolStaffAssignment ----
+# ---- SchoolStaff, SchoolStaffAssignment, and StaffTeachingDuty ----
+
+class StaffTeachingDutyInline(admin.TabularInline):
+    """
+    Inline admin for StaffTeachingDuty.
+
+    Allows editing teaching duties within SchoolStaffAssignment admin.
+    Shows year level and subject for JSS/SSS teachers.
+    """
+    model = StaffTeachingDuty
+    extra = 0
+    autocomplete_fields = ["year_level", "subject"]
+    fields = ["year_level", "subject"]
+
 
 class SchoolStaffAssignmentInline(admin.TabularInline):
     """
@@ -208,6 +222,64 @@ class SchoolStaffAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
             return format_html('<span style="color: #999;">None</span>')
         return f"{count} school(s)"
     active_assignments_display.short_description = "Active Assignments"
+
+
+@admin.register(SchoolStaffAssignment)
+class SchoolStaffAssignmentAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
+    """
+    Admin interface for SchoolStaffAssignment.
+
+    Allows managing staff assignments with teaching duties inline.
+    """
+    list_display = [
+        "school_staff",
+        "school",
+        "job_title",
+        "start_date",
+        "end_date",
+        "is_active",
+        "duties_count",
+    ]
+    list_filter = ["school", "job_title", "start_date"]
+    search_fields = [
+        "school_staff__user__username",
+        "school_staff__user__first_name",
+        "school_staff__user__last_name",
+        "school__emis_school_name",
+    ]
+    autocomplete_fields = ["school_staff", "school", "job_title"]
+    readonly_fields = ["created_at", "created_by", "last_updated_at", "last_updated_by"]
+    inlines = [StaffTeachingDutyInline]
+
+    def duties_count(self, obj):
+        """Display count of teaching duties for this assignment."""
+        count = obj.teaching_duties.count()
+        if count == 0:
+            return format_html('<span style="color: #999;">None</span>')
+        return f"{count} duty/duties"
+    duties_count.short_description = "Teaching Duties"
+
+
+@admin.register(StaffTeachingDuty)
+class StaffTeachingDutyAdmin(CreatedUpdatedAuditMixin, admin.ModelAdmin):
+    """
+    Admin interface for StaffTeachingDuty.
+
+    Manages individual teaching duties for JSS/SSS staff.
+    """
+    list_display = [
+        "assignment",
+        "year_level",
+        "subject",
+        "created_at",
+    ]
+    list_filter = ["year_level", "subject"]
+    search_fields = [
+        "assignment__school_staff__user__username",
+        "assignment__school__emis_school_name",
+    ]
+    autocomplete_fields = ["assignment", "year_level", "subject"]
+    readonly_fields = ["created_at", "created_by", "last_updated_at", "last_updated_by"]
 
 
 # ---- SystemUser ----
