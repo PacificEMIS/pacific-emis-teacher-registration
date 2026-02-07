@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Review Registration{% endblock title %}
+
+{% block extra_css %}
+  {% load static %}
+  <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
+{% endblock extra_css %}
+
 {% block content %}
   <div class="row">
     <!-- Registration details -->
@@ -39,10 +45,10 @@
           <h5 class="border-bottom pb-2 mb-3">Address</h5>
           <dl class="row">
             <dt class="col-sm-4">Residential Address</dt>
-            <dd class="col-sm-8" style="white-space: pre-line;">{{ registration.residential_address|default:"Not provided" }}</dd>
+            <dd class="col-sm-8 preserve-linebreaks">{{ registration.residential_address|default:"Not provided" }}</dd>
             {% if registration.business_address %}
             <dt class="col-sm-4">Business Address</dt>
-            <dd class="col-sm-8" style="white-space: pre-line;">{{ registration.business_address }}</dd>
+            <dd class="col-sm-8 preserve-linebreaks">{{ registration.business_address }}</dd>
             {% endif %}
           </dl>
 
@@ -129,7 +135,7 @@
 
     <!-- Review form -->
     <div class="col-lg-4">
-      <div class="card shadow-sm sticky-top" style="top: 80px;">
+      <div class="card shadow-sm sticky-top sticky-with-offset">
         <div class="card-header">
           <h5 class="mb-0">Review Decision</h5>
         </div>

@@ -1,0 +1,78 @@
+/**
+ * Teacher Registration Form Styles
+ *
+ * Form-specific styles for the teacher registration page.
+ * Global formset color schemes are defined in static/app/admin.css
+ */
+
+/* Base formset row styles */
+.formset-row {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+}
+
+/* Formset row marked for deletion */
+.formset-row.to-delete {
+  opacity: 0.5;
+  background: #ffebee;
+}
+
+/* Remove button cursor */
+.remove-formset-row {
+  cursor: pointer;
+}
+
+/* Hidden conditional sections */
+.conditional-section {
+  display: none !important;
+}
+
+.conditional-section.show {
+  display: block !important;
+}
+
+/* Teaching details conditional fields */
+#class-type-field {
+  display: none;
+}
+
+#claimed-duties-section {
+  display: none;
+}
+
+/* Claimed duties section - hidden by default */
+.claimed-duties-section {
+  display: none;
+}
+
+/* Progress field - hidden by default, shown by JavaScript when completed is unchecked */
+.progress-field {
+  display: none;
+}
+
+/* Tooltip icons - help cursor */
+.tooltip-icon {
+  cursor: help;
+}
+
+/* Hidden template elements (used for cloning by JavaScript) */
+.template-hidden {
+  display: none;
+}
+
+/* Fixed width for timestamp columns in tables */
+.timestamp-column {
+  width: 140px;
+}
+
+/* Preserve line breaks in address fields */
+.preserve-linebreaks {
+  white-space: pre-line;
+}
+
+/* Sticky positioning with offset for fixed header */
+.sticky-with-offset {
+  top: 80px;
+}
