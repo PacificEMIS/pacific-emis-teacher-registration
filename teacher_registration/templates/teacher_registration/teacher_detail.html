@@ -212,6 +212,7 @@
                     <th scope="col">School</th>
                     <th scope="col">Position</th>
                     <th scope="col">Period</th>
+                    <th scope="col">Duties</th>
                     <th scope="col" class="text-end">Status</th>
                   </tr>
                 </thead>
@@ -241,6 +242,9 @@
                         {% else %}
                           To <span class="text-body-secondary">ongoing</span>
                         {% endif %}
+                      </td>
+                      <td class="small">
+                        {% include "teacher_registration/_duty_list.html" with duties=assignment.teaching_duties.all %}
                       </td>
                       <td class="text-end">
                         {% if assignment.is_active %}

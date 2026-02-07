@@ -1,0 +1,91 @@
+{% comment %}
+Partial template for duty formset (rendered in modal).
+Expects context:
+- appointment: ClaimedSchoolAppointment instance
+- grouped_duties: List of {year_level, subjects} dicts
+- year_levels: QuerySet of EmisClassLevel
+- subjects: QuerySet of EmisSubject
+{% endcomment %}
+
+<form id="duty-form-{{ appointment.pk }}" method="post" action="{% url 'teacher_registration:manage_claimed_duties' appointment.pk %}">
+  {% csrf_token %}
+
+  <div id="duty-groups-{{ appointment.pk }}">
+    {% for group in grouped_duties %}
+      <div class="duty-group mb-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <span class="badge bg-info">Class Level</span>
+              <button type="button" class="btn btn-sm btn-outline-danger remove-duty-group" title="Remove">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-5">
+                <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
+                <select name="duties[{{ forloop.counter0 }}][year_level]" class="form-select year-level-select" required>
+                  <option value="">-- Select Year Level --</option>
+                  {% for yl in year_levels %}
+                    <option value="{{ yl.pk }}" {% if yl.pk == group.year_level.pk %}selected{% endif %}>{{ yl.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-7">
+                <label class="form-label small">Subjects <span class="text-danger">*</span></label>
+                <select name="duties[{{ forloop.counter0 }}][subjects][]" class="form-select subjects-select" multiple size="6" required>
+                  {% for subj in subjects %}
+                    <option value="{{ subj.pk }}" {% if subj in group.subjects %}selected{% endif %}>{{ subj.label }}</option>
+                  {% endfor %}
+                </select>
+                <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <p class="text-muted small" id="no-duties-msg-{{ appointment.pk }}">No duties specified yet. Click "Add Class Level" to start.</p>
+    {% endfor %}
+  </div>
+
+  <button type="button" class="btn btn-sm btn-outline-primary add-duty-group" data-appointment="{{ appointment.pk }}">
+    <i class="bi bi-plus-circle me-1"></i> Add Class Level
+  </button>
+</form>
+
+<!-- Empty group template (hidden, used for cloning) -->
+<div id="empty-duty-group-{{ appointment.pk }}" style="display: none;">
+  <div class="duty-group mb-3">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <span class="badge bg-info">Class Level</span>
+          <button type="button" class="btn btn-sm btn-outline-danger remove-duty-group" title="Remove">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-5">
+            <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
+            <select name="duties[__INDEX__][year_level]" class="form-select year-level-select" required>
+              <option value="">-- Select Year Level --</option>
+              {% for yl in year_levels %}
+                <option value="{{ yl.pk }}">{{ yl.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-7">
+            <label class="form-label small">Subjects <span class="text-danger">*</span></label>
+            <select name="duties[__INDEX__][subjects][]" class="form-select subjects-select" multiple size="6" required>
+              {% for subj in subjects %}
+                <option value="{{ subj.pk }}">{{ subj.label }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
