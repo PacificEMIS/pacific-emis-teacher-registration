@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Teacher — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
+
+{% block extra_css %}
+  {% load static %}
+  <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
+{% endblock extra_css %}
+
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div>
@@ -24,7 +30,7 @@
     </div>
     <div class="d-flex gap-2">
       <a href="{% url 'teacher_registration:teachers_list' %}"
-         class="btn btn-sm btn-outline-secondary">&larr; Back to teachers</a>
+         class="btn btn-sm btn-outline-secondary">← Back to teachers</a>
       {% if can_delete %}
         <a href="{% url 'teacher_registration:teacher_delete' teacher.pk %}"
            class="btn btn-sm btn-outline-danger">
@@ -104,7 +110,7 @@
           <hr>
           <dl class="row mb-0">
             <dt class="col-5">Residential Address</dt>
-            <dd class="col-7" style="white-space: pre-line;">
+            <dd class="col-7 preserve-linebreaks">
               {% if teacher.residential_address %}
                 {{ teacher.residential_address }}
               {% else %}
@@ -113,7 +119,7 @@
             </dd>
             {% if teacher.business_address %}
             <dt class="col-5">Business Address</dt>
-            <dd class="col-7" style="white-space: pre-line;">{{ teacher.business_address }}</dd>
+            <dd class="col-7 preserve-linebreaks">{{ teacher.business_address }}</dd>
             {% endif %}
           </dl>
         </div>
@@ -304,13 +310,13 @@
                       <tbody>
                         {% for log in reg.change_logs.all reversed %}
                           <tr>
-                            <td class="ps-0" style="width: 140px;">
+                            <td class="ps-0 timestamp-column">
                               <span class="text-body-secondary">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
                             </td>
                             <td>
                               {% if log.old_value %}
                                 <span class="badge bg-secondary">{{ log.old_value }}</span>
-                                &rarr;
+                                →
                               {% endif %}
                               <span class="badge bg-primary">{{ log.new_value }}</span>
                               {% if log.notes %}

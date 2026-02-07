@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block title %}My Registration{% endblock title %}
+
+{% block extra_css %}
+  {% load static %}
+  <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
+{% endblock extra_css %}
+
 {% block content %}
   <div class="card shadow-sm">
     <div class="card-header">
@@ -65,13 +71,13 @@
                     <tbody>
                       {% for log in reg.change_logs.all reversed %}
                         <tr>
-                          <td class="ps-3" style="width: 140px;">
+                          <td class="ps-3 timestamp-column">
                             <span class="text-body-secondary">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
                           </td>
                           <td>
                             {% if log.old_value %}
                               <span class="badge bg-secondary">{{ log.old_value }}</span>
-                              &rarr;
+                              →
                             {% endif %}
                             <span class="badge bg-primary">{{ log.new_value }}</span>
                             {% if log.notes %}
