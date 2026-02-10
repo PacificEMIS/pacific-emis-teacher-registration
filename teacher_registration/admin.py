@@ -160,7 +160,7 @@ class TeacherRegistrationAdmin(admin.ModelAdmin):
     ]
     autocomplete_fields = [
         "user",
-        "gender_emis",
+        "gender",
         "marital_status",
         "home_island",
         "nearby_school",
@@ -192,7 +192,7 @@ class TeacherRegistrationAdmin(admin.ModelAdmin):
             "fields": (
                 "title",
                 "date_of_birth",
-                ("gender", "gender_emis"),
+                "gender",
                 "marital_status",
                 "nationality",
                 "national_id_number",

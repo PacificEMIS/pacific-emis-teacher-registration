@@ -27,6 +27,7 @@
           rel="stylesheet" />
     <!-- Custom -->
     <link href="{% static 'app/admin.css' %}" rel="stylesheet">
+    <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
     {% block extra_head %}
     {% endblock extra_head %}
   </head>
@@ -198,5 +199,20 @@
     <script src="{% static 'app/admin.js' %}"></script>
     {% block extra_js %}
     {% endblock extra_js %}
+    <script>
+      document.querySelectorAll('time.local-datetime, time.local-date').forEach(function(el) {
+        var dt = new Date(el.getAttribute('datetime'));
+        if (!isNaN(dt)) {
+          var formatted = dt.getFullYear()
+            + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+            + '-' + String(dt.getDate()).padStart(2, '0');
+          if (el.classList.contains('local-datetime')) {
+            formatted += ' ' + String(dt.getHours()).padStart(2, '0')
+              + ':' + String(dt.getMinutes()).padStart(2, '0');
+          }
+          el.textContent = formatted;
+        }
+      });
+    </script>
   </body>
 </html>

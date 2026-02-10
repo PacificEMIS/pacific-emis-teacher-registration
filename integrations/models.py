@@ -155,20 +155,74 @@ class EmisIsland(models.Model):
 
 class EmisTeacherStatus(models.Model):
     """
-    Lookup table for teacher registration status.
-    Mirrors core.lookups.teacherRegStatus.
+    Lookup table for teacher (usually employment) status.
+    Mirrors core.lookups.teacherStatus.
     """
 
     code = models.CharField(
         max_length=64, primary_key=True
-    )  # from core.lookups.teacherRegStatus.C
-    label = models.CharField(max_length=128)  # from core.lookups.teacherRegStatus.N
+    )  # from core.lookups.teacherStatus.C
+    label = models.CharField(max_length=128)  # from core.lookups.teacherStatus.N
     active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["code"]
         verbose_name = "Teacher Status"
         verbose_name_plural = "Teacher Statuses"
+
+    def __str__(self):
+        return self.label
+
+
+class EmisTeacherRegistrationStatus(models.Model):
+    """
+    Lookup table for teacher registration status.
+    Mirrors core.lookups.teacherRegStatus.
+    """
+
+    VALIDITY_UNIT_CHOICES = [
+        ("minutes", "Minutes"),
+        ("hours", "Hours"),
+        ("days", "Days"),
+        ("years", "Years"),
+    ]
+
+    code = models.CharField(
+        max_length=64, primary_key=True
+    )  # from core.lookups.teacherRegistrationStatus.C
+    label = models.CharField(max_length=128)  # from core.lookups.teacherRegistrationStatus.N
+    active = models.BooleanField(default=True)
+    validity_value = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Number of units for the validity period"
+    )
+    validity_unit = models.CharField(
+        max_length=16,
+        choices=VALIDITY_UNIT_CHOICES,
+        blank=True,
+        default="",
+        help_text="Unit type for the validity period",
+    )
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Teacher Registration Status"
+        verbose_name_plural = "Teacher Registration Statuses"
+
+    @property
+    def badge_class(self):
+        """Return a CSS class for badge coloring based on the status label."""
+        label_lower = self.label.lower()
+        if "full" in label_lower and "condition" in label_lower:
+            return "bg-reg-conditional"
+        elif "full" in label_lower:
+            return "bg-reg-full"
+        elif "provisional" in label_lower:
+            return "bg-reg-provisional"
+        elif "limited" in label_lower:
+            return "bg-reg-limited"
+        elif "expired" in label_lower:
+            return "bg-reg-expired"
+        return "bg-secondary"
 
     def __str__(self):
         return self.label
@@ -206,6 +260,10 @@ class EmisTeacherLinkType(models.Model):
     )  # from core.lookups.teacherLinkTypes.C
     label = models.CharField(max_length=128)  # from core.lookups.teacherLinkTypes.N
     active = models.BooleanField(default=True)
+    needs_renewal = models.BooleanField(
+        default=False,
+        help_text="Whether documents of this type need periodic renewal",
+    )
 
     class Meta:
         ordering = ["code"]

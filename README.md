@@ -60,3 +60,39 @@ Access is controlled through Django groups. Users must be assigned to at least o
 | **School Staff** | SchoolStaff | Their schools | ✗ | ✗ | ✗ | ✓ |
 | **System Admins** | SystemUser | System-wide | ✓ | ✓ | ✓ | ✓ |
 | **System Staff** | SystemUser | System-wide | ✗ | ✗ | ✗ | ✓ |
+
+## Management Commands
+
+### `check_expired_registrations`
+
+Finds approved teachers whose `registration_valid_until` date has passed and transitions them to expired status. For each expired teacher it:
+
+1. Sets `registration_application_status` to `"expired"`
+2. Sets `registration_status` to the "Expired" `EmisTeacherRegistrationStatus` lookup
+3. Creates a `RegistrationChangeLog` audit entry
+4. Sends an email notification to the teacher
+
+**Prerequisites**: An `EmisTeacherRegistrationStatus` record with "expired" in its label must exist (synced from EMIS via `emis_sync_lookups`).
+
+**Usage**:
+
+```bash
+python manage.py check_expired_registrations
+```
+
+**Scheduling with cron (Linux/macOS)**:
+
+Run daily at midnight:
+
+```
+0 0 * * * cd /path/to/project && /path/to/venv/bin/python manage.py check_expired_registrations >> /var/log/teacher-reg-expiry.log 2>&1
+```
+
+**Scheduling with Task Scheduler (Windows)**:
+
+1. Open Task Scheduler and create a new task
+2. Set the trigger to run daily at the desired time
+3. Set the action to **Start a program**:
+   - **Program**: `C:\miniconda3\envs\pacific-emis-teacher-registration\python.exe`
+   - **Arguments**: `manage.py check_expired_registrations`
+   - **Start in**: `C:\path\to\project`

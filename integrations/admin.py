@@ -9,6 +9,7 @@ from .models import (
     EmisMaritalStatus,
     EmisIsland,
     EmisTeacherStatus,
+    EmisTeacherRegistrationStatus,
     EmisEducationLevel,
     EmisTeacherLinkType,
     EmisGender,
@@ -81,6 +82,14 @@ class EmisTeacherStatusAdmin(admin.ModelAdmin):
     list_filter = ("active",)
 
 
+@admin.register(EmisTeacherRegistrationStatus)
+class EmisTeacherRegistrationStatusAdmin(admin.ModelAdmin):
+    list_display = ("code", "label", "validity_value", "validity_unit", "active")
+    list_editable = ("validity_value", "validity_unit")
+    search_fields = ("code", "label")
+    list_filter = ("active",)
+
+
 @admin.register(EmisEducationLevel)
 class EmisEducationLevelAdmin(admin.ModelAdmin):
     list_display = ("code", "label", "active")
@@ -90,7 +99,8 @@ class EmisEducationLevelAdmin(admin.ModelAdmin):
 
 @admin.register(EmisTeacherLinkType)
 class EmisTeacherLinkTypeAdmin(admin.ModelAdmin):
-    list_display = ("code", "label", "active")
+    list_display = ("code", "label", "needs_renewal", "active")
+    list_editable = ("needs_renewal",)
     search_fields = ("code", "label")
     list_filter = ("active",)
 

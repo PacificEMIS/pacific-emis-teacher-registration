@@ -27,6 +27,7 @@ from integrations.models import (
     EmisJobTitle,
     EmisWarehouseYear,
     EmisClassLevel,
+    EmisEducationLevel,
     EmisGender,
     EmisMaritalStatus,
     EmisIsland,
@@ -36,7 +37,9 @@ from integrations.models import (
     EmisTeacherPdFocus,
     EmisTeacherPdFormat,
     EmisNationality,
+    EmisTeacherRegistrationStatus,
 )
+from teacher_registration import constants as reg_constants
 
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
@@ -146,15 +149,6 @@ class SchoolStaff(AuditModel):
         (NON_TEACHING_STAFF, "Non-Teaching Staff"),
     ]
 
-    # Registration status choices (for teaching staff)
-    REGISTRATION_VALID = "valid"
-    REGISTRATION_EXPIRED = "expired"
-
-    REGISTRATION_STATUS_CHOICES = [
-        (REGISTRATION_VALID, "Valid"),
-        (REGISTRATION_EXPIRED, "Expired"),
-    ]
-
     # Title choices
     TITLE_MR = "Mr"
     TITLE_MRS = "Mrs"
@@ -199,23 +193,13 @@ class SchoolStaff(AuditModel):
         blank=True,
         verbose_name="Date of birth",
     )
-    gender = models.CharField(
-        max_length=20,
-        blank=True,
-        choices=[
-            ("male", "Male"),
-            ("female", "Female"),
-            ("other", "Other"),
-        ],
-    )
-    gender_emis = models.ForeignKey(
+    gender = models.ForeignKey(
         EmisGender,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name="school_staff",
-        verbose_name="Gender (EMIS)",
-        help_text="Gender from EMIS lookup",
+        verbose_name="Gender",
     )
     marital_status = models.ForeignKey(
         EmisMaritalStatus,
@@ -289,7 +273,7 @@ class SchoolStaff(AuditModel):
     teacher_payroll_number = models.CharField(
         max_length=50,
         blank=True,
-        verbose_name="Teacher Payroll Number (PF Number)",
+        verbose_name="Teacher Payroll Number",
     )
     highest_qualification = models.CharField(
         max_length=100,
@@ -322,22 +306,31 @@ class SchoolStaff(AuditModel):
         verbose_name="Teacher Registration Number",
         help_text="Auto-generated unique registration number (format: TR26-A7K9-C)",
     )
-
-    # -------------------------------------------------------------------------
-    # Registration status (for teaching staff only)
-    # -------------------------------------------------------------------------
-
-    registration_status = models.CharField(
-        max_length=20,
-        choices=REGISTRATION_STATUS_CHOICES,
+    teacher_registration_status = models.ForeignKey(
+        EmisTeacherRegistrationStatus,
         null=True,
         blank=True,
-        help_text="Registration status (only applicable for teaching staff)",
+        on_delete=models.SET_NULL,
+        related_name="school_staff",
+        verbose_name="Teacher Registration Status",
+        help_text="Registration status from EMIS lookup (e.g., Registered, Provisional)",
     )
-    registration_valid_until = models.DateField(
+
+    # -------------------------------------------------------------------------
+    # Registration application status (for teaching staff only)
+    # -------------------------------------------------------------------------
+
+    registration_application_status = models.CharField(
+        max_length=20,
+        choices=reg_constants.REGISTRATION_APPLICATION_STATUS_CHOICES,
         null=True,
         blank=True,
-        help_text="Date when current registration expires",
+        help_text="Registration application status (only applicable for teaching staff)",
+    )
+    registration_valid_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Datetime when current registration expires",
     )
 
     # Many-to-many relationship with schools (through SchoolStaffAssignment)
@@ -390,6 +383,7 @@ class SchoolStaffAssignment(AuditModel):
         school_staff (SchoolStaff): The staff member being assigned
         school (EmisSchool): The school they're assigned to
         job_title (EmisJobTitle): Their role at this school (e.g., Teacher, Principal)
+        teacher_level_type (EmisEducationLevel): Education level (Primary/JSS/SSS)
         start_date (date): When the assignment began (optional)
         end_date (date): When the assignment ended (null = currently active)
         created_at (datetime): When this record was created
@@ -428,6 +422,15 @@ class SchoolStaffAssignment(AuditModel):
         on_delete=models.PROTECT,
         related_name="job_title_assignments",
         help_text="Job title/role at this school",
+    )
+
+    teacher_level_type = models.ForeignKey(
+        EmisEducationLevel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="staff_assignments",
+        help_text="Education level (Primary/JSS/SSS) for this assignment",
     )
 
     start_date = models.DateField(

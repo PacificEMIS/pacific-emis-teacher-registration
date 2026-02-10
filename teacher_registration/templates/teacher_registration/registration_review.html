@@ -13,7 +13,7 @@
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h1 class="h4 mb-0">Review Registration</h1>
-          <span class="badge bg-info">Under Review</span>
+          <span class="badge bg-app-under-review">Under Review</span>
         </div>
         <div class="card-body">
           <!-- Applicant Info -->
@@ -29,7 +29,7 @@
             <dd class="col-sm-8">{{ registration.date_of_birth|date:"Y-m-d"|default:"Not provided" }}</dd>
 
             <dt class="col-sm-4">Gender</dt>
-            <dd class="col-sm-8">{{ registration.get_gender_display|default:"Not provided" }}</dd>
+            <dd class="col-sm-8">{{ registration.gender|default:"Not provided" }}</dd>
 
             <dt class="col-sm-4">Nationality</dt>
             <dd class="col-sm-8">{{ registration.nationality|default:"Not provided" }}</dd>
@@ -85,7 +85,7 @@
           <h5 class="border-bottom pb-2 mb-3">Submission Details</h5>
           <dl class="row">
             <dt class="col-sm-4">Submitted</dt>
-            <dd class="col-sm-8">{{ registration.submitted_at|date:"Y-m-d H:i" }}</dd>
+            <dd class="col-sm-8"><time class="local-datetime" datetime="{{ registration.submitted_at|date:'c' }}">{{ registration.submitted_at|date:"Y-m-d H:i" }} UTC</time></dd>
 
             <dt class="col-sm-4">Registration Type</dt>
             <dd class="col-sm-8">{{ registration.get_registration_type_display }}</dd>
@@ -96,10 +96,43 @@
       <!-- Documents -->
       <div class="card shadow-sm mb-4">
         <div class="card-header">
-          <h5 class="mb-0">Documents ({{ registration.documents.count }})</h5>
+          <h5 class="mb-0">Documents</h5>
         </div>
         <div class="card-body">
+          {% if staff_documents %}
+            <p class="small text-muted mb-2"><strong>Documents on file</strong></p>
+            <ul class="list-group list-group-flush mb-3">
+              {% for item in staff_documents %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <div>
+                    {% if item.renewed %}
+                      <i class="bi bi-check-circle-fill text-success me-1"></i>
+                    {% elif item.needs_renewal %}
+                      <i class="bi bi-exclamation-circle-fill text-warning me-1"></i>
+                    {% else %}
+                      <i class="bi bi-check-circle-fill text-success me-1"></i>
+                    {% endif %}
+                    <span class="small">{{ item.doc.doc_link_type.label|default:"Document" }}</span>
+                    {% if item.renewed %}
+                      <span class="badge bg-success ms-1">renewed</span>
+                    {% elif item.needs_renewal %}
+                      <span class="badge bg-warning text-dark ms-1">needs renewal</span>
+                    {% endif %}
+                    <br>
+                    <span class="text-muted small ms-3">{{ item.doc.original_filename|truncatechars:40 }}</span>
+                  </div>
+                  <a href="{{ item.doc.file.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-download"></i>
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+
           {% if registration.documents.exists %}
+            {% if staff_documents %}
+              <p class="small text-muted mb-2"><strong>New uploads</strong></p>
+            {% endif %}
             <div class="table-responsive">
               <table class="table table-sm">
                 <thead>
@@ -126,7 +159,7 @@
                 </tbody>
               </table>
             </div>
-          {% else %}
+          {% elif not staff_documents %}
             <p class="text-muted mb-0">No documents uploaded.</p>
           {% endif %}
         </div>
@@ -159,6 +192,15 @@
               </div>
             </div>
 
+            <div class="mb-3" id="registration-status-group">
+              <label for="id_teacher_registration_status" class="form-label">Registration Status</label>
+              {{ form.teacher_registration_status }}
+              <div class="form-text">Required when approving.</div>
+              {% if form.teacher_registration_status.errors %}
+                <div class="invalid-feedback d-block">{{ form.teacher_registration_status.errors.0 }}</div>
+              {% endif %}
+            </div>
+
             <div class="mb-3">
               <label for="id_comments" class="form-label">Comments</label>
               {{ form.comments }}
@@ -188,3 +230,23 @@
     </div>
   </div>
 {% endblock content %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const statusGroup = document.getElementById('registration-status-group');
+    const radios = document.querySelectorAll('input[name="action"]');
+
+    function toggleStatusField() {
+      const selected = document.querySelector('input[name="action"]:checked');
+      statusGroup.style.display = (selected && selected.value === 'approve') ? '' : 'none';
+    }
+
+    radios.forEach(function(radio) {
+      radio.addEventListener('change', toggleStatusField);
+    });
+
+    toggleStatusField();
+  });
+</script>
+{% endblock extra_js %}

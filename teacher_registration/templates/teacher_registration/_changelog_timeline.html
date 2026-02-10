@@ -1,0 +1,62 @@
+{% comment %}
+Partial: single registration entry with header and change-log timeline.
+
+Renders the registration type, creation date, and a workflow timeline table
+from RegistrationChangeLog entries (with fallback for older registrations).
+
+Expected context (pass via {% include ... with %}):
+- reg: TeacherRegistration instance
+- show_changed_by: Boolean — if True, renders a column with who made each change
+{% endcomment %}
+
+<div class="px-3 mb-2">
+  <strong>{{ reg.get_registration_type_display|default:"Initial Registration" }}</strong>
+  <span class="text-body-secondary small ms-2">
+    Created <time class="local-datetime" datetime="{{ reg.created_at|date:'c' }}">{{ reg.created_at|date:"Y-m-d H:i" }} UTC</time>
+  </span>
+</div>
+{% if reg.change_logs.all %}
+  <div class="small">
+    <table class="table table-sm table-borderless mb-0">
+      <tbody>
+        {% for log in reg.change_logs.all reversed %}
+          <tr>
+            <td class="ps-3 timestamp-column">
+              <span class="text-body-secondary"><time class="local-datetime" datetime="{{ log.changed_at|date:'c' }}">{{ log.changed_at|date:"Y-m-d H:i" }} UTC</time></span>
+            </td>
+            <td>
+              {% if log.old_value %}
+                <span class="badge {% if log.old_value == 'draft' %}bg-app-draft{% elif log.old_value == 'submitted' %}bg-app-submitted{% elif log.old_value == 'under_review' %}bg-app-under-review{% elif log.old_value == 'approved' %}bg-app-approved{% elif log.old_value == 'rejected' %}bg-app-rejected{% elif log.old_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.old_value }}</span>
+                →
+              {% endif %}
+              <span class="badge {% if log.new_value == 'draft' %}bg-app-draft{% elif log.new_value == 'submitted' %}bg-app-submitted{% elif log.new_value == 'under_review' %}bg-app-under-review{% elif log.new_value == 'approved' %}bg-app-approved{% elif log.new_value == 'rejected' %}bg-app-rejected{% elif log.new_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.new_value }}</span>
+              {% if log.notes %}
+                <span class="text-body-secondary ms-1">— {{ log.notes }}</span>
+              {% endif %}
+            </td>
+            {% if show_changed_by %}
+              <td class="text-end pe-3">
+                {% if log.changed_by %}
+                  <span class="text-body-secondary">
+                    {{ log.changed_by.get_full_name|default:log.changed_by.username }}
+                  </span>
+                {% endif %}
+              </td>
+            {% endif %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  {# Fallback if no change logs (old registrations) #}
+  <div class="p-3 small text-body-secondary">
+    {% if reg.submitted_at %}
+      Submitted: <time class="local-datetime" datetime="{{ reg.submitted_at|date:'c' }}">{{ reg.submitted_at|date:"Y-m-d H:i" }} UTC</time>
+    {% endif %}
+    {% if reg.reviewed_at %}
+      · Reviewed: <time class="local-datetime" datetime="{{ reg.reviewed_at|date:'c' }}">{{ reg.reviewed_at|date:"Y-m-d H:i" }} UTC</time>
+      {% if show_changed_by and reg.reviewed_by %}by {{ reg.reviewed_by.get_full_name|default:reg.reviewed_by.username }}{% endif %}
+    {% endif %}
+  </div>
+{% endif %}

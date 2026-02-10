@@ -6,7 +6,9 @@ This module provides views for:
 - Admins: List, review, approve/reject registrations
 """
 
+import re
 from collections import defaultdict
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth import logout
@@ -18,6 +20,7 @@ from django.db.models import Q, OuterRef, Subquery, Prefetch
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
@@ -28,12 +31,16 @@ from core.emails import (
     send_teacher_registration_submitted_email_async,
     send_teacher_registration_approved_email_async,
     send_teacher_registration_rejected_email_async,
+    send_teacher_registration_expired_email,
 )
 from core.permissions import can_manage_pending_users
+from teacher_registration import constants
 from teacher_registration.models import (
     TeacherRegistration,
     RegistrationDocument,
     RegistrationChangeLog,
+    EducationRecord,
+    TrainingRecord,
     ClaimedSchoolAppointment,
     ClaimedDuty,
 )
@@ -50,6 +57,9 @@ from integrations.models import EmisTeacherPdType
 
 
 PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
+
+# How far in advance of expiry a teacher can start renewal (3 months)
+RENEWAL_WINDOW = timedelta(days=90)
 
 # Required documents checklist with mapping to EMIS document type codes
 # Each item: (display_label, list_of_matching_doc_type_codes)
@@ -72,12 +82,17 @@ REQUIRED_DOCUMENTS = [
 ]
 
 
-def get_required_documents_status(documents):
+def get_required_documents_status(documents, staff_documents=None):
     """
     Build a list of required documents with their upload status.
 
     Args:
-        documents: QuerySet of RegistrationDocument objects
+        documents: QuerySet of RegistrationDocument objects (on the registration)
+        staff_documents: Optional QuerySet of RegistrationDocument objects already
+            on the SchoolStaff profile (for renewal forms). Staff documents count
+            as uploaded ONLY if their type does not require renewal
+            (EmisTeacherLinkType.needs_renewal=False). Documents whose type
+            requires renewal must be freshly uploaded.
 
     Returns:
         List of dicts: [{"label": str, "uploaded": bool}, ...]
@@ -87,6 +102,12 @@ def get_required_documents_status(documents):
     for doc in documents:
         if doc.doc_link_type:
             uploaded_codes.add(doc.doc_link_type.code.upper())
+
+    # Also count staff documents that do NOT need renewal
+    if staff_documents:
+        for doc in staff_documents:
+            if doc.doc_link_type and not doc.doc_link_type.needs_renewal:
+                uploaded_codes.add(doc.doc_link_type.code.upper())
 
     # Build status list
     result = []
@@ -204,19 +225,43 @@ def my_registration(request):
 
     # Check if user already has a SchoolStaff profile (approved teacher)
     if hasattr(user, "school_staff"):
-        # Show their registration history with approved status
+        staff = user.school_staff
+        is_approved = staff.registration_application_status == constants.APPROVED
+        is_expired = staff.registration_application_status == constants.EXPIRED
+
+        # Check for in-progress renewal registration
+        renewal_in_progress = registrations.filter(
+            registration_type=TeacherRegistration.RENEWAL,
+            status__in=[constants.DRAFT, constants.SUBMITTED, constants.UNDER_REVIEW],
+        ).first()
+
+        # If there's a draft renewal, redirect to edit it
+        if renewal_in_progress and renewal_in_progress.status == constants.DRAFT:
+            return redirect("teacher_registration:edit", pk=renewal_in_progress.pk)
+
+        # Can renew: expired, or approaching expiry (within 3 months)
+        can_renew = is_expired or (
+            is_approved
+            and staff.registration_valid_until
+            and staff.registration_valid_until <= timezone.now() + RENEWAL_WINDOW
+        )
+
         return render(
             request,
             "teacher_registration/my_registration.html",
             {
                 "active": "my_registration",
                 "registrations": registrations,
-                "is_approved": True,
+                "is_approved": is_approved,
+                "is_expired": is_expired,
+                "renewal_in_progress": renewal_in_progress,
+                "can_renew": can_renew,
+                "staff": staff,
             },
         )
 
     # If has draft, go to edit
-    draft = registrations.filter(status=TeacherRegistration.DRAFT).first()
+    draft = registrations.filter(status=constants.DRAFT).first()
     if draft:
         return redirect("teacher_registration:edit", pk=draft.pk)
 
@@ -251,7 +296,7 @@ def registration_create(request):
 
     # Check for existing draft
     existing_draft = TeacherRegistration.objects.filter(
-        user=user, status=TeacherRegistration.DRAFT
+        user=user, status=constants.DRAFT
     ).first()
 
     if existing_draft:
@@ -259,7 +304,7 @@ def registration_create(request):
 
     # Check for pending registration
     pending = TeacherRegistration.objects.filter(
-        user=user, status__in=[TeacherRegistration.SUBMITTED, TeacherRegistration.UNDER_REVIEW]
+        user=user, status__in=[constants.SUBMITTED, constants.UNDER_REVIEW]
     ).first()
 
     if pending:
@@ -273,7 +318,7 @@ def registration_create(request):
     registration = TeacherRegistration.objects.create(
         user=user,
         registration_type=TeacherRegistration.INITIAL,
-        status=TeacherRegistration.DRAFT,
+        status=constants.DRAFT,
         created_by=user,
         last_updated_by=user,
     )
@@ -283,7 +328,7 @@ def registration_create(request):
         registration=registration,
         field_name="status",
         old_value="",
-        new_value=TeacherRegistration.DRAFT,
+        new_value=constants.DRAFT,
         changed_by=user,
         notes="Registration created (self-registration)",
     )
@@ -360,7 +405,12 @@ def registration_edit(request, pk):
                         messages.error(request, error)
                     # Re-render the form with errors
                     documents = registration.documents.all()
-                    required_docs_status = get_required_documents_status(documents)
+                    staff_documents = None
+                    if registration.registration_type == TeacherRegistration.RENEWAL and registration.approved_staff_profile:
+                        staff_documents = RegistrationDocument.objects.filter(
+                            school_staff=registration.approved_staff_profile
+                        ).select_related("doc_link_type")
+                    required_docs_status = get_required_documents_status(documents, staff_documents)
                     return render(
                         request,
                         "teacher_registration/registration_form.html",
@@ -371,6 +421,7 @@ def registration_edit(request, pk):
                             "appointment_formset": appointment_formset,
                             "registration": registration,
                             "documents": documents,
+                            "staff_documents": staff_documents,
                             "document_form": RegistrationDocumentForm(),
                             "is_admin": is_admin,
                             "required_docs_status": required_docs_status,
@@ -443,11 +494,18 @@ def registration_edit(request, pk):
     # Get documents for this registration
     documents = registration.documents.all()
 
+    # For renewals, also fetch existing documents on the SchoolStaff profile
+    staff_documents = None
+    if registration.registration_type == TeacherRegistration.RENEWAL and registration.approved_staff_profile:
+        staff_documents = RegistrationDocument.objects.filter(
+            school_staff=registration.approved_staff_profile
+        ).select_related("doc_link_type")
+
     # Get PD types for training title autocomplete
     pd_types = EmisTeacherPdType.objects.filter(active=True).order_by("label")
 
     # Build required documents status for checklist
-    required_docs_status = get_required_documents_status(documents)
+    required_docs_status = get_required_documents_status(documents, staff_documents)
 
     return render(
         request,
@@ -459,6 +517,7 @@ def registration_edit(request, pk):
             "appointment_formset": appointment_formset,
             "registration": registration,
             "documents": documents,
+            "staff_documents": staff_documents,
             "document_form": RegistrationDocumentForm(),
             "is_admin": is_admin,
             "pd_types": pd_types,
@@ -479,7 +538,7 @@ def registration_submit(request, pk):
         raise PermissionDenied("You can only submit your own registration.")
 
     # Check status
-    if registration.status != TeacherRegistration.DRAFT:
+    if registration.status != constants.DRAFT:
         messages.error(request, "This registration has already been submitted.")
         return redirect("teacher_registration:my_registration")
 
@@ -606,10 +665,10 @@ def pending_registrations_list(request):
     # Base queryset - include drafts, submitted, under review, and rejected
     registrations_qs = TeacherRegistration.objects.filter(
         status__in=[
-            TeacherRegistration.DRAFT,
-            TeacherRegistration.SUBMITTED,
-            TeacherRegistration.UNDER_REVIEW,
-            TeacherRegistration.REJECTED,
+            constants.DRAFT,
+            constants.SUBMITTED,
+            constants.UNDER_REVIEW,
+            constants.REJECTED,
         ]
     ).select_related("user", "preferred_school", "reviewed_by")
 
@@ -630,10 +689,10 @@ def pending_registrations_list(request):
 
     registrations_qs = registrations_qs.annotate(
         status_order=Case(
-            When(status=TeacherRegistration.UNDER_REVIEW, then=Value(0)),
-            When(status=TeacherRegistration.SUBMITTED, then=Value(1)),
-            When(status=TeacherRegistration.REJECTED, then=Value(2)),
-            When(status=TeacherRegistration.DRAFT, then=Value(3)),
+            When(status=constants.UNDER_REVIEW, then=Value(0)),
+            When(status=constants.SUBMITTED, then=Value(1)),
+            When(status=constants.REJECTED, then=Value(2)),
+            When(status=constants.DRAFT, then=Value(3)),
             default=Value(4),
             output_field=IntegerField(),
         )
@@ -671,22 +730,23 @@ def registration_review(request, pk):
 
     registration = get_object_or_404(
         TeacherRegistration.objects.select_related(
-            "user", "preferred_school", "preferred_job_title", "reviewed_by"
-        ).prefetch_related("documents"),
+            "user", "preferred_school", "preferred_job_title", "reviewed_by",
+            "approved_staff_profile",
+        ).prefetch_related("documents__doc_link_type"),
         pk=pk,
     )
 
     # Check if registration can be reviewed
     if registration.status not in [
-        TeacherRegistration.SUBMITTED,
-        TeacherRegistration.UNDER_REVIEW,
-        TeacherRegistration.REJECTED,
+        constants.SUBMITTED,
+        constants.UNDER_REVIEW,
+        constants.REJECTED,
     ]:
         messages.error(request, "This registration cannot be reviewed.")
         return redirect("teacher_registration:pending_list")
 
     # Mark as under review if not already (allows re-review of rejected registrations)
-    if registration.status in [TeacherRegistration.SUBMITTED, TeacherRegistration.REJECTED]:
+    if registration.status in [constants.SUBMITTED, constants.REJECTED]:
         registration.start_review(request.user)
 
     if request.method == "POST":
@@ -697,7 +757,12 @@ def registration_review(request, pk):
 
             if action == RegistrationReviewForm.ACTION_APPROVE:
                 try:
-                    staff = registration.approve(reviewer=request.user, comments=comments)
+                    registration_status = form.cleaned_data.get("teacher_registration_status")
+                    staff = registration.approve(
+                        reviewer=request.user,
+                        comments=comments,
+                        registration_status=registration_status,
+                    )
 
                     # Send approval email to the teacher
                     from django.urls import reverse
@@ -710,10 +775,19 @@ def registration_review(request, pk):
                         dashboard_url=my_registration_url,
                     )
 
+                    if registration.registration_type == TeacherRegistration.RENEWAL:
+                        msg = (
+                            f"Renewal approved. {registration.user.get_full_name()}'s registration has been renewed. "
+                            f"Registration Number: {staff.teacher_registration_number}"
+                        )
+                    else:
+                        msg = (
+                            f"Registration approved. {registration.user.get_full_name()} is now a registered teacher. "
+                            f"Registration Number: {staff.teacher_registration_number}"
+                        )
                     messages.success(
                         request,
-                        f"Registration approved. {registration.user.get_full_name()} is now a registered teacher. "
-                        f"Registration Number: {staff.teacher_registration_number}",
+                        msg,
                     )
                     return redirect("teacher_registration:teacher_detail", pk=staff.pk)
 
@@ -750,6 +824,32 @@ def registration_review(request, pk):
     else:
         form = RegistrationReviewForm()
 
+    # For renewals, fetch the staff's existing documents so the reviewer
+    # can see what is already on file and which types have been re-submitted.
+    staff_documents = None
+    if (
+        registration.registration_type == TeacherRegistration.RENEWAL
+        and registration.approved_staff_profile_id
+    ):
+        renewed_type_codes = {
+            doc.doc_link_type.code.upper()
+            for doc in registration.documents.all()
+            if doc.doc_link_type_id
+        }
+        staff_docs_qs = RegistrationDocument.objects.filter(
+            school_staff=registration.approved_staff_profile,
+        ).select_related("doc_link_type")
+        staff_documents = []
+        for doc in staff_docs_qs:
+            staff_documents.append({
+                "doc": doc,
+                "needs_renewal": doc.doc_link_type.needs_renewal if doc.doc_link_type else False,
+                "renewed": (
+                    doc.doc_link_type.needs_renewal
+                    and doc.doc_link_type.code.upper() in renewed_type_codes
+                ) if doc.doc_link_type else False,
+            })
+
     return render(
         request,
         "teacher_registration/registration_review.html",
@@ -757,6 +857,7 @@ def registration_review(request, pk):
             "active": "pending_registrations",
             "registration": registration,
             "form": form,
+            "staff_documents": staff_documents,
         },
     )
 
@@ -814,7 +915,7 @@ def registration_history(request):
             "per_page": per_page,
             "page_size_options": PAGE_SIZE_OPTIONS,
             "page_links": _page_window(page_obj),
-            "status_choices": TeacherRegistration.STATUS_CHOICES,
+            "status_choices": constants.REGISTRATION_APPLICATION_STATUS_CHOICES,
         },
     )
 
@@ -875,7 +976,7 @@ def teachers_list(request):
 
     # Filters
     school_filter = (request.GET.get("school") or "").strip()
-    registration_status_filter = (request.GET.get("registration_status") or "").strip()
+    registration_application_status_filter = (request.GET.get("registration_application_status") or "").strip()
 
     # Sorting
     sort = (request.GET.get("sort") or "").strip().lower()
@@ -932,9 +1033,9 @@ def teachers_list(request):
             assignments__school__emis_school_no=school_filter
         ).distinct()
 
-    # Filter by registration status
-    if registration_status_filter:
-        teachers_qs = teachers_qs.filter(registration_status=registration_status_filter)
+    # Filter by registration application status
+    if registration_application_status_filter:
+        teachers_qs = teachers_qs.filter(registration_application_status=registration_application_status_filter)
 
     # Sorting map
     sort_map = {
@@ -945,7 +1046,7 @@ def teachers_list(request):
             "user__first_name",
         ),
         "status": (
-            "registration_status",
+            "registration_application_status",
             "user__last_name",
             "user__first_name",
         ),
@@ -980,9 +1081,9 @@ def teachers_list(request):
             "page_links": _page_window(page_obj),
             # Filters
             "school": school_filter,
-            "registration_status": registration_status_filter,
+            "registration_application_status": registration_application_status_filter,
             "schools": schools,
-            "registration_status_choices": SchoolStaff.REGISTRATION_STATUS_CHOICES,
+            "registration_application_status_choices": constants.REGISTRATION_APPLICATION_STATUS_CHOICES,
             # Sorting
             "sort": sort,
             "dir": dir_,
@@ -1008,6 +1109,11 @@ def teacher_detail(request, pk):
             "assignments__job_title",
             "documents",
             "registration_history__change_logs",
+            "education_records__qualification",
+            "education_records__major",
+            "education_records__minor",
+            "training_records__focus",
+            "training_records__format",
         ),
         pk=pk,
     )
@@ -1090,6 +1196,224 @@ def teacher_delete(request, pk):
     )
 
 
+@login_required
+@require_app_access
+def teacher_resend_renewal_notification(request, pk):
+    """Resend the registration-expired / renewal notification email to a teacher."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user", "teacher_registration_status"),
+        pk=pk,
+    )
+
+    previous_status_label = (
+        teacher.teacher_registration_status.label
+        if teacher.teacher_registration_status
+        else None
+    )
+
+    renewal_url = request.build_absolute_uri(
+        reverse("teacher_registration:registration_renew")
+    )
+
+    try:
+        send_teacher_registration_expired_email(
+            staff=teacher,
+            renewal_url=renewal_url,
+            previous_status_label=previous_status_label,
+        )
+        msg = "Renewal notification email has been resent."
+        ok = True
+    except Exception:
+        msg = "Failed to send the renewal notification email."
+        ok = False
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": ok, "message": msg})
+
+    messages.success(request, msg) if ok else messages.error(request, msg)
+    return redirect("teacher_registration:teacher_detail", pk=pk)
+
+
+# =============================================================================
+# Renewal
+# =============================================================================
+
+
+@login_required
+def registration_renew(request):
+    """
+    Start a renewal registration for an expired (or soon-to-expire) teacher.
+
+    Creates a new TeacherRegistration with registration_type=RENEWAL,
+    pre-filled from the teacher's existing SchoolStaff data, then
+    redirects to the edit form.
+
+    Eligibility:
+    - SchoolStaff.registration_application_status == EXPIRED, or
+    - SchoolStaff.registration_application_status == APPROVED and
+      registration_valid_until is within RENEWAL_WINDOW (3 months)
+    """
+    user = request.user
+
+    # Guard: user must have a SchoolStaff profile
+    if not hasattr(user, "school_staff"):
+        messages.error(request, "You do not have a staff profile.")
+        return redirect("teacher_registration:my_registration")
+
+    staff = user.school_staff
+    is_expired = staff.registration_application_status == constants.EXPIRED
+    is_approaching_expiry = (
+        staff.registration_application_status == constants.APPROVED
+        and staff.registration_valid_until
+        and staff.registration_valid_until <= timezone.now() + RENEWAL_WINDOW
+    )
+
+    if not is_expired and not is_approaching_expiry:
+        messages.info(request, "Your registration is not yet eligible for renewal.")
+        return redirect("teacher_registration:my_registration")
+
+    # Guard: no existing in-progress renewal
+    existing = TeacherRegistration.objects.filter(
+        user=user,
+        registration_type=TeacherRegistration.RENEWAL,
+        status__in=[constants.DRAFT, constants.SUBMITTED, constants.UNDER_REVIEW],
+    ).first()
+
+    if existing:
+        if existing.status == constants.DRAFT:
+            return redirect("teacher_registration:edit", pk=existing.pk)
+        messages.info(request, "You already have a renewal pending review.")
+        return redirect("teacher_registration:my_registration")
+
+    # Create the renewal registration pre-filled from SchoolStaff
+    registration = TeacherRegistration.objects.create(
+        user=user,
+        registration_type=TeacherRegistration.RENEWAL,
+        teacher_category=TeacherRegistration.CURRENT_TEACHER,
+        status=constants.DRAFT,
+        approved_staff_profile=staff,
+        # Personal information
+        title=staff.title,
+        date_of_birth=staff.date_of_birth,
+        gender=staff.gender,
+        marital_status=staff.marital_status,
+        nationality=staff.nationality,
+        national_id_number=staff.national_id_number,
+        home_island=staff.home_island,
+        # Contact information
+        phone_number=staff.phone_number,
+        phone_home=staff.phone_home,
+        # Residential address
+        residential_address=staff.residential_address,
+        nearby_school=staff.nearby_school,
+        # Business address
+        business_address=staff.business_address,
+        # Professional information
+        teacher_payroll_number=staff.teacher_payroll_number,
+        highest_qualification=staff.highest_qualification,
+        years_of_experience=staff.years_of_experience,
+        # Audit
+        created_by=user,
+        last_updated_by=user,
+    )
+
+    # Copy education records from StaffEducationRecord → EducationRecord
+    for edu in staff.education_records.all():
+        EducationRecord.objects.create(
+            registration=registration,
+            institution_name=edu.institution_name,
+            qualification=edu.qualification,
+            program_name=edu.program_name,
+            major=edu.major,
+            minor=edu.minor,
+            completion_year=edu.completion_year,
+            duration=edu.duration,
+            duration_unit=edu.duration_unit,
+            completed=edu.completed,
+            percentage_progress=edu.percentage_progress,
+            comment=edu.comment,
+            created_by=user,
+            last_updated_by=user,
+        )
+
+    # Copy training records from StaffTrainingRecord → TrainingRecord
+    for training in staff.training_records.all():
+        TrainingRecord.objects.create(
+            registration=registration,
+            provider_institution=training.provider_institution,
+            title=training.title,
+            focus=training.focus,
+            format=training.format,
+            completion_year=training.completion_year,
+            duration=training.duration,
+            duration_unit=training.duration_unit,
+            effective_date=training.effective_date,
+            expiration_date=training.expiration_date,
+            created_by=user,
+            last_updated_by=user,
+        )
+
+    # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
+    for assignment in staff.assignments.all():
+        appointment = ClaimedSchoolAppointment.objects.create(
+            registration=registration,
+            current_school=assignment.school,
+            employment_position=assignment.job_title,
+            teacher_level_type=assignment.teacher_level_type,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            # Optional fields left blank: current_island_station, years_of_experience,
+            # employment_status, class_type (not stored on SchoolStaffAssignment)
+            created_by=user,
+            last_updated_by=user,
+        )
+
+        for duty in assignment.teaching_duties.all():
+            ClaimedDuty.objects.create(
+                appointment=appointment,
+                year_level=duty.year_level,
+                subject=duty.subject,
+                created_by=user,
+                last_updated_by=user,
+            )
+
+    # Documents: do NOT copy. Existing docs stay on SchoolStaff.
+    # They will be shown as "already on file" on the renewal form.
+
+    # Log creation
+    RegistrationChangeLog.log_change(
+        registration=registration,
+        field_name="status",
+        old_value="",
+        new_value=constants.DRAFT,
+        changed_by=user,
+        notes="Renewal registration created (pre-filled from staff profile)",
+    )
+
+    # Send admin notification email
+    pending_registrations_url = request.build_absolute_uri(
+        reverse("teacher_registration:pending_list")
+    )
+    send_new_teacher_registration_email_async(
+        registration=registration,
+        pending_registrations_url=pending_registrations_url,
+    )
+
+    messages.success(
+        request,
+        "Renewal started. Your information has been pre-filled. "
+        "Please review and update as needed.",
+    )
+    return redirect("teacher_registration:edit", pk=registration.pk)
+
+
 # =============================================================================
 # Claimed Duties Management (Modal)
 # =============================================================================
@@ -1146,9 +1470,15 @@ def manage_claimed_duties(request, appointment_id):
             duties_to_keep = set()
 
             # Parse the grouped duties from the form
+            # Discover all duty indices from POST keys (handles gaps)
+            duty_indices = sorted({
+                int(m.group(1))
+                for key in request.POST
+                if (m := re.match(r"duties\[(\d+)\]\[year_level\]", key))
+            })
+
             grouped_duties = []
-            i = 0
-            while f"duties[{i}][year_level]" in request.POST:
+            for i in duty_indices:
                 year_level_id = request.POST.get(f"duties[{i}][year_level]")
                 subject_ids = request.POST.getlist(f"duties[{i}][subjects][]")
 
@@ -1164,8 +1494,6 @@ def manage_claimed_duties(request, appointment_id):
                             })
                     except EmisClassLevel.DoesNotExist:
                         pass
-
-                i += 1
 
             # Expand grouped duties into individual ClaimedDuty records
             for group in grouped_duties:

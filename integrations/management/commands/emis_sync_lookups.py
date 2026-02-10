@@ -10,6 +10,7 @@ from integrations.models import (
     EmisMaritalStatus,
     EmisIsland,
     EmisTeacherStatus,
+    EmisTeacherRegistrationStatus,
     EmisEducationLevel,
     EmisTeacherLinkType,
     EmisGender,
@@ -36,7 +37,8 @@ class Command(BaseCommand):
         teacher_quals = payload.get("teacherQuals", [])
         marital_statuses = payload.get("maritalStatus", [])
         islands = payload.get("islands", [])
-        teacher_statuses = payload.get("teacherRegStatus", [])
+        teacher_statuses = payload.get("teacherStatus", [])
+        teacher_registration_statuses = payload.get("teacherRegStatus", [])
         education_levels = payload.get("educationLevels", [])
         teacher_link_types = payload.get("teacherLinkTypes", [])
         genders = payload.get("gender", [])
@@ -56,6 +58,7 @@ class Command(BaseCommand):
             "marital_status": [0, 0],
             "islands": [0, 0],
             "teacher_status": [0, 0],
+            "teacher_registration_status": [0, 0],
             "education_levels": [0, 0],
             "teacher_link_types": [0, 0],
             "genders": [0, 0],
@@ -165,6 +168,17 @@ class Command(BaseCommand):
                 )
                 counts["teacher_status"][0 if created else 1] += 1
 
+            # Teacher Registration Statuses
+            for item in teacher_registration_statuses:
+                code, label = item.get("C"), item.get("N")
+                if not code:
+                    continue
+                obj, created = EmisTeacherRegistrationStatus.objects.update_or_create(
+                    code=str(code),
+                    defaults={"label": label or str(code), "active": True},
+                )
+                counts["teacher_registration_status"][0 if created else 1] += 1
+
             # Education Levels
             for item in education_levels:
                 code, label = item.get("C"), item.get("N")
@@ -252,6 +266,7 @@ class Command(BaseCommand):
             "Marital Status +{}/{}, "
             "Islands +{}/{}, "
             "Teacher Status +{}/{}, "
+            "Teacher Registration Status +{}/{}, "
             "Education Levels +{}/{}, "
             "Teacher Link Types +{}/{}, "
             "Genders +{}/{}, "
@@ -278,6 +293,8 @@ class Command(BaseCommand):
             counts["islands"][1],
             counts["teacher_status"][0],
             counts["teacher_status"][1],
+            counts["teacher_registration_status"][0],
+            counts["teacher_registration_status"][1],
             counts["education_levels"][0],
             counts["education_levels"][1],
             counts["teacher_link_types"][0],

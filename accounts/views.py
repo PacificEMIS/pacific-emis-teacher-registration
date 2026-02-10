@@ -42,16 +42,17 @@ def _get_user_active_registration_url(user):
     Check if user has an active registration and return its URL.
     Returns None if no active registration exists.
     """
+    from teacher_registration import constants
     from teacher_registration.models import TeacherRegistration
 
     active_registration = (
         TeacherRegistration.objects.filter(
             user=user,
             status__in=[
-                TeacherRegistration.DRAFT,
-                TeacherRegistration.SUBMITTED,
-                TeacherRegistration.UNDER_REVIEW,
-                TeacherRegistration.REJECTED,
+                constants.DRAFT,
+                constants.SUBMITTED,
+                constants.UNDER_REVIEW,
+                constants.REJECTED,
             ],
         )
         .order_by("-created_at")
@@ -59,7 +60,7 @@ def _get_user_active_registration_url(user):
     )
     if active_registration:
         # For rejected registrations, go to my_registration view (read-only history)
-        if active_registration.status == TeacherRegistration.REJECTED:
+        if active_registration.status == constants.REJECTED:
             return reverse("teacher_registration:my_registration")
         return reverse("teacher_registration:edit", kwargs={"pk": active_registration.pk})
     return None

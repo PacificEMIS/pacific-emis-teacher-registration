@@ -30,6 +30,7 @@ from integrations.models import (
     EmisTeacherPdType,
     EmisNationality,
     EmisTeacherLinkType,
+    EmisTeacherRegistrationStatus,
 )
 
 User = get_user_model()
@@ -65,7 +66,6 @@ class TeacherRegistrationForm(forms.ModelForm):
             "title",
             "date_of_birth",
             "gender",
-            "gender_emis",
             "marital_status",
             "nationality",
             "national_id_number",
@@ -90,7 +90,6 @@ class TeacherRegistrationForm(forms.ModelForm):
                 attrs={"type": "date", "class": "form-control"}
             ),
             "gender": forms.Select(attrs={"class": "form-select"}),
-            "gender_emis": forms.Select(attrs={"class": "form-select"}),
             "marital_status": forms.Select(attrs={"class": "form-select"}),
             "nationality": forms.Select(attrs={"class": "form-select"}),
             "national_id_number": forms.TextInput(attrs={"class": "form-control"}),
@@ -126,7 +125,7 @@ class TeacherRegistrationForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Filter FK querysets to active records only
-        self.fields["gender_emis"].queryset = EmisGender.objects.filter(
+        self.fields["gender"].queryset = EmisGender.objects.filter(
             active=True
         ).order_by("label")
         self.fields["marital_status"].queryset = EmisMaritalStatus.objects.filter(
@@ -263,6 +262,14 @@ class RegistrationReviewForm(forms.Form):
         widget=forms.RadioSelect(attrs={"class": "form-check-input"}),
     )
 
+    teacher_registration_status = forms.ModelChoiceField(
+        queryset=EmisTeacherRegistrationStatus.objects.filter(active=True),
+        required=False,
+        empty_label="— Select registration status —",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Registration Status",
+    )
+
     comments = forms.CharField(
         required=False,
         widget=forms.Textarea(
@@ -275,7 +282,7 @@ class RegistrationReviewForm(forms.Form):
     )
 
     def clean(self):
-        """Require comments for rejection."""
+        """Require comments for rejection. Require registration status for approval."""
         cleaned_data = super().clean()
         action = cleaned_data.get("action")
         comments = cleaned_data.get("comments", "").strip()
@@ -283,6 +290,11 @@ class RegistrationReviewForm(forms.Form):
         if action == self.ACTION_REJECT and not comments:
             raise forms.ValidationError(
                 {"comments": "Please provide a reason for rejection."}
+            )
+
+        if action == self.ACTION_APPROVE and not cleaned_data.get("teacher_registration_status"):
+            raise forms.ValidationError(
+                {"teacher_registration_status": "Please select a registration status for approval."}
             )
 
         return cleaned_data

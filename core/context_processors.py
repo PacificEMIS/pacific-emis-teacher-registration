@@ -55,16 +55,17 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
 
         # Check for active teacher registration (draft, submitted, under_review, or rejected)
         # Import here to avoid circular imports
+        from teacher_registration import constants
         from teacher_registration.models import TeacherRegistration
 
         active_registration = (
             TeacherRegistration.objects.filter(
                 user=user,
                 status__in=[
-                    TeacherRegistration.DRAFT,
-                    TeacherRegistration.SUBMITTED,
-                    TeacherRegistration.UNDER_REVIEW,
-                    TeacherRegistration.REJECTED,
+                    constants.DRAFT,
+                    constants.SUBMITTED,
+                    constants.UNDER_REVIEW,
+                    constants.REJECTED,
                 ],
             )
             .order_by("-created_at")
@@ -74,7 +75,7 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
             context["user_active_registration"] = active_registration
             # For rejected registrations, go to my_registration view (read-only history)
             # For other statuses, go to edit view
-            if active_registration.status == TeacherRegistration.REJECTED:
+            if active_registration.status == constants.REJECTED:
                 context["user_registration_url"] = reverse("teacher_registration:my_registration")
             else:
                 context["user_registration_url"] = reverse(

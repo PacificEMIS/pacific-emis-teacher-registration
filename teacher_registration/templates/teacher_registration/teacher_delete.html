@@ -46,12 +46,23 @@
               </dd>
               <dt class="col-sm-4">Email</dt>
               <dd class="col-sm-8">{{ teacher.user.email|default:"Not set" }}</dd>
-              <dt class="col-sm-4">Registration Status</dt>
+              <dt class="col-sm-4">Reg. Application Status</dt>
               <dd class="col-sm-8">
-                {% if teacher.registration_status == 'valid' %}
-                  <span class="badge bg-success">Valid</span>
-                {% elif teacher.registration_status == 'expired' %}
-                  <span class="badge bg-danger">Expired</span>
+                {% if teacher.registration_application_status == 'approved' %}
+                  <span class="badge bg-app-approved">Approved</span>
+                  {% if teacher.teacher_registration_status %}
+                    <span class="badge {{ teacher.teacher_registration_status.badge_class }}">{{ teacher.teacher_registration_status.label }}</span>
+                  {% endif %}
+                {% elif teacher.registration_application_status == 'expired' %}
+                  <span class="badge bg-app-expired">Expired</span>
+                {% elif teacher.registration_application_status == 'under_review' %}
+                  <span class="badge bg-app-under-review">Under Review</span>
+                {% elif teacher.registration_application_status == 'submitted' %}
+                  <span class="badge bg-app-submitted">Submitted</span>
+                {% elif teacher.registration_application_status == 'rejected' %}
+                  <span class="badge bg-app-rejected">Rejected</span>
+                {% elif teacher.registration_application_status == 'draft' %}
+                  <span class="badge bg-app-draft">Draft</span>
                 {% else %}
                   <span class="text-body-secondary">Not set</span>
                 {% endif %}

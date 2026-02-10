@@ -18,12 +18,23 @@
       </h1>
       <div class="small text-body-secondary">
         {% if teacher.user.email %}{{ teacher.user.email }}{% endif %}
-        {% if teacher.registration_status %}
+        {% if teacher.registration_application_status %}
           ·
-          {% if teacher.registration_status == 'valid' %}
-            <span class="badge bg-success">Registration Valid</span>
-          {% elif teacher.registration_status == 'expired' %}
-            <span class="badge bg-danger">Registration Expired</span>
+          {% if teacher.registration_application_status == 'approved' %}
+            <span class="badge bg-app-approved">Registration Approved</span>
+            {% if teacher.teacher_registration_status %}
+              <span class="badge {{ teacher.teacher_registration_status.badge_class }}">{{ teacher.teacher_registration_status.label }}</span>
+            {% endif %}
+          {% elif teacher.registration_application_status == 'expired' %}
+            <span class="badge bg-app-expired">Registration Expired</span>
+          {% elif teacher.registration_application_status == 'under_review' %}
+            <span class="badge bg-app-under-review">Under Review</span>
+          {% elif teacher.registration_application_status == 'submitted' %}
+            <span class="badge bg-app-submitted">Submitted</span>
+          {% elif teacher.registration_application_status == 'rejected' %}
+            <span class="badge bg-app-rejected">Rejected</span>
+          {% elif teacher.registration_application_status == 'draft' %}
+            <span class="badge bg-app-draft">Draft</span>
           {% endif %}
         {% endif %}
       </div>
@@ -85,7 +96,7 @@
             <dt class="col-5">Gender</dt>
             <dd class="col-7">
               {% if teacher.gender %}
-                {{ teacher.gender|capfirst }}
+                {{ teacher.gender }}
               {% else %}
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
@@ -126,14 +137,15 @@
       </div>
     </div>
 
-    <!-- Professional information -->
-    <div class="col-12 col-lg-6">
-      <div class="card shadow-sm h-100">
+    <!-- Registration information + Professional information + External data -->
+    <div class="col-12 col-lg-6 d-flex flex-column gap-3">
+      <!-- Registration Information -->
+      <div class="card shadow-sm flex-fill">
         <div class="card-header">
-          <h2 class="h6 mb-0">Professional Information</h2>
+          <h2 class="h6 mb-0">Registration Information</h2>
         </div>
         <div class="card-body small">
-          <dl class="row mb-2">
+          <dl class="row mb-0">
             <dt class="col-5">Teacher Registration Number</dt>
             <dd class="col-7">
               {% if teacher.teacher_registration_number %}
@@ -142,13 +154,58 @@
                 <span class="text-body-secondary">Not assigned</span>
               {% endif %}
             </dd>
-            <dt class="col-5">Payroll Number (PF Number)</dt>
+            <dt class="col-5">Registration Application Status</dt>
             <dd class="col-7">
-              {% if teacher.teacher_payroll_number %}
-                {{ teacher.teacher_payroll_number }}
+              {% if teacher.registration_application_status == 'approved' %}
+                <span class="badge bg-app-approved">Approved</span>
+                {% if teacher.teacher_registration_status %}
+                  <span class="badge {{ teacher.teacher_registration_status.badge_class }}">{{ teacher.teacher_registration_status.label }}</span>
+                {% endif %}
+              {% elif teacher.registration_application_status == 'expired' %}
+                <span class="badge bg-app-expired">Expired</span>
+              {% elif teacher.registration_application_status == 'under_review' %}
+                <span class="badge bg-app-under-review">Under Review</span>
+              {% elif teacher.registration_application_status == 'submitted' %}
+                <span class="badge bg-app-submitted">Submitted</span>
+              {% elif teacher.registration_application_status == 'rejected' %}
+                <span class="badge bg-app-rejected">Rejected</span>
+              {% elif teacher.registration_application_status == 'draft' %}
+                <span class="badge bg-app-draft">Draft</span>
               {% else %}
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
+            </dd>
+            <dt class="col-5">Valid Until</dt>
+            <dd class="col-7">
+              {% if teacher.registration_valid_until %}
+                <time class="local-datetime" datetime="{{ teacher.registration_valid_until|date:'c' }}">
+                  {{ teacher.registration_valid_until|date:"Y-m-d H:i" }} UTC
+                </time>
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+          </dl>
+          {% if teacher.registration_application_status == 'expired' and can_delete %}
+            {% csrf_token %}
+            <button id="resend-renewal-btn" type="button" class="btn btn-sm btn-outline-warning"
+                    data-url="{% url 'teacher_registration:teacher_resend_renewal_notification' teacher.pk %}">
+              <i class="bi bi-envelope-arrow-up me-1"></i> Resend Renewal Notification
+            </button>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Professional Information -->
+      <div class="card shadow-sm flex-fill">
+        <div class="card-header">
+          <h2 class="h6 mb-0">Professional Information</h2>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-0">
+            <dt class="col-5">Staff Type</dt>
+            <dd class="col-7">
+              {{ teacher.get_staff_type_display }}
             </dd>
             <dt class="col-5">Highest Qualification</dt>
             <dd class="col-7">
@@ -167,32 +224,22 @@
               {% endif %}
             </dd>
           </dl>
-          <hr>
+        </div>
+      </div>
+
+      <!-- External Data -->
+      <div class="card shadow-sm flex-fill">
+        <div class="card-header">
+          <h2 class="h6 mb-0">External Data</h2>
+        </div>
+        <div class="card-body small">
           <dl class="row mb-0">
-            <dt class="col-5">Registration Status</dt>
+            <dt class="col-5">Payroll Number</dt>
             <dd class="col-7">
-              {% if teacher.registration_status == 'valid' %}
-                <span class="badge bg-success">Valid</span>
-              {% elif teacher.registration_status == 'expired' %}
-                <span class="badge bg-danger">Expired</span>
+              {% if teacher.teacher_payroll_number %}
+                {{ teacher.teacher_payroll_number }}
               {% else %}
                 <span class="text-body-secondary">Not set</span>
-              {% endif %}
-            </dd>
-            <dt class="col-5">Valid Until</dt>
-            <dd class="col-7">
-              {% if teacher.registration_valid_until %}
-                {{ teacher.registration_valid_until|date:"Y-m-d" }}
-              {% else %}
-                <span class="text-body-secondary">Not set</span>
-              {% endif %}
-            </dd>
-            <dt class="col-5">Account Status</dt>
-            <dd class="col-7">
-              {% if teacher.user.is_active %}
-                <span class="badge bg-success">Active</span>
-              {% else %}
-                <span class="badge bg-secondary">Inactive</span>
               {% endif %}
             </dd>
           </dl>
@@ -201,7 +248,180 @@
     </div>
   </div>
 
-  {# SECOND ROW: School Assignments #}
+  {# SECOND ROW: Education Records #}
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h2 class="h6 mb-0">Education Records</h2>
+          <span class="badge bg-light text-body-secondary">{{ teacher.education_records.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% with education_records=teacher.education_records.all %}
+          {% if education_records %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Institution</th>
+                    <th scope="col">Qualification</th>
+                    <th scope="col">Major / Minor</th>
+                    <th scope="col">Year</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col" class="text-end">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for record in education_records %}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{{ record.institution_name }}</div>
+                        {% if record.program_name %}
+                          <div class="small text-body-secondary">{{ record.program_name }}</div>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.qualification %}
+                          {{ record.qualification }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.major %}
+                          {{ record.major }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                        {% if record.minor %}
+                          <br><span class="text-body-secondary">Minor:</span> {{ record.minor }}
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.completion_year %}
+                          {{ record.completion_year }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.duration %}
+                          {{ record.duration }} {{ record.duration_unit }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {% if record.completed %}
+                          <span class="badge bg-success">Completed</span>
+                        {% else %}
+                          <span class="badge bg-warning text-dark">
+                            In Progress{% if record.percentage_progress %} ({{ record.percentage_progress }}%){% endif %}
+                          </span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No education records recorded for this teacher.
+            </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# THIRD ROW: Training Records #}
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h2 class="h6 mb-0">Training Records</h2>
+          <span class="badge bg-light text-body-secondary">{{ teacher.training_records.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% with training_records=teacher.training_records.all %}
+          {% if training_records %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Training Title</th>
+                    <th scope="col">Provider</th>
+                    <th scope="col">Focus</th>
+                    <th scope="col">Format</th>
+                    <th scope="col">Year</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col" class="text-end">Dates</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for record in training_records %}
+                    <tr>
+                      <td class="fw-semibold">{{ record.title }}</td>
+                      <td>{{ record.provider_institution }}</td>
+                      <td class="small">
+                        {% if record.focus %}
+                          {{ record.focus }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.format %}
+                          {{ record.format }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.completion_year %}
+                          {{ record.completion_year }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.duration %}
+                          {{ record.duration }} {{ record.duration_unit }}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end small">
+                        {% if record.effective_date or record.expiration_date %}
+                          {% if record.effective_date %}
+                            From {{ record.effective_date|date:"Y-m-d" }}
+                          {% endif %}
+                          {% if record.expiration_date %}
+                            <br>Exp. {{ record.expiration_date|date:"Y-m-d" }}
+                          {% endif %}
+                        {% else %}
+                          <span class="text-body-secondary">—</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No training records recorded for this teacher.
+            </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# FOURTH ROW: School Assignments #}
   <div class="row g-3 mt-2">
     <div class="col-12">
       <div class="card shadow-sm">
@@ -284,69 +504,8 @@
           </div>
           <div class="card-body p-0">
             {% for reg in registration_history %}
-              {# Registration summary #}
-              <div class="px-3 py-2 {% if not forloop.last %}border-bottom{% endif %}">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <strong>{{ reg.get_registration_type_display|default:"Initial Registration" }}</strong>
-                    <span class="text-body-secondary small ms-2">
-                      Created {{ reg.created_at|date:"Y-m-d H:i" }}
-                    </span>
-                  </div>
-                  <div>
-                    {% if reg.status == 'approved' %}
-                      <span class="badge bg-success">Approved</span>
-                    {% elif reg.status == 'rejected' %}
-                      <span class="badge bg-danger">Rejected</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ reg.get_status_display }}</span>
-                    {% endif %}
-                  </div>
-                </div>
-                {# Workflow timeline from change logs #}
-                {% if reg.change_logs.all %}
-                  <div class="small">
-                    <table class="table table-sm table-borderless mb-0">
-                      <tbody>
-                        {% for log in reg.change_logs.all reversed %}
-                          <tr>
-                            <td class="ps-0 timestamp-column">
-                              <span class="text-body-secondary">{{ log.changed_at|date:"Y-m-d H:i" }}</span>
-                            </td>
-                            <td>
-                              {% if log.old_value %}
-                                <span class="badge bg-secondary">{{ log.old_value }}</span>
-                                →
-                              {% endif %}
-                              <span class="badge bg-primary">{{ log.new_value }}</span>
-                              {% if log.notes %}
-                                <span class="text-body-secondary ms-1">— {{ log.notes }}</span>
-                              {% endif %}
-                            </td>
-                            <td class="text-end pe-0">
-                              {% if log.changed_by %}
-                                <span class="text-body-secondary">
-                                  {{ log.changed_by.get_full_name|default:log.changed_by.username }}
-                                </span>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
-                {% else %}
-                  {# Fallback if no change logs (old registrations) #}
-                  <div class="small text-body-secondary">
-                    {% if reg.submitted_at %}
-                      Submitted: {{ reg.submitted_at|date:"Y-m-d H:i" }}
-                    {% endif %}
-                    {% if reg.reviewed_at %}
-                      · Reviewed: {{ reg.reviewed_at|date:"Y-m-d H:i" }}
-                      {% if reg.reviewed_by %}by {{ reg.reviewed_by.get_full_name|default:reg.reviewed_by.username }}{% endif %}
-                    {% endif %}
-                  </div>
-                {% endif %}
+              <div class="py-2 {% if not forloop.last %}border-bottom{% endif %}">
+                {% include "teacher_registration/_changelog_timeline.html" with reg=reg show_changed_by=True %}
               </div>
             {% endfor %}
           </div>
@@ -366,7 +525,7 @@
           <dl class="row mb-0">
             <dt class="col-3">Created</dt>
             <dd class="col-9">
-              {{ teacher.created_at|date:"Y-m-d H:i" }}
+              <time class="local-datetime" datetime="{{ teacher.created_at|date:'c' }}">{{ teacher.created_at|date:"Y-m-d H:i" }} UTC</time>
               {% if teacher.created_by %}
                 <span class="text-body-secondary">
                   · by {{ teacher.created_by.get_full_name|default:teacher.created_by.username }}
@@ -375,7 +534,7 @@
             </dd>
             <dt class="col-3">Last Updated</dt>
             <dd class="col-9">
-              {{ teacher.last_updated_at|date:"Y-m-d H:i" }}
+              <time class="local-datetime" datetime="{{ teacher.last_updated_at|date:'c' }}">{{ teacher.last_updated_at|date:"Y-m-d H:i" }} UTC</time>
               {% if teacher.last_updated_by %}
                 <span class="text-body-secondary">
                   · by {{ teacher.last_updated_by.get_full_name|default:teacher.last_updated_by.username }}
@@ -388,3 +547,53 @@
     </div>
   </div>
 {% endblock content %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var btn = document.getElementById('resend-renewal-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', function () {
+      var originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sending\u2026';
+
+      fetch(btn.dataset.url, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          btn.innerHTML = data.ok
+            ? '<i class="bi bi-check-circle me-1"></i> Sent'
+            : '<i class="bi bi-x-circle me-1"></i> Failed';
+          btn.classList.remove('btn-outline-warning');
+          btn.classList.add(data.ok ? 'btn-outline-success' : 'btn-outline-danger');
+          setTimeout(function () {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-outline-success', 'btn-outline-danger');
+            btn.classList.add('btn-outline-warning');
+            btn.disabled = false;
+          }, 3000);
+        })
+        .catch(function () {
+          btn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Failed';
+          btn.classList.remove('btn-outline-warning');
+          btn.classList.add('btn-outline-danger');
+          setTimeout(function () {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-outline-danger');
+            btn.classList.add('btn-outline-warning');
+            btn.disabled = false;
+          }, 3000);
+        });
+    });
+  });
+</script>
+{% endblock extra_js %}
+
