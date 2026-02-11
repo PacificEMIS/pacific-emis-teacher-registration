@@ -670,7 +670,7 @@ def pending_registrations_list(request):
             constants.UNDER_REVIEW,
             constants.REJECTED,
         ]
-    ).select_related("user", "preferred_school", "reviewed_by")
+    ).select_related("user", "preferred_school", "reviewed_by")  # preferred_school: not currently in use
 
     # Apply status filter
     if status_filter:
@@ -730,7 +730,7 @@ def registration_review(request, pk):
 
     registration = get_object_or_404(
         TeacherRegistration.objects.select_related(
-            "user", "preferred_school", "preferred_job_title", "reviewed_by",
+            "user", "preferred_school", "preferred_job_title", "reviewed_by",  # preferred_school/preferred_job_title: not currently in use
             "approved_staff_profile",
         ).prefetch_related("documents__doc_link_type"),
         pk=pk,
@@ -882,7 +882,7 @@ def registration_history(request):
         per_page = 25
 
     registrations_qs = TeacherRegistration.objects.select_related(
-        "user", "preferred_school", "reviewed_by", "approved_staff_profile"
+        "user", "preferred_school", "reviewed_by", "approved_staff_profile"  # preferred_school: not currently in use
     )
 
     # Apply status filter
