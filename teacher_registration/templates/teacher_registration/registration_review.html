@@ -71,6 +71,7 @@
             </dd>
           </dl>
 
+          {% comment "School preference fields not currently required" %}
           <!-- School Preference -->
           <h5 class="border-bottom pb-2 mb-3">School Preference</h5>
           <dl class="row">
@@ -80,6 +81,7 @@
             <dt class="col-sm-4">Preferred Position</dt>
             <dd class="col-sm-8">{{ registration.preferred_job_title|default:"Not specified" }}</dd>
           </dl>
+          {% endcomment %}
 
           <!-- Submission Info -->
           <h5 class="border-bottom pb-2 mb-3">Submission Details</h5>

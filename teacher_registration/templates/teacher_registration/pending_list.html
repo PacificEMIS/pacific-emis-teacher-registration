@@ -62,7 +62,7 @@
           <tr>
             <th scope="col">Name</th>
             <th scope="col">Email</th>
-            <th scope="col">Preferred School</th>
+            {# <th scope="col">Preferred School</th> — not currently required #}
             <th scope="col">Reg. Application Status</th>
             <th scope="col">Date</th>
             <th scope="col" class="text-end">Actions</th>
@@ -75,7 +75,7 @@
                 <div class="fw-semibold">{{ reg.user.get_full_name|default:"Name not provided" }}</div>
               </td>
               <td class="text-body-secondary">{{ reg.user.email }}</td>
-              <td>{{ reg.preferred_school.emis_school_name|default:"—" }}</td>
+              {# <td>{{ reg.preferred_school.emis_school_name|default:"—" }}</td> — not currently required #}
               <td>
                 {% if reg.status == 'draft' %}
                   <span class="badge bg-app-draft">Draft</span>

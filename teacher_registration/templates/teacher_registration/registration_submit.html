@@ -30,8 +30,10 @@
         <dt class="col-sm-4">Phone</dt>
         <dd class="col-sm-8">{{ registration.phone_number|default:"Not provided" }}</dd>
 
+        {% comment "School preference not currently required" %}
         <dt class="col-sm-4">Preferred School</dt>
         <dd class="col-sm-8">{{ registration.preferred_school|default:"Not specified" }}</dd>
+        {% endcomment %}
 
         <dt class="col-sm-4">Documents</dt>
         <dd class="col-sm-8">{{ registration.documents.count }} document(s) uploaded</dd>

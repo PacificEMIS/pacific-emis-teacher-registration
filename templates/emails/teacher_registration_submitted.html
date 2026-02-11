@@ -45,10 +45,12 @@
             <td style="padding:4px 0; color:#6c757d;">Email:</td>
             <td style="padding:4px 0;">{{ registration.user.email|default:"Not provided" }}</td>
           </tr>
+          {% comment "School preference not currently required" %}
           <tr>
             <td style="padding:4px 0; color:#6c757d;">Preferred School:</td>
             <td style="padding:4px 0;">{{ registration.preferred_school.emis_school_name|default:"Not specified" }}</td>
           </tr>
+          {% endcomment %}
           <tr>
             <td style="padding:4px 0; color:#6c757d;">Status:</td>
             <td style="padding:4px 0;">

@@ -39,6 +39,7 @@ from integrations.models import (
     EmisNationality,
     EmisTeacherRegistrationStatus,
 )
+from core import constants as core_constants
 from teacher_registration import constants as reg_constants
 
 if TYPE_CHECKING:
@@ -149,21 +150,6 @@ class SchoolStaff(AuditModel):
         (NON_TEACHING_STAFF, "Non-Teaching Staff"),
     ]
 
-    # Title choices
-    TITLE_MR = "Mr"
-    TITLE_MRS = "Mrs"
-    TITLE_MISS = "Miss"
-    TITLE_MS = "Ms"
-    TITLE_DR = "Dr"
-
-    TITLE_CHOICES = [
-        (TITLE_MR, "Mr"),
-        (TITLE_MRS, "Mrs"),
-        (TITLE_MISS, "Miss"),
-        (TITLE_MS, "Ms"),
-        (TITLE_DR, "Dr"),
-    ]
-
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -184,7 +170,7 @@ class SchoolStaff(AuditModel):
 
     title = models.CharField(
         max_length=10,
-        choices=TITLE_CHOICES,
+        choices=core_constants.TITLE_CHOICES,
         blank=True,
         verbose_name="Title",
     )
