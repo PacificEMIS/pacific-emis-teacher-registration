@@ -1107,7 +1107,7 @@ def teacher_detail(request, pk):
         .prefetch_related(
             "assignments__school",
             "assignments__job_title",
-            "documents",
+            "documents__doc_link_type",
             "registration_history__change_logs",
             "education_records__qualification",
             "education_records__major",
