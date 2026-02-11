@@ -1,0 +1,101 @@
+{% comment %}
+  Checklist partial (Section 7 of official Teacher Application Form).
+
+  Context variables:
+    checklist_mode   — "applicant" or "official"
+    checklist_form   — form instance (applicant: TeacherRegistrationForm, official: ChecklistOfficialForm)
+    checklist_items  — CHECKLIST_ITEMS constant from constants.py
+    is_renewal       — boolean, True for renewal registrations
+    registration     — TeacherRegistration instance (for reading applicant values in official mode)
+
+  Template filters used:
+    form_field (core/templatetags/form_extras.py) — get form BoundField by name
+    obj_attr   (core/templatetags/form_extras.py) — get model attribute by name
+{% endcomment %}
+{% load form_extras %}
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header">
+    <h6 class="mb-0">
+      {% if checklist_mode == "official" %}
+        Review Checklist
+      {% else %}
+        Submission Checklist
+      {% endif %}
+    </h6>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm mb-0">
+      <thead>
+        <tr>
+          <th class="ps-3">Information Required</th>
+          {% if checklist_mode == "official" %}
+            <th class="text-center checklist-col-check">Applicant</th>
+            <th class="text-center checklist-col-check">Official</th>
+          {% else %}
+            <th class="text-center checklist-col-check">Check</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for suffix, label, category, renewal_req in checklist_items %}
+          {% if category %}
+            <tr class="table-light">
+              <td colspan="{% if checklist_mode == 'official' %}3{% else %}2{% endif %}" class="ps-3">
+                <strong class="small text-uppercase text-muted">{{ category }}</strong>
+              </td>
+            </tr>
+          {% endif %}
+
+          {% if is_renewal and not renewal_req %}
+            {# Renewal: item already on file — greyed out with badge #}
+            <tr class="text-muted">
+              <td class="ps-3">
+                <span class="small">{{ label }}</span>
+                <span class="badge bg-secondary ms-1 checklist-badge-onfile">Already on file</span>
+              </td>
+              {% if checklist_mode == "official" %}
+                <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
+                <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
+              {% else %}
+                <td class="text-center"><i class="bi bi-dash text-muted"></i></td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="ps-3"><span class="small">{{ label }}</span></td>
+
+              {% if checklist_mode == "official" %}
+                {# Applicant value: read-only icon #}
+                <td class="text-center">
+                  {% with "checklist_applicant_"|add:suffix as app_field %}
+                    {% with registration|obj_attr:app_field as val %}
+                      {% if val %}
+                        <i class="bi bi-check-lg text-success"></i>
+                      {% else %}
+                        <i class="bi bi-x-lg text-muted checklist-icon-absent"></i>
+                      {% endif %}
+                    {% endwith %}
+                  {% endwith %}
+                </td>
+                {# Official checkbox: editable #}
+                <td class="text-center">
+                  {% with "checklist_official_"|add:suffix as off_field %}
+                    {{ checklist_form|form_field:off_field }}
+                  {% endwith %}
+                </td>
+              {% else %}
+                {# Applicant mode: editable checkbox #}
+                <td class="text-center">
+                  {% with "checklist_applicant_"|add:suffix as app_field %}
+                    {{ checklist_form|form_field:app_field }}
+                  {% endwith %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

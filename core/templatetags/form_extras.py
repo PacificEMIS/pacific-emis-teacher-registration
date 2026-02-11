@@ -12,3 +12,14 @@ def form_field(form, name):
         return form[name]
     except Exception:
         return None
+
+
+@register.filter
+def obj_attr(obj, name):
+    """
+    Return an attribute value from an object by name, e.g. {{ reg|obj_attr:"checklist_applicant_birth_cert" }}.
+    """
+    try:
+        return getattr(obj, name)
+    except Exception:
+        return None

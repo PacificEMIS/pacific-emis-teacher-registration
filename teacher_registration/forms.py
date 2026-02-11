@@ -82,6 +82,20 @@ class TeacherRegistrationForm(forms.ModelForm):
             "teacher_payroll_number",
             "highest_qualification",
             "years_of_experience",
+            # Applicant checklist (Section 7)
+            "checklist_applicant_form_completed",
+            "checklist_applicant_birth_cert",
+            "checklist_applicant_national_id",
+            "checklist_applicant_qualifications",
+            "checklist_applicant_english_proficiency",
+            "checklist_applicant_training_certs",
+            "checklist_applicant_statutory_declaration",
+            "checklist_applicant_police_clearance",
+            "checklist_applicant_medical_clearance",
+            "checklist_applicant_photo",
+            "checklist_applicant_church_reference",
+            "checklist_applicant_school_reference",
+            "checklist_applicant_fee_receipt",
         ]
         widgets = {
             "teacher_category": forms.RadioSelect(attrs={"class": "form-check-input"}),
@@ -106,6 +120,20 @@ class TeacherRegistrationForm(forms.ModelForm):
             "years_of_experience": forms.NumberInput(
                 attrs={"class": "form-control", "min": "0"}
             ),
+            # Applicant checklist checkboxes
+            "checklist_applicant_form_completed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_birth_cert": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_national_id": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_qualifications": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_english_proficiency": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_training_certs": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_statutory_declaration": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_police_clearance": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_medical_clearance": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_photo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_church_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_school_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_applicant_fee_receipt": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -298,6 +326,47 @@ class RegistrationReviewForm(forms.Form):
             )
 
         return cleaned_data
+
+
+class ChecklistOfficialForm(forms.ModelForm):
+    """
+    Form for the official (reviewer) checklist fields.
+
+    Used alongside RegistrationReviewForm on the review page.
+    """
+
+    class Meta:
+        model = TeacherRegistration
+        fields = [
+            "checklist_official_form_completed",
+            "checklist_official_birth_cert",
+            "checklist_official_national_id",
+            "checklist_official_qualifications",
+            "checklist_official_english_proficiency",
+            "checklist_official_training_certs",
+            "checklist_official_statutory_declaration",
+            "checklist_official_police_clearance",
+            "checklist_official_medical_clearance",
+            "checklist_official_photo",
+            "checklist_official_church_reference",
+            "checklist_official_school_reference",
+            "checklist_official_fee_receipt",
+        ]
+        widgets = {
+            "checklist_official_form_completed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_birth_cert": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_national_id": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_qualifications": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_english_proficiency": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_training_certs": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_statutory_declaration": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_police_clearance": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_medical_clearance": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_photo": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_church_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_school_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_official_fee_receipt": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
 
 
 # =============================================================================

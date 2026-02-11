@@ -12,7 +12,7 @@
     <div class="col-lg-8">
       <div class="card shadow-sm mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h1 class="h4 mb-0">Review Registration</h1>
+          <h1 class="h4 mb-0">Review Registration ({% if is_renewal %}Renewal{% else %}Initial{% endif %})</h1>
           <span class="badge bg-app-under-review">Under Review</span>
         </div>
         <div class="card-body">
@@ -168,16 +168,18 @@
       </div>
     </div>
 
-    <!-- Review form -->
+    <!-- Review sidebar: checklist + decision -->
     <div class="col-lg-4">
-      <div class="card shadow-sm sticky-top sticky-with-offset">
-        <div class="card-header">
-          <h5 class="mb-0">Review Decision</h5>
-        </div>
-        <div class="card-body">
-          <form method="post">
-            {% csrf_token %}
+      <form method="post">
+        {% csrf_token %}
 
+        {% include "teacher_registration/_checklist.html" with checklist_mode="official" checklist_form=checklist_form checklist_items=checklist_items is_renewal=is_renewal registration=registration %}
+
+        <div class="card shadow-sm sticky-top sticky-with-offset">
+          <div class="card-header">
+            <h5 class="mb-0">Review Decision</h5>
+          </div>
+          <div class="card-body">
             <div class="mb-3">
               <label class="form-label">Decision</label>
               <div class="form-check">
@@ -226,9 +228,9 @@
                 Back to List
               </a>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
+      </form>
     </div>
   </div>
 {% endblock content %}
