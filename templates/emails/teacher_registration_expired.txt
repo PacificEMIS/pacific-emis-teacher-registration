@@ -1,0 +1,24 @@
+{{ emis_context }} {{ app_name }}: Your registration has expired
+================================================================================
+
+Hello {{ user.first_name|default:user.username }},
+
+Your teacher registration in the {{ emis_context }} {{ app_name }} app
+has expired and must be renewed to remain active.
+
+Registration Status
+-------------------
+Status: Expired
+{% if previous_status_label %}Previous status: {{ previous_status_label }}{% endif %}
+{% if staff.registration_valid_until %}Expired on: {{ staff.registration_valid_until|date:"N j, Y" }}{% endif %}
+
+To continue teaching, you must renew your registration. Please log in and
+start the renewal process as soon as possible.
+
+{% if renewal_url %}
+Renew Registration: {{ renewal_url }}
+{% endif %}
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.

@@ -28,7 +28,7 @@
         </div>
         <!-- Status -->
         <div class="col-12 col-md-3">
-          <label for="status" class="form-label form-label-sm mb-1">Status</label>
+          <label for="status" class="form-label form-label-sm mb-1">Reg. Application Status</label>
           <select id="status" class="form-select form-select-sm" name="status">
             <option value="">All</option>
             <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
@@ -63,7 +63,7 @@
             <th scope="col">Name</th>
             <th scope="col">Email</th>
             <th scope="col">Preferred School</th>
-            <th scope="col">Status</th>
+            <th scope="col">Reg. Application Status</th>
             <th scope="col">Date</th>
             <th scope="col" class="text-end">Actions</th>
           </tr>
@@ -78,16 +78,16 @@
               <td>{{ reg.preferred_school.emis_school_name|default:"—" }}</td>
               <td>
                 {% if reg.status == 'draft' %}
-                  <span class="badge bg-secondary">Draft</span>
+                  <span class="badge bg-app-draft">Draft</span>
                 {% elif reg.status == 'submitted' %}
-                  <span class="badge bg-success">Submitted</span>
+                  <span class="badge bg-app-submitted">Submitted</span>
                 {% elif reg.status == 'under_review' %}
-                  <span class="badge bg-info">Under Review</span>
+                  <span class="badge bg-app-under-review">Under Review</span>
                   {% if reg.reviewed_by %}
                     <br><small class="text-muted">by {{ reg.reviewed_by.get_full_name }}</small>
                   {% endif %}
                 {% elif reg.status == 'rejected' %}
-                  <span class="badge bg-danger">Rejected</span>
+                  <span class="badge bg-app-rejected">Rejected</span>
                   {% if reg.reviewed_by %}
                     <br><small class="text-muted">by {{ reg.reviewed_by.get_full_name }}</small>
                   {% endif %}
@@ -95,9 +95,9 @@
               </td>
               <td>
                 {% if reg.status == 'draft' %}
-                  <span class="text-muted">Started:</span> {{ reg.created_at|date:"Y-m-d H:i" }}
+                  <span class="text-muted">Started:</span> <time class="local-datetime" datetime="{{ reg.created_at|date:'c' }}">{{ reg.created_at|date:"Y-m-d H:i" }} UTC</time>
                 {% else %}
-                  <span class="text-muted">Submitted:</span> {{ reg.submitted_at|date:"Y-m-d H:i" }}
+                  <span class="text-muted">Submitted:</span> <time class="local-datetime" datetime="{{ reg.submitted_at|date:'c' }}">{{ reg.submitted_at|date:"Y-m-d H:i" }} UTC</time>
                 {% endif %}
               </td>
               <td class="text-end">

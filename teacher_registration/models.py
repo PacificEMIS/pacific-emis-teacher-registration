@@ -7,13 +7,15 @@ This module contains models for the teacher self-registration workflow:
 - RegistrationChangeLog: Audit trail for registration workflow changes
 """
 
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
+from . import constants
 from .utils import generate_teacher_registration_number
 
 from core.models import (
@@ -74,28 +76,13 @@ class TeacherRegistration(AuditModel):
         DRAFT -> SUBMITTED -> UNDER_REVIEW -> APPROVED/REJECTED
     """
 
-    # Status choices
-    DRAFT = "draft"
-    SUBMITTED = "submitted"
-    UNDER_REVIEW = "under_review"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-    STATUS_CHOICES = [
-        (DRAFT, "Draft"),
-        (SUBMITTED, "Submitted"),
-        (UNDER_REVIEW, "Under Review"),
-        (APPROVED, "Approved"),
-        (REJECTED, "Rejected"),
-    ]
-
     # Registration type
     INITIAL = "initial"
     RENEWAL = "renewal"
 
     TYPE_CHOICES = [
         (INITIAL, "Initial Registration"),
-        (RENEWAL, "Renewal"),
+        (RENEWAL, "Renewed Registration"),
     ]
 
     # Teacher category (determines form sections displayed)
@@ -148,8 +135,8 @@ class TeacherRegistration(AuditModel):
 
     status = models.CharField(
         max_length=20,
-        choices=STATUS_CHOICES,
-        default=DRAFT,
+        choices=constants.REGISTRATION_APPLICATION_STATUS_CHOICES,
+        default=constants.DRAFT,
     )
 
     # -------------------------------------------------------------------------
@@ -168,23 +155,13 @@ class TeacherRegistration(AuditModel):
         blank=True,
         verbose_name="Date of birth",
     )
-    gender = models.CharField(
-        max_length=20,
-        blank=True,
-        choices=[
-            ("male", "Male"),
-            ("female", "Female"),
-            ("other", "Other"),
-        ],
-    )
-    gender_emis = models.ForeignKey(
+    gender = models.ForeignKey(
         EmisGender,
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name="registrations",
-        verbose_name="Gender (EMIS)",
-        help_text="Gender from EMIS lookup",
+        verbose_name="Gender",
     )
     marital_status = models.ForeignKey(
         EmisMaritalStatus,
@@ -345,13 +322,14 @@ class TeacherRegistration(AuditModel):
         verbose_name = "Teacher Registration"
         verbose_name_plural = "Teacher Registrations"
 
-    # Type stubs for Django-generated methods (satisfy type checkers)
-    def get_status_display(self) -> str: ...
-    def get_registration_type_display(self) -> str: ...
-    def get_teacher_category_display(self) -> str: ...
-    def get_title_display(self) -> str: ...
-    def get_gender_display(self) -> str: ...
-    def get_highest_qualification_display(self) -> str: ...
+    if TYPE_CHECKING:
+        # Type stubs for Django-generated methods (satisfy type checkers)
+        def get_status_display(self) -> str: ...
+        def get_registration_type_display(self) -> str: ...
+        def get_teacher_category_display(self) -> str: ...
+        def get_title_display(self) -> str: ...
+        def get_gender_display(self) -> str: ...
+        def get_highest_qualification_display(self) -> str: ...
 
     def __str__(self):
         return f"Registration<{self.user}, {self.get_status_display()}>"
@@ -359,13 +337,13 @@ class TeacherRegistration(AuditModel):
     @property
     def is_editable(self):
         """Check if the registration can still be edited."""
-        return self.status == self.DRAFT
+        return self.status == constants.DRAFT
 
     @property
     def can_submit(self):
         """Check if the registration is ready to submit."""
         # Add validation logic here as needed
-        return self.status == self.DRAFT
+        return self.status == constants.DRAFT
 
     # -------------------------------------------------------------------------
     # Workflow methods
@@ -373,11 +351,11 @@ class TeacherRegistration(AuditModel):
 
     def submit(self, user=None):
         """Submit the registration for review."""
-        if self.status != self.DRAFT:
+        if self.status != constants.DRAFT:
             raise ValueError("Only draft registrations can be submitted")
 
         old_status = self.status
-        self.status = self.SUBMITTED
+        self.status = constants.SUBMITTED
         self.submitted_at = timezone.now()
         # Clear previous reviewer comments so the rejection banner doesn't persist
         self.reviewer_comments = ""
@@ -395,17 +373,17 @@ class TeacherRegistration(AuditModel):
 
     def start_review(self, reviewer):
         """Mark registration as under review."""
-        if self.status not in [self.SUBMITTED, self.REJECTED]:
+        if self.status not in [constants.SUBMITTED, constants.REJECTED]:
             raise ValueError("Only submitted or rejected registrations can be reviewed")
 
         old_status = self.status
-        self.status = self.UNDER_REVIEW
+        self.status = constants.UNDER_REVIEW
         self.reviewed_by = reviewer
         self.save(update_fields=["status", "reviewed_by", "last_updated_at"])
 
         # Log the status change
         notes = (
-            "Review started" if old_status == self.SUBMITTED else "Re-review started"
+            "Review started" if old_status == constants.SUBMITTED else "Re-review started"
         )
         RegistrationChangeLog.log_change(
             registration=self,
@@ -416,7 +394,7 @@ class TeacherRegistration(AuditModel):
             notes=notes,
         )
 
-    def approve(self, reviewer, comments=""):
+    def approve(self, reviewer, comments="", registration_status=None):
         """
         Approve the registration and create SchoolStaff profile.
 
@@ -439,10 +417,14 @@ class TeacherRegistration(AuditModel):
             ValueError: If registration status is invalid
             ValidationError: If National ID missing or duplicate National ID exists
         """
-        if self.status not in [self.SUBMITTED, self.UNDER_REVIEW]:
+        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW]:
             raise ValueError(
                 "Only submitted or under-review registrations can be approved"
             )
+
+        # Dispatch to renewal-specific approval if this is a renewal
+        if self.registration_type == self.RENEWAL:
+            return self._approve_renewal(reviewer, comments, registration_status)
 
         # Validate National ID is present (required for registration number generation)
         if not self.national_id_number or not self.national_id_number.strip():
@@ -478,7 +460,6 @@ class TeacherRegistration(AuditModel):
             title=self.title,
             date_of_birth=self.date_of_birth,
             gender=self.gender,
-            gender_emis=self.gender_emis,
             marital_status=self.marital_status,
             nationality=self.nationality,
             national_id_number=self.national_id_number,
@@ -497,12 +478,29 @@ class TeacherRegistration(AuditModel):
             years_of_experience=self.years_of_experience,
             # Teacher registration number (auto-generated)
             teacher_registration_number=registration_number,
-            # Registration status
-            registration_status=SchoolStaff.REGISTRATION_VALID,
+            # Registration status (from EMIS lookup, selected at approval)
+            teacher_registration_status=registration_status,
+            # Registration application status
+            registration_application_status=constants.APPROVED,
             # Audit
             created_by=reviewer,
             last_updated_by=reviewer,
         )
+
+        # Compute registration_valid_until from the selected registration status
+        if registration_status and registration_status.validity_value and registration_status.validity_unit:
+            unit = registration_status.validity_unit
+            value = registration_status.validity_value
+            now = timezone.now()
+            if unit == "minutes":
+                staff.registration_valid_until = now + timedelta(minutes=value)
+            elif unit == "hours":
+                staff.registration_valid_until = now + timedelta(hours=value)
+            elif unit == "days":
+                staff.registration_valid_until = now + timedelta(days=value)
+            elif unit == "years":
+                staff.registration_valid_until = now + timedelta(days=value * 365)
+            staff.save(update_fields=["registration_valid_until"])
 
         # Copy EducationRecords to StaffEducationRecords (preserves originals)
         for edu_record in self.education_records.all():
@@ -547,6 +545,7 @@ class TeacherRegistration(AuditModel):
                 school_staff=staff,
                 school=appointment.current_school,
                 job_title=appointment.employment_position,
+                teacher_level_type=appointment.teacher_level_type,
                 start_date=appointment.start_date,
                 # end_date is left null (currently active)
                 created_by=reviewer,
@@ -571,7 +570,7 @@ class TeacherRegistration(AuditModel):
 
         # Update registration status
         old_status = self.status
-        self.status = self.APPROVED
+        self.status = constants.APPROVED
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
         self.reviewer_comments = comments
@@ -591,6 +590,176 @@ class TeacherRegistration(AuditModel):
 
         return staff
 
+    def _approve_renewal(self, reviewer, comments, registration_status):
+        """
+        Approve a renewal registration and update the existing SchoolStaff profile.
+
+        Unlike initial approval, this method:
+        - Updates the existing SchoolStaff instead of creating a new one
+        - Keeps the existing teacher registration number
+        - Replaces education, training, and assignment records
+        - Moves only NEW renewal documents to SchoolStaff (existing docs stay)
+
+        The entire operation is wrapped in a transaction for atomicity.
+
+        Returns:
+            SchoolStaff: The updated staff profile
+
+        Raises:
+            ValidationError: If National ID missing, duplicate, or no SchoolStaff found
+        """
+        # Validate National ID is present
+        if not self.national_id_number or not self.national_id_number.strip():
+            raise ValidationError(
+                "National ID is required for approval. "
+                "Please ensure the applicant has provided their National ID/Passport number."
+            )
+
+        # Check for duplicate National ID (exclude the teacher's own SchoolStaff)
+        existing_staff = SchoolStaff.objects.filter(
+            national_id_number=self.national_id_number
+        ).exclude(user=self.user).first()
+
+        if existing_staff:
+            raise ValidationError(
+                f"A teacher with National ID '{self.national_id_number}' already exists. "
+                f"Name: {existing_staff.user.get_full_name() or existing_staff.user.username}. "
+                f"Two teachers cannot have the same National ID. This needs to be corrected."
+            )
+
+        # Get the existing SchoolStaff profile
+        try:
+            staff = self.user.school_staff
+        except SchoolStaff.DoesNotExist:
+            raise ValidationError(
+                "Cannot approve renewal: no existing SchoolStaff profile found for this user."
+            )
+
+        with transaction.atomic():
+            # Update all personal/professional fields on existing SchoolStaff
+            staff.title = self.title
+            staff.date_of_birth = self.date_of_birth
+            staff.gender = self.gender
+            staff.marital_status = self.marital_status
+            staff.nationality = self.nationality
+            staff.national_id_number = self.national_id_number
+            staff.home_island = self.home_island
+            staff.phone_number = self.phone_number
+            staff.phone_home = self.phone_home
+            staff.residential_address = self.residential_address
+            staff.nearby_school = self.nearby_school
+            staff.business_address = self.business_address
+            staff.teacher_payroll_number = self.teacher_payroll_number
+            staff.highest_qualification = self.highest_qualification
+            staff.years_of_experience = self.years_of_experience
+            staff.teacher_registration_status = registration_status
+            staff.registration_application_status = constants.APPROVED
+            staff.last_updated_by = reviewer
+            staff.save()
+
+            # Recalculate registration_valid_until from the selected registration status
+            if registration_status and registration_status.validity_value and registration_status.validity_unit:
+                unit = registration_status.validity_unit
+                value = registration_status.validity_value
+                now = timezone.now()
+                if unit == "minutes":
+                    staff.registration_valid_until = now + timedelta(minutes=value)
+                elif unit == "hours":
+                    staff.registration_valid_until = now + timedelta(hours=value)
+                elif unit == "days":
+                    staff.registration_valid_until = now + timedelta(days=value)
+                elif unit == "years":
+                    staff.registration_valid_until = now + timedelta(days=value * 365)
+                staff.save(update_fields=["registration_valid_until"])
+
+            # Replace education records
+            staff.education_records.all().delete()
+            for edu_record in self.education_records.all():
+                StaffEducationRecord.objects.create(
+                    school_staff=staff,
+                    institution_name=edu_record.institution_name,
+                    qualification=edu_record.qualification,
+                    program_name=edu_record.program_name,
+                    major=edu_record.major,
+                    minor=edu_record.minor,
+                    completion_year=edu_record.completion_year,
+                    duration=edu_record.duration,
+                    duration_unit=edu_record.duration_unit,
+                    completed=edu_record.completed,
+                    percentage_progress=edu_record.percentage_progress,
+                    comment=edu_record.comment,
+                    created_by=reviewer,
+                    last_updated_by=reviewer,
+                )
+
+            # Replace training records
+            staff.training_records.all().delete()
+            for training_record in self.training_records.all():
+                StaffTrainingRecord.objects.create(
+                    school_staff=staff,
+                    provider_institution=training_record.provider_institution,
+                    title=training_record.title,
+                    focus=training_record.focus,
+                    format=training_record.format,
+                    completion_year=training_record.completion_year,
+                    duration=training_record.duration,
+                    duration_unit=training_record.duration_unit,
+                    effective_date=training_record.effective_date,
+                    expiration_date=training_record.expiration_date,
+                    created_by=reviewer,
+                    last_updated_by=reviewer,
+                )
+
+            # Replace assignments and duties (cascade deletes duties)
+            staff.assignments.all().delete()
+            for appointment in self.claimed_appointments.all():
+                assignment = SchoolStaffAssignment.objects.create(
+                    school_staff=staff,
+                    school=appointment.current_school,
+                    job_title=appointment.employment_position,
+                    teacher_level_type=appointment.teacher_level_type,
+                    start_date=appointment.start_date,
+                    created_by=reviewer,
+                    last_updated_by=reviewer,
+                )
+
+                for duty in appointment.claimed_duties.all():
+                    StaffTeachingDuty.objects.create(
+                        assignment=assignment,
+                        year_level=duty.year_level,
+                        subject=duty.subject,
+                        created_by=reviewer,
+                        last_updated_by=reviewer,
+                    )
+
+            # Move NEW renewal documents to SchoolStaff (existing staff docs stay)
+            self.documents.update(
+                school_staff=staff,
+                registration=None,
+            )
+
+            # Update registration status
+            old_status = self.status
+            self.status = constants.APPROVED
+            self.reviewed_by = reviewer
+            self.reviewed_at = timezone.now()
+            self.reviewer_comments = comments
+            self.approved_staff_profile = staff
+            self.save()
+
+            # Log the status change
+            RegistrationChangeLog.log_change(
+                registration=self,
+                field_name="status",
+                old_value=old_status,
+                new_value=self.status,
+                changed_by=reviewer,
+                notes=f"Renewal approved. SchoolStaff profile updated (ID: {staff.pk}). "
+                      f"Teacher Registration Number: {staff.teacher_registration_number}",
+            )
+
+        return staff
+
     def reject(self, reviewer, comments):
         """
         Reject the registration and return it to draft for corrections.
@@ -600,13 +769,13 @@ class TeacherRegistration(AuditModel):
         and resubmit. The reviewer_comments are preserved so the teacher
         can see the rejection reason on the edit form.
         """
-        if self.status not in [self.SUBMITTED, self.UNDER_REVIEW]:
+        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW]:
             raise ValueError(
                 "Only submitted or under-review registrations can be rejected"
             )
 
         old_status = self.status
-        self.status = self.REJECTED
+        self.status = constants.REJECTED
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
         self.reviewer_comments = comments
@@ -617,7 +786,7 @@ class TeacherRegistration(AuditModel):
             registration=self,
             field_name="status",
             old_value=old_status,
-            new_value=self.REJECTED,
+            new_value=constants.REJECTED,
             changed_by=reviewer,
             notes=(
                 f"Registration rejected. Reason: {comments[:100]}"
@@ -627,14 +796,14 @@ class TeacherRegistration(AuditModel):
         )
 
         # Transition back to draft so the teacher can correct and resubmit
-        self.status = self.DRAFT
+        self.status = constants.DRAFT
         self.save(update_fields=["status", "last_updated_at"])
 
         RegistrationChangeLog.log_change(
             registration=self,
             field_name="status",
-            old_value=self.REJECTED,
-            new_value=self.DRAFT,
+            old_value=constants.REJECTED,
+            new_value=constants.DRAFT,
             changed_by=reviewer,
             notes="Returned to draft for corrections",
         )

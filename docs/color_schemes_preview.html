@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Registration Status Color Schemes</title>
+<style>
+  body { font-family: system-ui, sans-serif; padding: 2rem; background: #f5f5f5; }
+  h1 { font-size: 1.4rem; margin-bottom: 2rem; }
+  h2 { font-size: 1.1rem; margin: 2rem 0 1rem; color: #333; }
+  .scheme { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .swatch {
+    width: 160px; padding: 1rem; border-radius: 8px; text-align: center;
+    font-weight: 600; font-size: 0.85rem; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  }
+  .swatch .hex { font-weight: 400; font-size: 0.75rem; margin-top: 0.3rem; opacity: 0.85; }
+  .flow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .arrow { font-size: 1.2rem; color: #999; }
+  .divider { border: none; border-top: 1px solid #ddd; margin: 2rem 0; }
+  .section-divider { border: none; border-top: 3px solid #333; margin: 3rem 0 2rem; }
+  .tier { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .tier-label { font-size: 0.7rem; color: #999; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.2rem; }
+</style>
+</head>
+<body>
+
+<h1>Registration Status — Progressive Color Schemes</h1>
+<p>Flow: Draft → Submitted → Under Review → Approved (Rejected is a separate negative outcome)</p>
+
+<hr class="divider">
+
+<h2>Option A — Cool-to-Warm (Gray → Blue → Orange → Green)</h2>
+<div class="scheme flow">
+  <div class="swatch" style="background:#6c757d;color:#fff;">Draft<div class="hex">#6c757d</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#0d6efd;color:#fff;">Submitted<div class="hex">#0d6efd</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#fd7e14;color:#fff;">Under Review<div class="hex">#fd7e14</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#198754;color:#fff;">Approved<div class="hex">#198754</div></div>
+  <span class="arrow" style="margin-left:1rem;">|</span>
+  <div class="swatch" style="background:#dc3545;color:#fff;">Rejected<div class="hex">#dc3545</div></div>
+</div>
+
+<hr class="divider">
+
+<h2>Option B — Teal Gradient (Pale → Deep + Green finish)</h2>
+<div class="scheme flow">
+  <div class="swatch" style="background:#b2dfdb;color:#2e7d32;">Draft<div class="hex">#b2dfdb</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#4db6ac;color:#fff;">Submitted<div class="hex">#4db6ac</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#00897b;color:#fff;">Under Review<div class="hex">#00897b</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#2e7d32;color:#fff;">Approved<div class="hex">#2e7d32</div></div>
+  <span class="arrow" style="margin-left:1rem;">|</span>
+  <div class="swatch" style="background:#c62828;color:#fff;">Rejected<div class="hex">#c62828</div></div>
+</div>
+
+<hr class="divider">
+
+<h2>Option C — Traffic Light (Slate → Blue → Amber → Emerald)</h2>
+<div class="scheme flow">
+  <div class="swatch" style="background:#78909c;color:#fff;">Draft<div class="hex">#78909c</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#1565c0;color:#fff;">Submitted<div class="hex">#1565c0</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#f9a825;color:#212529;">Under Review<div class="hex">#f9a825</div></div>
+  <span class="arrow">→</span>
+  <div class="swatch" style="background:#43a047;color:#fff;">Approved<div class="hex">#43a047</div></div>
+  <span class="arrow" style="margin-left:1rem;">|</span>
+  <div class="swatch" style="background:#e53935;color:#fff;">Rejected<div class="hex">#e53935</div></div>
+</div>
+
+<hr class="section-divider">
+
+<h1>Registration Status — Acquired Status Tiers</h1>
+<p>Ordered by prominence: Full → Conditional → Provisional → Limited → Expired (not a progression, but a hierarchy of standing)</p>
+<p><em>These use the <strong>purple/violet</strong> family to stay visually distinct from the application flow colors above.</em></p>
+
+<hr class="divider">
+
+<h2>Option A — Royal Purple Hierarchy</h2>
+<div class="scheme tier">
+  <div class="swatch" style="background:#4a148c;color:#fff;">Full Registration<div class="hex">#4a148c</div><div class="tier-label">highest</div></div>
+  <div class="swatch" style="background:#7b1fa2;color:#fff;">Full w/ Conditions<div class="hex">#7b1fa2</div></div>
+  <div class="swatch" style="background:#ab47bc;color:#fff;">Provisional<div class="hex">#ab47bc</div></div>
+  <div class="swatch" style="background:#ce93d8;color:#4a148c;">Limited Authority<div class="hex">#ce93d8</div></div>
+  <div class="swatch" style="background:#757575;color:#fff;">Expired<div class="hex">#757575</div><div class="tier-label">inactive</div></div>
+</div>
+
+<hr class="divider">
+
+<h2>Option B — Warm Rose Hierarchy</h2>
+<div class="scheme tier">
+  <div class="swatch" style="background:#880e4f;color:#fff;">Full Registration<div class="hex">#880e4f</div><div class="tier-label">highest</div></div>
+  <div class="swatch" style="background:#c2185b;color:#fff;">Full w/ Conditions<div class="hex">#c2185b</div></div>
+  <div class="swatch" style="background:#e91e63;color:#fff;">Provisional<div class="hex">#e91e63</div></div>
+  <div class="swatch" style="background:#f48fb1;color:#880e4f;">Limited Authority<div class="hex">#f48fb1</div></div>
+  <div class="swatch" style="background:#757575;color:#fff;">Expired<div class="hex">#757575</div><div class="tier-label">inactive</div></div>
+</div>
+
+<hr class="divider">
+
+<h2>Option C — Deep Violet Hierarchy</h2>
+<div class="scheme tier">
+  <div class="swatch" style="background:#311b92;color:#fff;">Full Registration<div class="hex">#311b92</div><div class="tier-label">highest</div></div>
+  <div class="swatch" style="background:#512da8;color:#fff;">Full w/ Conditions<div class="hex">#512da8</div></div>
+  <div class="swatch" style="background:#7e57c2;color:#fff;">Provisional<div class="hex">#7e57c2</div></div>
+  <div class="swatch" style="background:#b39ddb;color:#311b92;">Limited Authority<div class="hex">#b39ddb</div></div>
+  <div class="swatch" style="background:#757575;color:#fff;">Expired<div class="hex">#757575</div><div class="tier-label">inactive</div></div>
+</div>
+
+</body>
+</html>

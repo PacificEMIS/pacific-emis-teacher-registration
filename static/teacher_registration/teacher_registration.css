@@ -57,6 +57,12 @@
   cursor: help;
 }
 
+/* Scrollable container for duty groups in modal */
+.duty-groups-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 /* Hidden template elements (used for cloning by JavaScript) */
 .template-hidden {
   display: none;
@@ -75,4 +81,79 @@
 /* Sticky positioning with offset for fixed header */
 .sticky-with-offset {
   top: 80px;
+}
+
+/*
+ * Badge Color Schemes
+ *
+ * Two distinct palettes to visually separate application workflow from
+ * acquired registration status:
+ *
+ * 1. Application Flow (bg-app-*) — "Traffic Light" palette
+ *    Draft (#78909c slate) → Submitted (#1565c0 blue) →
+ *    Under Review (#f9a825 amber) → Approved (#43a047 emerald)
+ *    Rejected (#e53935 crimson) — divergent/negative outcome
+ *    Expired (#e53935 crimson) — same as rejected
+ *
+ * 2. Registration Status (bg-reg-*) — "Royal Purple" hierarchy
+ *    Full (#4a148c deep purple) → Conditional (#7b1fa2 purple) →
+ *    Provisional (#ab47bc orchid) → Limited (#ce93d8 lavender) →
+ *    Expired (#757575 gray)
+ */
+
+/* --- Application Flow badges --- */
+.bg-app-draft {
+  background-color: #78909c !important;
+  color: #fff;
+}
+
+.bg-app-submitted {
+  background-color: #1565c0 !important;
+  color: #fff;
+}
+
+.bg-app-under-review {
+  background-color: #f9a825 !important;
+  color: #212529;
+}
+
+.bg-app-approved {
+  background-color: #43a047 !important;
+  color: #fff;
+}
+
+.bg-app-rejected {
+  background-color: #e53935 !important;
+  color: #fff;
+}
+
+.bg-app-expired {
+  background-color: #e53935 !important;
+  color: #fff;
+}
+
+/* --- Registration Status badges --- */
+.bg-reg-full {
+  background-color: #4a148c !important;
+  color: #fff;
+}
+
+.bg-reg-conditional {
+  background-color: #7b1fa2 !important;
+  color: #fff;
+}
+
+.bg-reg-provisional {
+  background-color: #ab47bc !important;
+  color: #fff;
+}
+
+.bg-reg-limited {
+  background-color: #ce93d8 !important;
+  color: #4a148c;
+}
+
+.bg-reg-expired {
+  background-color: #757575 !important;
+  color: #fff;
 }

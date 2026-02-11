@@ -1,7 +1,8 @@
 """
 Email notifications for core app.
 
-Handles email notifications for pending user signups.
+Handles email notifications for pending user signups, registration
+approvals/rejections, and registration expiry.
 """
 import logging
 from threading import Thread
@@ -349,6 +350,76 @@ def send_teacher_registration_rejected_email_async(
                 "send_teacher_registration_rejected_email_async: error sending email "
                 "for registration %s",
                 registration.pk,
+                exc_info=True,
+            )
+
+    Thread(target=_worker, daemon=True).start()
+
+
+def send_teacher_registration_expired_email(
+    *, staff, renewal_url=None, previous_status_label=None
+):
+    """
+    Send HTML + text email to a teacher when their registration expires.
+
+    Recipients: the teacher whose registration has expired.
+    """
+    user = staff.user
+
+    # Skip if no email
+    if not user.email or "@placeholder" in user.email:
+        logger.info(
+            "send_teacher_registration_expired_email: no valid email for user %s, skipping.",
+            user.pk,
+        )
+        return
+
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+
+    context = {
+        "staff": staff,
+        "user": user,
+        "renewal_url": renewal_url,
+        "previous_status_label": previous_status_label,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+
+    subject = f"{emis_context} {app_name}: Your registration has expired"
+
+    text_body = render_to_string("emails/teacher_registration_expired.txt", context)
+    html_body = render_to_string("emails/teacher_registration_expired.html", context)
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+    msg.attach_alternative(html_body, "text/html")
+    msg.send(fail_silently=False)
+
+
+def send_teacher_registration_expired_email_async(
+    staff, renewal_url=None, previous_status_label=None
+):
+    """
+    Fire-and-forget wrapper: send the expiry email on a background thread.
+    """
+
+    def _worker():
+        try:
+            send_teacher_registration_expired_email(
+                staff=staff,
+                renewal_url=renewal_url,
+                previous_status_label=previous_status_label,
+            )
+        except Exception:
+            logger.warning(
+                "send_teacher_registration_expired_email_async: error sending email "
+                "for staff %s",
+                staff.pk,
                 exc_info=True,
             )
 

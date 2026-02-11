@@ -84,10 +84,10 @@
               {{ pending_reg_total|default:"0" }}
             </div>
             <div class="small mt-1 text-body-secondary">
-              {% if pending_reg_draft %}<span class="badge bg-secondary">{{ pending_reg_draft }} Draft</span> {% endif %}
-              {% if pending_reg_submitted %}<span class="badge bg-success">{{ pending_reg_submitted }} Submitted</span> {% endif %}
-              {% if pending_reg_under_review %}<span class="badge bg-info">{{ pending_reg_under_review }} In Review</span> {% endif %}
-              {% if pending_reg_rejected %}<span class="badge bg-danger">{{ pending_reg_rejected }} Rejected</span>{% endif %}
+              {% if pending_reg_draft %}<span class="badge bg-app-draft">{{ pending_reg_draft }} Draft</span> {% endif %}
+              {% if pending_reg_submitted %}<span class="badge bg-app-submitted">{{ pending_reg_submitted }} Submitted</span> {% endif %}
+              {% if pending_reg_under_review %}<span class="badge bg-app-under-review">{{ pending_reg_under_review }} In Review</span> {% endif %}
+              {% if pending_reg_rejected %}<span class="badge bg-app-rejected">{{ pending_reg_rejected }} Rejected</span>{% endif %}
               {% if not pending_reg_draft and not pending_reg_submitted and not pending_reg_under_review and not pending_reg_rejected %}
                 No pending registrations
               {% endif %}
@@ -119,7 +119,7 @@
           {% if recent_events %}
             {% for ev in recent_events %}
               <tr>
-                <td>{{ ev.when|date:"Y-m-d H:i" }}</td>
+                <td><time class="local-datetime" datetime="{{ ev.when|date:'c' }}">{{ ev.when|date:"Y-m-d H:i" }} UTC</time></td>
                 <td>{{ ev.entity }}</td>
                 <td>{{ ev.action }}</td>
                 <td>

@@ -330,8 +330,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       console.log('Next index:', nextIndex);
 
-      // Clone the empty group template
-      const templateContent = emptyGroupTemplate.firstElementChild.cloneNode(true);
+      // Clone from the <template> element's content
+      const templateContent = emptyGroupTemplate.content.firstElementChild.cloneNode(true);
 
       // Replace __INDEX__ with actual index in the entire HTML
       const tempDiv = document.createElement('div');
@@ -341,6 +341,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Append to container
       groupsContainer.appendChild(newGroup);
+      // Scroll the new group into view
+      newGroup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       console.log('Added new group');
 
       return false;
@@ -421,7 +423,36 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById(`duty-form-${currentAppointmentId}`);
     if (!form) return;
 
-    const formData = new FormData(form);
+    // Build FormData explicitly from duty groups to ensure dynamically-added
+    // elements are captured reliably across all browsers.
+    const formData = new FormData();
+
+    // Add CSRF token
+    const csrfInput = form.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfInput) {
+      formData.append('csrfmiddlewaretoken', csrfInput.value);
+    }
+
+    // Collect data from each duty group, skipping empty/incomplete cards
+    const groupsContainer = document.getElementById(`duty-groups-${currentAppointmentId}`);
+    const groups = groupsContainer.querySelectorAll('.duty-group');
+
+    let dataIndex = 0;
+    groups.forEach((group) => {
+      const yearLevelSelect = group.querySelector('.year-level-select');
+      const subjectsSelect = group.querySelector('.subjects-select');
+      const ylValue = yearLevelSelect ? yearLevelSelect.value : '';
+      const selectedSubjects = subjectsSelect ? Array.from(subjectsSelect.selectedOptions) : [];
+
+      // Skip cards with no year level or no subjects selected
+      if (!ylValue || selectedSubjects.length === 0) return;
+
+      formData.append(`duties[${dataIndex}][year_level]`, ylValue);
+      selectedSubjects.forEach(option => {
+        formData.append(`duties[${dataIndex}][subjects][]`, option.value);
+      });
+      dataIndex++;
+    });
 
     // Disable save button
     saveDutiesBtn.disabled = true;

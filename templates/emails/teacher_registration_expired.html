@@ -1,0 +1,81 @@
+{# djlint:off H021 #}
+{% extends "emails/base_email.html" %}
+{% block subject %}
+  {{ emis_context }} {{ app_name }}: Your registration has expired
+{% endblock subject %}
+{% block header_title %}
+  {{ emis_context }} — {{ app_name }}
+{% endblock header_title %}
+{% block body_intro %}
+  <p>Hello {{ user.first_name|default:user.username }},</p>
+  <p>
+    Your teacher registration in the {{ emis_context }} {{ app_name }} app
+    has expired and must be renewed to remain active.
+  </p>
+{% endblock body_intro %}
+{% block body_main %}
+  <table role="presentation"
+         cellspacing="0"
+         cellpadding="0"
+         border="0"
+         style="width:100%;
+                margin:16px 0;
+                border:1px solid #dee2e6;
+                border-radius:6px;
+                overflow:hidden">
+    <tr>
+      <td style="padding:12px 16px; background-color:#f8f9fa; border-bottom:1px solid #dee2e6;">
+        <strong style="font-size:14px;">Registration Status</strong>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;">
+          <tr>
+            <td style="padding:4px 0; color:#6c757d; width:140px;">Status:</td>
+            <td style="padding:4px 0;">
+              <span style="display:inline-block;
+                           padding:2px 8px;
+                           border-radius:4px;
+                           background-color:#e53935;
+                           color:#ffffff;
+                           font-size:12px;">Expired</span>
+            </td>
+          </tr>
+          {% if previous_status_label %}
+            <tr>
+              <td style="padding:4px 0; color:#6c757d;">Previous status:</td>
+              <td style="padding:4px 0;">{{ previous_status_label }}</td>
+            </tr>
+          {% endif %}
+          {% if staff.registration_valid_until %}
+            <tr>
+              <td style="padding:4px 0; color:#6c757d;">Expired on:</td>
+              <td style="padding:4px 0;">{{ staff.registration_valid_until|date:"N j, Y" }}</td>
+            </tr>
+          {% endif %}
+        </table>
+      </td>
+    </tr>
+  </table>
+  <p style="margin:16px 0; color:#495057;">
+    To continue teaching, you must renew your registration. Please log in and
+    start the renewal process as soon as possible.
+  </p>
+{% endblock body_main %}
+{% block body_cta %}
+  {% if renewal_url %}
+    <p style="margin: 16px 0;">
+      <a href="{{ renewal_url }}"
+         style="display:inline-block;
+                padding:10px 18px;
+                border-radius:6px;
+                background-color:#0d6efd;
+                color:#ffffff !important;
+                text-decoration:none;
+                font-size:14px;
+                font-weight:500">Renew Registration</a>
+    </p>
+  {% endif %}
+{% endblock body_cta %}
+{# djlint:on #}

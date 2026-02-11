@@ -158,19 +158,20 @@ def dashboard(request):
     active_schools = EmisSchool.objects.filter(active=True).count()
 
     # --- Pending Registrations KPIs ---
+    from teacher_registration import constants
     from teacher_registration.models import TeacherRegistration
 
     pending_reg_draft = TeacherRegistration.objects.filter(
-        status=TeacherRegistration.DRAFT
+        status=constants.DRAFT
     ).count()
     pending_reg_submitted = TeacherRegistration.objects.filter(
-        status=TeacherRegistration.SUBMITTED
+        status=constants.SUBMITTED
     ).count()
     pending_reg_under_review = TeacherRegistration.objects.filter(
-        status=TeacherRegistration.UNDER_REVIEW
+        status=constants.UNDER_REVIEW
     ).count()
     pending_reg_rejected = TeacherRegistration.objects.filter(
-        status=TeacherRegistration.REJECTED
+        status=constants.REJECTED
     ).count()
     pending_reg_total = (
         pending_reg_draft + pending_reg_submitted + pending_reg_under_review + pending_reg_rejected
@@ -960,14 +961,15 @@ def pending_users_list(request):
         per_page = 25
 
     # Get user IDs with active registrations (these are tracked in Pending Registrations)
+    from teacher_registration import constants as reg_constants
     from teacher_registration.models import TeacherRegistration
 
     users_with_active_registration = TeacherRegistration.objects.filter(
         status__in=[
-            TeacherRegistration.DRAFT,
-            TeacherRegistration.SUBMITTED,
-            TeacherRegistration.UNDER_REVIEW,
-            TeacherRegistration.REJECTED,
+            reg_constants.DRAFT,
+            reg_constants.SUBMITTED,
+            reg_constants.UNDER_REVIEW,
+            reg_constants.REJECTED,
         ]
     ).values_list("user_id", flat=True)
 

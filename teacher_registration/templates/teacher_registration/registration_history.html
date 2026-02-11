@@ -78,21 +78,29 @@
               <td>{{ reg.get_registration_type_display }}</td>
               <td>
                 {% if reg.status == 'draft' %}
-                  <span class="badge bg-secondary">{{ reg.get_status_display }}</span>
+                  <span class="badge bg-app-draft">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'submitted' %}
-                  <span class="badge bg-warning text-dark">{{ reg.get_status_display }}</span>
+                  <span class="badge bg-app-submitted">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'under_review' %}
-                  <span class="badge bg-info">{{ reg.get_status_display }}</span>
+                  <span class="badge bg-app-under-review">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'approved' %}
-                  <span class="badge bg-success">{{ reg.get_status_display }}</span>
+                  <span class="badge bg-app-approved">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'rejected' %}
-                  <span class="badge bg-danger">{{ reg.get_status_display }}</span>
+                  <span class="badge bg-app-rejected">{{ reg.get_status_display }}</span>
+                {% elif reg.status == 'expired' %}
+                  <span class="badge bg-app-expired">{{ reg.get_status_display }}</span>
                 {% endif %}
               </td>
-              <td>{{ reg.submitted_at|date:"Y-m-d"|default:"—" }}</td>
+              <td>
+                {% if reg.submitted_at %}
+                  <time class="local-date" datetime="{{ reg.submitted_at|date:'c' }}">{{ reg.submitted_at|date:"Y-m-d" }}</time>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
               <td>
                 {% if reg.reviewed_at %}
-                  {{ reg.reviewed_at|date:"Y-m-d" }}
+                  <time class="local-date" datetime="{{ reg.reviewed_at|date:'c' }}">{{ reg.reviewed_at|date:"Y-m-d" }}</time>
                   <br><small class="text-muted">by {{ reg.reviewed_by.get_full_name|default:reg.reviewed_by.username }}</small>
                 {% else %}
                   —

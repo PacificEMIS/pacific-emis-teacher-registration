@@ -53,7 +53,7 @@
         <div class="card shadow-sm mb-4">
           <div class="card-header d-flex justify-content-between align-items-center">
             <h1 class="h4 mb-0">Teacher Registration</h1>
-            <span class="badge bg-secondary">{{ registration.get_status_display }}</span>
+            <span class="badge bg-app-draft">{{ registration.get_status_display }}</span>
           </div>
           <div class="card-body">
 
@@ -108,8 +108,8 @@
                 {% endif %}
               </div>
               <div class="col-md-4">
-                <label for="id_gender_emis" class="form-label">Gender</label>
-                {{ form.gender_emis }}
+                <label for="id_gender" class="form-label">Gender</label>
+                {{ form.gender }}
               </div>
               <div class="col-md-4">
                 <label for="id_marital_status" class="form-label">Marital Status</label>
@@ -134,8 +134,7 @@
                 {{ form.nationality }}
               </div>
             </div>
-            <!-- Hidden legacy gender field -->
-            <div class="d-none">{{ form.gender }}</div>
+
 
             <!-- Section 2: Contact Details -->
             <h5 class="border-bottom pb-2 mb-3">Section 2: Contact Details</h5>
@@ -467,7 +466,32 @@
           <h5 class="mb-0">Documents</h5>
         </div>
         <div class="card-body">
+          {% if staff_documents %}
+            <p class="small text-muted mb-2"><strong>Already on file</strong></p>
+            <ul class="list-group list-group-flush mb-3">
+              {% for doc in staff_documents %}
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <div>
+                    {% if doc.doc_link_type.needs_renewal %}
+                      <i class="bi bi-exclamation-circle-fill text-warning me-1"></i>
+                    {% else %}
+                      <i class="bi bi-check-circle-fill text-success me-1"></i>
+                    {% endif %}
+                    <span class="small">{{ doc.doc_link_type.label|default:"Document" }}</span>
+                    {% if doc.doc_link_type.needs_renewal %}
+                      <span class="badge bg-warning text-dark ms-1">needs renewal</span>
+                    {% endif %}
+                    <br>
+                    <span class="text-muted small">{{ doc.original_filename|truncatechars:30 }}</span>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           {% if documents %}
+            {% if staff_documents %}
+              <p class="small text-muted mb-2"><strong>New uploads</strong></p>
+            {% endif %}
             <ul class="list-group list-group-flush mb-3">
               {% for doc in documents %}
                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
@@ -490,7 +514,7 @@
                 </li>
               {% endfor %}
             </ul>
-          {% else %}
+          {% elif not staff_documents %}
             <p class="text-muted small mb-0">No documents uploaded yet.</p>
           {% endif %}
         </div>

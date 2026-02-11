@@ -32,6 +32,8 @@ urlpatterns = [
         views.manage_claimed_duties,
         name="manage_claimed_duties",
     ),
+    # Renewal (placeholder)
+    path("renew/", views.registration_renew, name="registration_renew"),
     # Admin-facing (review workflow)
     path("pending/", views.pending_registrations_list, name="pending_list"),
     path("<int:pk>/review/", views.registration_review, name="review"),
@@ -41,4 +43,9 @@ urlpatterns = [
     path("teachers/", views.teachers_list, name="teachers_list"),
     path("teachers/<int:pk>/", views.teacher_detail, name="teacher_detail"),
     path("teachers/<int:pk>/delete/", views.teacher_delete, name="teacher_delete"),
+    path(
+        "teachers/<int:pk>/resend-renewal-notification/",
+        views.teacher_resend_renewal_notification,
+        name="teacher_resend_renewal_notification",
+    ),
 ]

@@ -10,7 +10,11 @@ Expects context:
 <form id="duty-form-{{ appointment.pk }}" method="post" action="{% url 'teacher_registration:manage_claimed_duties' appointment.pk %}">
   {% csrf_token %}
 
-  <div id="duty-groups-{{ appointment.pk }}">
+  <button type="button" class="btn btn-sm btn-outline-primary add-duty-group mb-3" data-appointment="{{ appointment.pk }}">
+    <i class="bi bi-plus-circle me-1"></i> Add Class Level
+  </button>
+
+  <div id="duty-groups-{{ appointment.pk }}" class="duty-groups-container">
     {% for group in grouped_duties %}
       <div class="duty-group mb-3">
         <div class="card">
@@ -48,14 +52,10 @@ Expects context:
       <p class="text-muted small" id="no-duties-msg-{{ appointment.pk }}">No duties specified yet. Click "Add Class Level" to start.</p>
     {% endfor %}
   </div>
-
-  <button type="button" class="btn btn-sm btn-outline-primary add-duty-group" data-appointment="{{ appointment.pk }}">
-    <i class="bi bi-plus-circle me-1"></i> Add Class Level
-  </button>
 </form>
 
-<!-- Empty group template (hidden, used for cloning) -->
-<div id="empty-duty-group-{{ appointment.pk }}" class="template-hidden">
+<!-- Empty group template (inert, used for cloning by JavaScript) -->
+<template id="empty-duty-group-{{ appointment.pk }}">
   <div class="duty-group mb-3">
     <div class="card">
       <div class="card-body">
@@ -88,4 +88,4 @@ Expects context:
       </div>
     </div>
   </div>
-</div>
+</template>

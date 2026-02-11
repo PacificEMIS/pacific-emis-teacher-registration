@@ -38,14 +38,14 @@
             {% endfor %}
           </select>
         </div>
-        <!-- Registration Status -->
+        <!-- Registration Application Status -->
         <div class="col-12 col-md-3">
-          <label for="registration_status" class="form-label form-label-sm mb-1">Registration Status</label>
-          <select id="registration_status" class="form-select form-select-sm" name="registration_status">
+          <label for="registration_application_status" class="form-label form-label-sm mb-1">Registration Application Status</label>
+          <select id="registration_application_status" class="form-select form-select-sm" name="registration_application_status">
             <option value="">All statuses</option>
-            {% for value, label in registration_status_choices %}
+            {% for value, label in registration_application_status_choices %}
               <option value="{{ value }}"
-                      {% if registration_status == value %}selected{% endif %}>
+                      {% if registration_application_status == value %}selected{% endif %}>
                 {{ label }}
               </option>
             {% endfor %}
@@ -76,7 +76,7 @@
           <tr>
             {# Name (sort=name) #}
             <th scope="col">
-              <a href="?sort=name&dir={% if sort == 'name' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_status %}&registration_status={{ registration_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
+              <a href="?sort=name&dir={% if sort == 'name' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_application_status %}&registration_application_status={{ registration_application_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
                  class="text-decoration-none">
                 Name
                 {% if sort == 'name' %}
@@ -94,7 +94,7 @@
             <th scope="col">Email</th>
             {# School (sort=school) #}
             <th scope="col">
-              <a href="?sort=school&dir={% if sort == 'school' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_status %}&registration_status={{ registration_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
+              <a href="?sort=school&dir={% if sort == 'school' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_application_status %}&registration_application_status={{ registration_application_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
                  class="text-decoration-none">
                 Current School
                 {% if sort == 'school' %}
@@ -108,11 +108,11 @@
                 {% endif %}
               </a>
             </th>
-            {# Registration Status (sort=status) #}
+            {# Registration Application Status (sort=status) #}
             <th scope="col">
-              <a href="?sort=status&dir={% if sort == 'status' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_status %}&registration_status={{ registration_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
+              <a href="?sort=status&dir={% if sort == 'status' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}{% if school %}&school={{ school|urlencode }}{% endif %}{% if registration_application_status %}&registration_application_status={{ registration_application_status|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"
                  class="text-decoration-none">
-                Registration
+                Reg. Application Status
                 {% if sort == 'status' %}
                   <span class="text-muted">
                     {% if dir == 'asc' %}
@@ -144,10 +144,21 @@
                   {% endif %}
                 </td>
                 <td>
-                  {% if teacher.registration_status == 'valid' %}
-                    <span class="badge bg-success">Valid</span>
-                  {% elif teacher.registration_status == 'expired' %}
-                    <span class="badge bg-danger">Expired</span>
+                  {% if teacher.registration_application_status == 'approved' %}
+                    <span class="badge bg-app-approved">Approved</span>
+                    {% if teacher.teacher_registration_status %}
+                      <span class="badge {{ teacher.teacher_registration_status.badge_class }}">{{ teacher.teacher_registration_status.label }}</span>
+                    {% endif %}
+                  {% elif teacher.registration_application_status == 'expired' %}
+                    <span class="badge bg-app-expired">Expired</span>
+                  {% elif teacher.registration_application_status == 'under_review' %}
+                    <span class="badge bg-app-under-review">Under Review</span>
+                  {% elif teacher.registration_application_status == 'submitted' %}
+                    <span class="badge bg-app-submitted">Submitted</span>
+                  {% elif teacher.registration_application_status == 'rejected' %}
+                    <span class="badge bg-app-rejected">Rejected</span>
+                  {% elif teacher.registration_application_status == 'draft' %}
+                    <span class="badge bg-app-draft">Draft</span>
                   {% else %}
                     <span class="text-body-secondary">—</span>
                   {% endif %}
@@ -182,7 +193,7 @@
             {% if page_obj.has_previous %}
               <li class="page-item">
                 <a class="page-link"
-                   href="?q={{ q }}&school={{ school }}&registration_status={{ registration_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ page_obj.previous_page_number }}">Prev</a>
+                   href="?q={{ q }}&school={{ school }}&registration_application_status={{ registration_application_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ page_obj.previous_page_number }}">Prev</a>
               </li>
             {% else %}
               <li class="page-item disabled">
@@ -201,14 +212,14 @@
               {% else %}
                 <li class="page-item">
                   <a class="page-link"
-                     href="?q={{ q }}&school={{ school }}&registration_status={{ registration_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ p }}">{{ p }}</a>
+                     href="?q={{ q }}&school={{ school }}&registration_application_status={{ registration_application_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ p }}">{{ p }}</a>
                 </li>
               {% endif %}
             {% endfor %}
             {% if page_obj.has_next %}
               <li class="page-item">
                 <a class="page-link"
-                   href="?q={{ q }}&school={{ school }}&registration_status={{ registration_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ page_obj.next_page_number }}">Next</a>
+                   href="?q={{ q }}&school={{ school }}&registration_application_status={{ registration_application_status }}&per_page={{ per_page }}&sort={{ sort }}&dir={{ dir }}&page={{ page_obj.next_page_number }}">Next</a>
               </li>
             {% else %}
               <li class="page-item disabled">
