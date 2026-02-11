@@ -48,6 +48,7 @@ from teacher_registration.forms import (
     TeacherRegistrationForm,
     RegistrationDocumentForm,
     RegistrationReviewForm,
+    ChecklistOfficialForm,
     EducationRecordFormSet,
     TrainingRecordFormSet,
     ClaimedSchoolAppointmentFormSet,
@@ -103,10 +104,10 @@ def get_required_documents_status(documents, staff_documents=None):
         if doc.doc_link_type:
             uploaded_codes.add(doc.doc_link_type.code.upper())
 
-    # Also count staff documents that do NOT need renewal
+    # Also count staff documents already on file (for renewals)
     if staff_documents:
         for doc in staff_documents:
-            if doc.doc_link_type and not doc.doc_link_type.needs_renewal:
+            if doc.doc_link_type:
                 uploaded_codes.add(doc.doc_link_type.code.upper())
 
     # Build status list
@@ -360,6 +361,7 @@ def registration_edit(request, pk):
     Save & Submit: validates required fields before submitting
     """
     registration = get_object_or_404(TeacherRegistration, pk=pk)
+    is_renewal = registration.registration_type == TeacherRegistration.RENEWAL
 
     # Check permissions: owner or admin
     is_owner = registration.user == request.user
@@ -425,6 +427,8 @@ def registration_edit(request, pk):
                             "document_form": RegistrationDocumentForm(),
                             "is_admin": is_admin,
                             "required_docs_status": required_docs_status,
+                            "checklist_items": constants.CHECKLIST_ITEMS,
+                            "is_renewal": is_renewal,
                         },
                     )
 
@@ -495,11 +499,18 @@ def registration_edit(request, pk):
     documents = registration.documents.all()
 
     # For renewals, also fetch existing documents on the SchoolStaff profile
+    # (only the most recent per document type to avoid duplicates from prior renewals)
     staff_documents = None
     if registration.registration_type == TeacherRegistration.RENEWAL and registration.approved_staff_profile:
-        staff_documents = RegistrationDocument.objects.filter(
+        staff_docs_qs = RegistrationDocument.objects.filter(
             school_staff=registration.approved_staff_profile
-        ).select_related("doc_link_type")
+        ).select_related("doc_link_type").order_by("doc_link_type_id", "-created_at")
+        seen_types = set()
+        staff_documents = []
+        for doc in staff_docs_qs:
+            if doc.doc_link_type_id not in seen_types:
+                seen_types.add(doc.doc_link_type_id)
+                staff_documents.append(doc)
 
     # Get PD types for training title autocomplete
     pd_types = EmisTeacherPdType.objects.filter(active=True).order_by("label")
@@ -522,6 +533,8 @@ def registration_edit(request, pk):
             "is_admin": is_admin,
             "pd_types": pd_types,
             "required_docs_status": required_docs_status,
+            "checklist_items": constants.CHECKLIST_ITEMS,
+            "is_renewal": is_renewal,
         },
     )
 
@@ -749,8 +762,16 @@ def registration_review(request, pk):
     if registration.status in [constants.SUBMITTED, constants.REJECTED]:
         registration.start_review(request.user)
 
+    is_renewal = registration.registration_type == TeacherRegistration.RENEWAL
+
     if request.method == "POST":
         form = RegistrationReviewForm(request.POST)
+        checklist_form = ChecklistOfficialForm(request.POST, instance=registration)
+
+        # Always save the checklist regardless of review form validity
+        if checklist_form.is_valid():
+            checklist_form.save()
+
         if form.is_valid():
             action = form.cleaned_data["action"]
             comments = form.cleaned_data["comments"]
@@ -775,7 +796,7 @@ def registration_review(request, pk):
                         dashboard_url=my_registration_url,
                     )
 
-                    if registration.registration_type == TeacherRegistration.RENEWAL:
+                    if is_renewal:
                         msg = (
                             f"Renewal approved. {registration.user.get_full_name()}'s registration has been renewed. "
                             f"Registration Number: {staff.teacher_registration_number}"
@@ -823,14 +844,12 @@ def registration_review(request, pk):
                 return redirect("teacher_registration:pending_list")
     else:
         form = RegistrationReviewForm()
+        checklist_form = ChecklistOfficialForm(instance=registration)
 
     # For renewals, fetch the staff's existing documents so the reviewer
     # can see what is already on file and which types have been re-submitted.
     staff_documents = None
-    if (
-        registration.registration_type == TeacherRegistration.RENEWAL
-        and registration.approved_staff_profile_id
-    ):
+    if is_renewal and registration.approved_staff_profile_id:
         renewed_type_codes = {
             doc.doc_link_type.code.upper()
             for doc in registration.documents.all()
@@ -838,9 +857,13 @@ def registration_review(request, pk):
         }
         staff_docs_qs = RegistrationDocument.objects.filter(
             school_staff=registration.approved_staff_profile,
-        ).select_related("doc_link_type")
+        ).select_related("doc_link_type").order_by("doc_link_type_id", "-created_at")
+        seen_types = set()
         staff_documents = []
         for doc in staff_docs_qs:
+            if doc.doc_link_type_id in seen_types:
+                continue
+            seen_types.add(doc.doc_link_type_id)
             staff_documents.append({
                 "doc": doc,
                 "needs_renewal": doc.doc_link_type.needs_renewal if doc.doc_link_type else False,
@@ -857,6 +880,9 @@ def registration_review(request, pk):
             "active": "pending_registrations",
             "registration": registration,
             "form": form,
+            "checklist_form": checklist_form,
+            "checklist_items": constants.CHECKLIST_ITEMS,
+            "is_renewal": is_renewal,
             "staff_documents": staff_documents,
         },
     )

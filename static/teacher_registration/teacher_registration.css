@@ -157,3 +157,16 @@
   background-color: #757575 !important;
   color: #fff;
 }
+
+/* --- Checklist table styles --- */
+.checklist-col-check {
+  width: 70px;
+}
+
+.checklist-badge-onfile {
+  font-size: 0.65em;
+}
+
+.checklist-icon-absent {
+  font-size: 0.75em;
+}

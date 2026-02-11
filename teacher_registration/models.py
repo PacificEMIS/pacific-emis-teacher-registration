@@ -297,6 +297,54 @@ class TeacherRegistration(AuditModel):
     )
 
     # -------------------------------------------------------------------------
+    # Checklist fields (Section 7 of official Teacher Application Form)
+    # Applicant: self-declaration by the teacher
+    # Official: verification by the reviewing officer
+    # -------------------------------------------------------------------------
+
+    # Standalone item
+    checklist_applicant_form_completed = models.BooleanField(default=False)
+    checklist_official_form_completed = models.BooleanField(default=False)
+
+    # Certified copies
+    checklist_applicant_birth_cert = models.BooleanField(default=False)
+    checklist_official_birth_cert = models.BooleanField(default=False)
+
+    checklist_applicant_national_id = models.BooleanField(default=False)
+    checklist_official_national_id = models.BooleanField(default=False)
+
+    checklist_applicant_qualifications = models.BooleanField(default=False)
+    checklist_official_qualifications = models.BooleanField(default=False)
+
+    checklist_applicant_english_proficiency = models.BooleanField(default=False)
+    checklist_official_english_proficiency = models.BooleanField(default=False)
+
+    checklist_applicant_training_certs = models.BooleanField(default=False)
+    checklist_official_training_certs = models.BooleanField(default=False)
+
+    checklist_applicant_statutory_declaration = models.BooleanField(default=False)
+    checklist_official_statutory_declaration = models.BooleanField(default=False)
+
+    # Original documents
+    checklist_applicant_police_clearance = models.BooleanField(default=False)
+    checklist_official_police_clearance = models.BooleanField(default=False)
+
+    checklist_applicant_medical_clearance = models.BooleanField(default=False)
+    checklist_official_medical_clearance = models.BooleanField(default=False)
+
+    checklist_applicant_photo = models.BooleanField(default=False)
+    checklist_official_photo = models.BooleanField(default=False)
+
+    checklist_applicant_church_reference = models.BooleanField(default=False)
+    checklist_official_church_reference = models.BooleanField(default=False)
+
+    checklist_applicant_school_reference = models.BooleanField(default=False)
+    checklist_official_school_reference = models.BooleanField(default=False)
+
+    checklist_applicant_fee_receipt = models.BooleanField(default=False)
+    checklist_official_fee_receipt = models.BooleanField(default=False)
+
+    # -------------------------------------------------------------------------
     # Link to approved profile (set on approval)
     # -------------------------------------------------------------------------
 
