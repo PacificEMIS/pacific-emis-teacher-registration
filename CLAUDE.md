@@ -24,7 +24,7 @@ Example:
 
 ## Key Models
 
-- `TeacherRegistration`: Main registration workflow (draft → submitted → under_review → approved/rejected)
+- `TeacherRegistration`: Main registration workflow (draft → submitted → under_review → ready_for_approval → approved/rejected)
 - `SchoolStaff`: Approved teachers linked to Django User
 - `SystemUser`: MOE/admin staff linked to Django User
 - `RegistrationChangeLog`: Audit trail for registration status changes
@@ -37,6 +37,7 @@ Two distinct CSS palettes in `static/teacher_registration/teacher_registration.c
 - `bg-app-draft` → #78909c (slate)
 - `bg-app-submitted` → #1565c0 (blue)
 - `bg-app-under-review` → #f9a825 (amber, dark text)
+- `bg-app-ready-for-approval` → #9e9d24 (olive)
 - `bg-app-approved` → #43a047 (emerald)
 - `bg-app-rejected` → #e53935 (crimson)
 - `bg-app-expired` → #e53935 (crimson)

@@ -351,6 +351,7 @@ class ChecklistOfficialForm(forms.ModelForm):
             "checklist_official_church_reference",
             "checklist_official_school_reference",
             "checklist_official_fee_receipt",
+            "checklist_ready_for_approval",
         ]
         widgets = {
             "checklist_official_form_completed": forms.CheckboxInput(attrs={"class": "form-check-input"}),
@@ -366,6 +367,7 @@ class ChecklistOfficialForm(forms.ModelForm):
             "checklist_official_church_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "checklist_official_school_reference": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "checklist_official_fee_receipt": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "checklist_ready_for_approval": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
 

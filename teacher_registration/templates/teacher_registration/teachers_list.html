@@ -153,6 +153,8 @@
                     <span class="badge bg-app-expired">Expired</span>
                   {% elif teacher.registration_application_status == 'under_review' %}
                     <span class="badge bg-app-under-review">Under Review</span>
+                  {% elif teacher.registration_application_status == 'ready_for_approval' %}
+                    <span class="badge bg-app-ready-for-approval">Ready for Approval</span>
                   {% elif teacher.registration_application_status == 'submitted' %}
                     <span class="badge bg-app-submitted">Submitted</span>
                   {% elif teacher.registration_application_status == 'rejected' %}

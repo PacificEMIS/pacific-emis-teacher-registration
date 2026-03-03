@@ -344,6 +344,10 @@ class TeacherRegistration(AuditModel):
     checklist_applicant_fee_receipt = models.BooleanField(default=False)
     checklist_official_fee_receipt = models.BooleanField(default=False)
 
+    # Staff reviewer marks this when all verification is complete
+    # and the registration is ready for TRC (committee) approval.
+    checklist_ready_for_approval = models.BooleanField(default=False)
+
     # -------------------------------------------------------------------------
     # Link to approved profile (set on approval)
     # -------------------------------------------------------------------------
@@ -407,7 +411,9 @@ class TeacherRegistration(AuditModel):
         self.submitted_at = timezone.now()
         # Clear previous reviewer comments so the rejection banner doesn't persist
         self.reviewer_comments = ""
-        self.save(update_fields=["status", "submitted_at", "reviewer_comments", "last_updated_at"])
+        # Reset ready-for-approval flag so re-submissions start fresh
+        self.checklist_ready_for_approval = False
+        self.save(update_fields=["status", "submitted_at", "reviewer_comments", "checklist_ready_for_approval", "last_updated_at"])
 
         # Log the status change
         RegistrationChangeLog.log_change(
@@ -442,6 +448,42 @@ class TeacherRegistration(AuditModel):
             notes=notes,
         )
 
+    def mark_ready_for_approval(self, reviewer):
+        """Mark registration as ready for TRC approval."""
+        if self.status != constants.UNDER_REVIEW:
+            raise ValueError("Only under-review registrations can be marked ready for approval")
+
+        old_status = self.status
+        self.status = constants.READY_FOR_APPROVAL
+        self.save(update_fields=["status", "last_updated_at"])
+
+        RegistrationChangeLog.log_change(
+            registration=self,
+            field_name="status",
+            old_value=old_status,
+            new_value=self.status,
+            changed_by=reviewer,
+            notes="Marked ready for TRC approval",
+        )
+
+    def revert_to_under_review(self, reviewer):
+        """Revert a ready-for-approval registration back to under review."""
+        if self.status != constants.READY_FOR_APPROVAL:
+            raise ValueError("Only ready-for-approval registrations can be reverted to under review")
+
+        old_status = self.status
+        self.status = constants.UNDER_REVIEW
+        self.save(update_fields=["status", "last_updated_at"])
+
+        RegistrationChangeLog.log_change(
+            registration=self,
+            field_name="status",
+            old_value=old_status,
+            new_value=self.status,
+            changed_by=reviewer,
+            notes="Reverted to under review",
+        )
+
     def approve(self, reviewer, comments="", registration_status=None):
         """
         Approve the registration and create SchoolStaff profile.
@@ -465,9 +507,9 @@ class TeacherRegistration(AuditModel):
             ValueError: If registration status is invalid
             ValidationError: If National ID missing or duplicate National ID exists
         """
-        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW]:
+        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW, constants.READY_FOR_APPROVAL]:
             raise ValueError(
-                "Only submitted or under-review registrations can be approved"
+                "Only submitted, under-review, or ready-for-approval registrations can be approved"
             )
 
         # Dispatch to renewal-specific approval if this is a renewal
@@ -817,9 +859,9 @@ class TeacherRegistration(AuditModel):
         and resubmit. The reviewer_comments are preserved so the teacher
         can see the rejection reason on the edit form.
         """
-        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW]:
+        if self.status not in [constants.SUBMITTED, constants.UNDER_REVIEW, constants.READY_FOR_APPROVAL]:
             raise ValueError(
-                "Only submitted or under-review registrations can be rejected"
+                "Only submitted, under-review, or ready-for-approval registrations can be rejected"
             )
 
         old_status = self.status

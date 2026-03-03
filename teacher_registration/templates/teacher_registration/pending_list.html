@@ -34,6 +34,7 @@
             <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Draft</option>
             <option value="submitted" {% if status_filter == 'submitted' %}selected{% endif %}>Submitted</option>
             <option value="under_review" {% if status_filter == 'under_review' %}selected{% endif %}>Under Review</option>
+            <option value="ready_for_approval" {% if status_filter == 'ready_for_approval' %}selected{% endif %}>Ready for Approval</option>
             <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
           </select>
         </div>
@@ -83,6 +84,11 @@
                   <span class="badge bg-app-submitted">Submitted</span>
                 {% elif reg.status == 'under_review' %}
                   <span class="badge bg-app-under-review">Under Review</span>
+                  {% if reg.reviewed_by %}
+                    <br><small class="text-muted">by {{ reg.reviewed_by.get_full_name }}</small>
+                  {% endif %}
+                {% elif reg.status == 'ready_for_approval' %}
+                  <span class="badge bg-app-ready-for-approval">Ready for Approval</span>
                   {% if reg.reviewed_by %}
                     <br><small class="text-muted">by {{ reg.reviewed_by.get_full_name }}</small>
                   {% endif %}
