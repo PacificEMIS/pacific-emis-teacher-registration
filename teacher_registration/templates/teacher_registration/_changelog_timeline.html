@@ -26,10 +26,10 @@ Expected context (pass via {% include ... with %}):
             </td>
             <td>
               {% if log.old_value %}
-                <span class="badge {% if log.old_value == 'draft' %}bg-app-draft{% elif log.old_value == 'submitted' %}bg-app-submitted{% elif log.old_value == 'under_review' %}bg-app-under-review{% elif log.old_value == 'approved' %}bg-app-approved{% elif log.old_value == 'rejected' %}bg-app-rejected{% elif log.old_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.old_value }}</span>
+                <span class="badge {% if log.old_value == 'draft' %}bg-app-draft{% elif log.old_value == 'submitted' %}bg-app-submitted{% elif log.old_value == 'under_review' %}bg-app-under-review{% elif log.old_value == 'ready_for_approval' %}bg-app-ready-for-approval{% elif log.old_value == 'approved' %}bg-app-approved{% elif log.old_value == 'rejected' %}bg-app-rejected{% elif log.old_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.old_value }}</span>
                 →
               {% endif %}
-              <span class="badge {% if log.new_value == 'draft' %}bg-app-draft{% elif log.new_value == 'submitted' %}bg-app-submitted{% elif log.new_value == 'under_review' %}bg-app-under-review{% elif log.new_value == 'approved' %}bg-app-approved{% elif log.new_value == 'rejected' %}bg-app-rejected{% elif log.new_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.new_value }}</span>
+              <span class="badge {% if log.new_value == 'draft' %}bg-app-draft{% elif log.new_value == 'submitted' %}bg-app-submitted{% elif log.new_value == 'under_review' %}bg-app-under-review{% elif log.new_value == 'ready_for_approval' %}bg-app-ready-for-approval{% elif log.new_value == 'approved' %}bg-app-approved{% elif log.new_value == 'rejected' %}bg-app-rejected{% elif log.new_value == 'expired' %}bg-app-expired{% else %}bg-secondary{% endif %}">{{ log.new_value }}</span>
               {% if log.notes %}
                 <span class="text-body-secondary ms-1">— {{ log.notes }}</span>
               {% endif %}

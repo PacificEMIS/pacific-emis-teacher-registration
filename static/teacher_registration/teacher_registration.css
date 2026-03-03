@@ -91,7 +91,8 @@
  *
  * 1. Application Flow (bg-app-*) — "Traffic Light" palette
  *    Draft (#78909c slate) → Submitted (#1565c0 blue) →
- *    Under Review (#f9a825 amber) → Approved (#43a047 emerald)
+ *    Under Review (#f9a825 amber) → Ready for Approval (#9e9d24 olive) →
+ *    Approved (#43a047 emerald)
  *    Rejected (#e53935 crimson) — divergent/negative outcome
  *    Expired (#e53935 crimson) — same as rejected
  *
@@ -115,6 +116,11 @@
 .bg-app-under-review {
   background-color: #f9a825 !important;
   color: #212529;
+}
+
+.bg-app-ready-for-approval {
+  background-color: #9e9d24 !important;
+  color: #fff;
 }
 
 .bg-app-approved {

@@ -675,12 +675,13 @@ def pending_registrations_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
-    # Base queryset - include drafts, submitted, under review, and rejected
+    # Base queryset - include drafts, submitted, under review, ready for approval, and rejected
     registrations_qs = TeacherRegistration.objects.filter(
         status__in=[
             constants.DRAFT,
             constants.SUBMITTED,
             constants.UNDER_REVIEW,
+            constants.READY_FOR_APPROVAL,
             constants.REJECTED,
         ]
     ).select_related("user", "preferred_school", "reviewed_by")  # preferred_school: not currently in use
@@ -702,11 +703,12 @@ def pending_registrations_list(request):
 
     registrations_qs = registrations_qs.annotate(
         status_order=Case(
-            When(status=constants.UNDER_REVIEW, then=Value(0)),
-            When(status=constants.SUBMITTED, then=Value(1)),
-            When(status=constants.REJECTED, then=Value(2)),
-            When(status=constants.DRAFT, then=Value(3)),
-            default=Value(4),
+            When(status=constants.READY_FOR_APPROVAL, then=Value(0)),
+            When(status=constants.UNDER_REVIEW, then=Value(1)),
+            When(status=constants.SUBMITTED, then=Value(2)),
+            When(status=constants.REJECTED, then=Value(3)),
+            When(status=constants.DRAFT, then=Value(4)),
+            default=Value(5),
             output_field=IntegerField(),
         )
     ).order_by("status_order", "-created_at")
@@ -753,6 +755,7 @@ def registration_review(request, pk):
     if registration.status not in [
         constants.SUBMITTED,
         constants.UNDER_REVIEW,
+        constants.READY_FOR_APPROVAL,
         constants.REJECTED,
     ]:
         messages.error(request, "This registration cannot be reviewed.")
@@ -765,12 +768,27 @@ def registration_review(request, pk):
     is_renewal = registration.registration_type == TeacherRegistration.RENEWAL
 
     if request.method == "POST":
-        form = RegistrationReviewForm(request.POST)
+        submit_action = request.POST.get("submit_action", "decision")
         checklist_form = ChecklistOfficialForm(request.POST, instance=registration)
 
         # Always save the checklist regardless of review form validity
         if checklist_form.is_valid():
             checklist_form.save()
+
+        if submit_action == "save":
+            # Save checklist only — handle ready-for-approval transitions
+            registration.refresh_from_db()
+            if registration.checklist_ready_for_approval and registration.status == constants.UNDER_REVIEW:
+                registration.mark_ready_for_approval(request.user)
+                messages.success(request, "Checklist saved. Registration marked as ready for approval.")
+            elif not registration.checklist_ready_for_approval and registration.status == constants.READY_FOR_APPROVAL:
+                registration.revert_to_under_review(request.user)
+                messages.success(request, "Checklist saved. Ready for Approval status removed.")
+            else:
+                messages.success(request, "Checklist saved.")
+            return redirect("teacher_registration:review", pk=registration.pk)
+
+        form = RegistrationReviewForm(request.POST)
 
         if form.is_valid():
             action = form.cleaned_data["action"]

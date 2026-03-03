@@ -7,14 +7,27 @@
 {% endblock extra_css %}
 
 {% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">Review Registration ({% if is_renewal %}Renewal{% else %}Initial{% endif %})</h1>
+      <div class="small text-body-secondary">
+        {{ registration.user.get_full_name|default:registration.user.username }}
+        ·
+        {% if registration.status == 'ready_for_approval' %}
+          <span class="badge bg-app-ready-for-approval">Ready for Approval</span>
+        {% else %}
+          <span class="badge bg-app-under-review">Under Review</span>
+        {% endif %}
+      </div>
+    </div>
+    <a href="{% url 'teacher_registration:pending_list' %}"
+       class="btn btn-sm btn-outline-secondary">← Back to pending list</a>
+  </div>
+
   <div class="row">
     <!-- Registration details -->
     <div class="col-lg-8">
       <div class="card shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h1 class="h4 mb-0">Review Registration ({% if is_renewal %}Renewal{% else %}Initial{% endif %})</h1>
-          <span class="badge bg-app-under-review">Under Review</span>
-        </div>
         <div class="card-body">
           <!-- Applicant Info -->
           <h5 class="border-bottom pb-2 mb-3">Applicant Information</h5>
@@ -175,7 +188,7 @@
 
         {% include "teacher_registration/_checklist.html" with checklist_mode="official" checklist_form=checklist_form checklist_items=checklist_items is_renewal=is_renewal registration=registration %}
 
-        <div class="card shadow-sm sticky-top sticky-with-offset">
+        <div id="review-decision-panel" class="card shadow-sm sticky-top sticky-with-offset">
           <div class="card-header">
             <h5 class="mb-0">Review Decision</h5>
           </div>
@@ -220,13 +233,10 @@
               </div>
             {% endif %}
 
-            <div class="d-grid gap-2">
-              <button type="submit" class="btn btn-primary">
+            <div class="d-grid">
+              <button type="submit" name="submit_action" value="decision" class="btn btn-primary">
                 Submit Decision
               </button>
-              <a href="{% url 'teacher_registration:pending_list' %}" class="btn btn-outline-secondary">
-                Back to List
-              </a>
             </div>
           </div>
         </div>
@@ -240,17 +250,26 @@
   document.addEventListener('DOMContentLoaded', function() {
     const statusGroup = document.getElementById('registration-status-group');
     const radios = document.querySelectorAll('input[name="action"]');
+    const decisionPanel = document.getElementById('review-decision-panel');
+    const readyCheckbox = document.getElementById('id_checklist_ready_for_approval');
 
     function toggleStatusField() {
       const selected = document.querySelector('input[name="action"]:checked');
       statusGroup.style.display = (selected && selected.value === 'approve') ? '' : 'none';
     }
 
+    function toggleDecisionPanel() {
+      decisionPanel.style.display = readyCheckbox.checked ? '' : 'none';
+    }
+
     radios.forEach(function(radio) {
       radio.addEventListener('change', toggleStatusField);
     });
 
+    readyCheckbox.addEventListener('change', toggleDecisionPanel);
+
     toggleStatusField();
+    toggleDecisionPanel();
   });
 </script>
 {% endblock extra_js %}

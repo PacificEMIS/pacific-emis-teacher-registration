@@ -83,6 +83,8 @@
                   <span class="badge bg-app-submitted">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'under_review' %}
                   <span class="badge bg-app-under-review">{{ reg.get_status_display }}</span>
+                {% elif reg.status == 'ready_for_approval' %}
+                  <span class="badge bg-app-ready-for-approval">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'approved' %}
                   <span class="badge bg-app-approved">{{ reg.get_status_display }}</span>
                 {% elif reg.status == 'rejected' %}
@@ -108,7 +110,7 @@
               </td>
               <td class="text-end">
                 <div class="btn-group btn-group-sm" role="group">
-                  {% if reg.status == 'submitted' or reg.status == 'under_review' %}
+                  {% if reg.status == 'submitted' or reg.status == 'under_review' or reg.status == 'ready_for_approval' %}
                     <a href="{% url 'teacher_registration:review' reg.pk %}"
                        class="btn btn-primary">
                       Review

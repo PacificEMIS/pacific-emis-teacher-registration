@@ -96,6 +96,30 @@
           {% endif %}
         {% endfor %}
       </tbody>
+      {% if checklist_mode == "official" %}
+        <tfoot>
+          <tr class="table-light">
+            <td class="ps-3 fw-semibold" colspan="2">
+              <div class="form-check mb-0">
+                {{ checklist_form.checklist_ready_for_approval }}
+                <label class="form-check-label" for="id_checklist_ready_for_approval">
+                  Ready for Approval
+                </label>
+              </div>
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+      {% endif %}
     </table>
   </div>
+  {% if checklist_mode == "official" %}
+    <div class="card-footer">
+      <div class="d-grid">
+        <button type="submit" name="submit_action" value="save" class="btn btn-outline-primary">
+          Save Checklist
+        </button>
+      </div>
+    </div>
+  {% endif %}
 </div>

@@ -9,6 +9,7 @@ Used by both TeacherRegistration (initial application) and SchoolStaff
 DRAFT = "draft"
 SUBMITTED = "submitted"
 UNDER_REVIEW = "under_review"
+READY_FOR_APPROVAL = "ready_for_approval"
 APPROVED = "approved"
 REJECTED = "rejected"
 EXPIRED = "expired"
@@ -17,6 +18,7 @@ REGISTRATION_APPLICATION_STATUS_CHOICES = [
     (DRAFT, "Draft"),
     (SUBMITTED, "Submitted"),
     (UNDER_REVIEW, "Under Review"),
+    (READY_FOR_APPROVAL, "Ready for Approval"),
     (APPROVED, "Approved"),
     (REJECTED, "Rejected"),
     (EXPIRED, "Expired"),
