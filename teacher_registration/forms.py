@@ -9,10 +9,12 @@ from django.forms import inlineformset_factory
 from teacher_registration.models import (
     TeacherRegistration,
     RegistrationDocument,
+    RegistrationCondition,
     EducationRecord,
     TrainingRecord,
     ClaimedSchoolAppointment,
     ClaimedDuty,
+    LookupCondition,
 )
 from integrations.models import (
     EmisSchool,
@@ -326,6 +328,32 @@ class RegistrationReviewForm(forms.Form):
             )
 
         return cleaned_data
+
+
+class RegistrationConditionForm(forms.ModelForm):
+    """
+    Form for adding a condition to a registration during review.
+    """
+
+    class Meta:
+        model = RegistrationCondition
+        fields = ["condition", "notes"]
+        widgets = {
+            "condition": forms.Select(attrs={"class": "form-select"}),
+            "notes": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 2,
+                    "placeholder": "Optional notes about this condition",
+                }
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["condition"].queryset = LookupCondition.objects.filter(
+            active=True
+        ).order_by("label")
 
 
 class ChecklistOfficialForm(forms.ModelForm):

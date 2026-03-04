@@ -190,6 +190,18 @@
               {% endif %}
             </dd>
           </dl>
+          {% if teacher.conditions.exists %}
+            <hr>
+            <h3 class="h6 mb-2">Conditions</h3>
+            <ul class="list-group list-group-flush">
+              {% for cond in teacher.conditions.all %}
+                <li class="list-group-item px-0 py-1">
+                  <strong>{{ cond.condition.label }}</strong>
+                  {% if cond.notes %}<br><span class="text-muted small">{{ cond.notes }}</span>{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
           {% if teacher.registration_application_status == 'expired' and can_delete %}
             {% csrf_token %}
             <button id="resend-renewal-btn" type="button" class="btn btn-sm btn-outline-warning"

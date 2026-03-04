@@ -38,6 +38,7 @@ from teacher_registration import constants
 from teacher_registration.models import (
     TeacherRegistration,
     RegistrationDocument,
+    RegistrationCondition,
     RegistrationChangeLog,
     EducationRecord,
     TrainingRecord,
@@ -47,6 +48,7 @@ from teacher_registration.models import (
 from teacher_registration.forms import (
     TeacherRegistrationForm,
     RegistrationDocumentForm,
+    RegistrationConditionForm,
     RegistrationReviewForm,
     ChecklistOfficialForm,
     EducationRecordFormSet,
@@ -891,6 +893,8 @@ def registration_review(request, pk):
                 ) if doc.doc_link_type else False,
             })
 
+    condition_form = RegistrationConditionForm()
+
     return render(
         request,
         "teacher_registration/registration_review.html",
@@ -902,8 +906,65 @@ def registration_review(request, pk):
             "checklist_items": constants.CHECKLIST_ITEMS,
             "is_renewal": is_renewal,
             "staff_documents": staff_documents,
+            "condition_form": condition_form,
+            "conditions": registration.conditions.select_related("condition").all(),
         },
     )
+
+
+@login_required
+@require_app_access
+def condition_add(request, pk):
+    """Add a condition to a registration during review."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    registration = get_object_or_404(TeacherRegistration, pk=pk)
+
+    if registration.status not in [
+        constants.UNDER_REVIEW,
+        constants.READY_FOR_APPROVAL,
+    ]:
+        return JsonResponse({"error": "Conditions can only be added during review."}, status=400)
+
+    if request.method == "POST":
+        form = RegistrationConditionForm(request.POST)
+        if form.is_valid():
+            condition = form.save(commit=False)
+            condition.registration = registration
+            condition.created_by = request.user
+            condition.last_updated_by = request.user
+            condition.save()
+            return JsonResponse({
+                "id": condition.pk,
+                "label": condition.condition.label,
+                "notes": condition.notes,
+            })
+        return JsonResponse({"error": form.errors}, status=400)
+
+    return JsonResponse({"error": "POST required."}, status=405)
+
+
+@login_required
+@require_app_access
+def condition_remove(request, pk):
+    """Remove a condition from a registration during review."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    condition = get_object_or_404(RegistrationCondition, pk=pk, registration__isnull=False)
+
+    if condition.registration.status not in [
+        constants.UNDER_REVIEW,
+        constants.READY_FOR_APPROVAL,
+    ]:
+        return JsonResponse({"error": "Conditions can only be removed during review."}, status=400)
+
+    if request.method == "POST":
+        condition.delete()
+        return JsonResponse({"success": True})
+
+    return JsonResponse({"error": "POST required."}, status=405)
 
 
 @login_required
@@ -1153,6 +1214,7 @@ def teacher_detail(request, pk):
             "assignments__job_title",
             "documents__doc_link_type",
             "registration_history__change_logs",
+            "conditions__condition",
             "education_records__qualification",
             "education_records__major",
             "education_records__minor",

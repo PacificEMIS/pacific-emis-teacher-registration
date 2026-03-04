@@ -37,6 +37,8 @@ urlpatterns = [
     # Admin-facing (review workflow)
     path("pending/", views.pending_registrations_list, name="pending_list"),
     path("<int:pk>/review/", views.registration_review, name="review"),
+    path("<int:pk>/review/conditions/add/", views.condition_add, name="condition_add"),
+    path("conditions/<int:pk>/remove/", views.condition_remove, name="condition_remove"),
     path("<int:pk>/delete/", views.registration_delete, name="registration_delete"),
     path("history/", views.registration_history, name="history"),
     # Teachers (approved teaching staff)

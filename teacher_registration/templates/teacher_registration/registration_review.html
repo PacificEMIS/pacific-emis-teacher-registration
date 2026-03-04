@@ -179,6 +179,47 @@
           {% endif %}
         </div>
       </div>
+
+      <!-- Registration Conditions -->
+      <div id="conditions-card" class="card shadow-sm mb-4" style="display: none;">
+        <div class="card-header">
+          <h5 class="mb-0">Registration Conditions</h5>
+        </div>
+        <div class="card-body">
+          <div id="conditions-list">
+            {% for cond in conditions %}
+              <div class="d-flex justify-content-between align-items-start border-bottom py-2" data-condition-id="{{ cond.pk }}">
+                <div>
+                  <strong>{{ cond.condition.label }}</strong>
+                  {% if cond.notes %}<br><span class="text-muted small">{{ cond.notes }}</span>{% endif %}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-danger condition-remove-btn" data-url="{% url 'teacher_registration:condition_remove' pk=cond.pk %}">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+            {% endfor %}
+          </div>
+          <div id="conditions-empty" class="text-muted mb-3 {% if conditions %}d-none{% endif %}">
+            No conditions added yet.
+          </div>
+
+          <hr>
+          <div class="row g-2">
+            <div class="col-12">
+              {{ condition_form.condition }}
+            </div>
+            <div class="col-12">
+              {{ condition_form.notes }}
+            </div>
+            <div class="col-12">
+              <button type="button" id="condition-add-btn" class="btn btn-sm btn-outline-primary"
+                      data-url="{% url 'teacher_registration:condition_add' pk=registration.pk %}">
+                <i class="bi bi-plus-circle me-1"></i> Add Condition
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Review sidebar: checklist + decision -->
@@ -249,27 +290,132 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const statusGroup = document.getElementById('registration-status-group');
+    const statusSelect = document.getElementById('id_teacher_registration_status');
     const radios = document.querySelectorAll('input[name="action"]');
     const decisionPanel = document.getElementById('review-decision-panel');
     const readyCheckbox = document.getElementById('id_checklist_ready_for_approval');
+    const conditionsCard = document.getElementById('conditions-card');
+    const conditionsList = document.getElementById('conditions-list');
+    const conditionsEmpty = document.getElementById('conditions-empty');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     function toggleStatusField() {
       const selected = document.querySelector('input[name="action"]:checked');
       statusGroup.style.display = (selected && selected.value === 'approve') ? '' : 'none';
+      toggleConditionsCard();
     }
 
     function toggleDecisionPanel() {
       decisionPanel.style.display = readyCheckbox.checked ? '' : 'none';
     }
 
+    function toggleConditionsCard() {
+      const selected = document.querySelector('input[name="action"]:checked');
+      if (selected && selected.value === 'approve' && statusSelect) {
+        const selectedOption = statusSelect.options[statusSelect.selectedIndex];
+        const label = selectedOption ? selectedOption.text.toLowerCase() : '';
+        conditionsCard.style.display = (label.includes('full') && label.includes('condition')) ? '' : 'none';
+      } else {
+        conditionsCard.style.display = 'none';
+      }
+    }
+
     radios.forEach(function(radio) {
       radio.addEventListener('change', toggleStatusField);
     });
+
+    if (statusSelect) {
+      statusSelect.addEventListener('change', toggleConditionsCard);
+    }
 
     readyCheckbox.addEventListener('change', toggleDecisionPanel);
 
     toggleStatusField();
     toggleDecisionPanel();
+
+    // --- Conditions AJAX ---
+
+    const conditionAddBtn = document.getElementById('condition-add-btn');
+    const conditionSelect = document.getElementById('id_condition');
+    const notesField = document.getElementById('id_notes');
+    const addUrl = conditionAddBtn.dataset.url;
+
+    function updateConditionsEmpty() {
+      const hasConditions = conditionsList.querySelectorAll('[data-condition-id]').length > 0;
+      conditionsEmpty.classList.toggle('d-none', hasConditions);
+    }
+
+    function hasPendingCondition() {
+      return conditionSelect.value && conditionSelect.value !== '';
+    }
+
+    function saveCondition() {
+      const formData = new FormData();
+      formData.append('condition', conditionSelect.value);
+      formData.append('notes', notesField.value);
+
+      return fetch(addUrl, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken},
+        body: formData,
+      })
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        if (data.error) {
+          alert('Error: ' + JSON.stringify(data.error));
+          return false;
+        }
+
+        const removeUrl = '{% url "teacher_registration:condition_remove" pk=0 %}'.replace('/0/', '/' + data.id + '/');
+
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-start border-bottom py-2';
+        row.dataset.conditionId = data.id;
+        row.innerHTML =
+          '<div><strong>' + data.label + '</strong>' +
+          (data.notes ? '<br><span class="text-muted small">' + data.notes + '</span>' : '') +
+          '</div>' +
+          '<button type="button" class="btn btn-sm btn-outline-danger condition-remove-btn" data-url="' + removeUrl + '">' +
+          '<i class="bi bi-x-lg"></i></button>';
+        conditionsList.appendChild(row);
+
+        conditionSelect.value = '';
+        notesField.value = '';
+        updateConditionsEmpty();
+        return true;
+      });
+    }
+
+    conditionAddBtn.addEventListener('click', saveCondition);
+
+    // Auto-save pending condition before form submission
+    const reviewForm = decisionPanel.closest('form');
+    reviewForm.addEventListener('submit', function(e) {
+      if (hasPendingCondition() && conditionsCard.style.display !== 'none') {
+        e.preventDefault();
+        saveCondition().then(function() {
+          reviewForm.submit();
+        });
+      }
+    });
+
+    conditionsList.addEventListener('click', function(e) {
+      const btn = e.target.closest('.condition-remove-btn');
+      if (!btn) return;
+
+      const url = btn.dataset.url;
+      fetch(url, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken},
+      })
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        if (data.success) {
+          btn.closest('[data-condition-id]').remove();
+          updateConditionsEmpty();
+        }
+      });
+    });
   });
 </script>
 {% endblock extra_js %}
