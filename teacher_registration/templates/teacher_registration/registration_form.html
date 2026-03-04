@@ -212,20 +212,27 @@
                       {{ edu_form.major }}
                     </div>
                     <div class="col-md-3">
+                      <label class="form-label small">Major 2</label>
+                      {{ edu_form.major2 }}
+                    </div>
+                    <div class="col-md-3">
                       <label class="form-label small">Minor</label>
                       {{ edu_form.minor }}
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Minor 2</label>
+                      {{ edu_form.minor2 }}
                     </div>
                     <div class="col-md-3">
                       <label class="form-label small">Completion Year</label>
                       {{ edu_form.completion_year }}
                     </div>
-                    <div class="col-md-3">
-                      <label class="form-label small">Duration</label>
-                      {{ edu_form.duration }}
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label small">Unit</label>
-                      {{ edu_form.duration_unit }}
+                    <div class="col-md-6">
+                      <label class="form-label small edu-duration-label">Duration</label>
+                      <div class="input-group input-group-sm">
+                        {{ edu_form.duration }}
+                        {{ edu_form.duration_unit }}
+                      </div>
                     </div>
                     <div class="col-md-3">
                       <div class="form-check mt-4">
@@ -284,8 +291,12 @@
                       {{ training_form.title }}
                     </div>
                     <div class="col-md-4">
-                      <label class="form-label small">Focus Area</label>
+                      <label class="form-label small">KTC Focus Area</label>
                       {{ training_form.focus }}
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">General Focus Area</label>
+                      {{ training_form.general_focus_area }}
                     </div>
                     <div class="col-md-4">
                       <label class="form-label small">Format</label>
@@ -295,20 +306,19 @@
                       <label class="form-label small">Completion Year</label>
                       {{ training_form.completion_year }}
                     </div>
-                    <div class="col-md-3">
-                      <label class="form-label small">Duration</label>
-                      {{ training_form.duration }}
-                    </div>
-                    <div class="col-md-3">
-                      <label class="form-label small">Unit</label>
-                      {{ training_form.duration_unit }}
+                    <div class="col-md-6">
+                      <label class="form-label small training-duration-label">Duration</label>
+                      <div class="input-group input-group-sm">
+                        {{ training_form.duration }}
+                        {{ training_form.duration_unit }}
+                      </div>
                     </div>
                     <div class="col-md-3">
                       <label class="form-label small">Effective Date</label>
                       {{ training_form.effective_date }}
                     </div>
                     <div class="col-md-3">
-                      <label class="form-label small">Expiration Date</label>
+                      <label class="form-label small">Expiration Date (leave blank for no expiry)</label>
                       {{ training_form.expiration_date }}
                     </div>
                   </div>
@@ -365,7 +375,7 @@
                         <small class="text-muted d-block">Leave blank if current</small>
                       </div>
                       <div class="col-md-3">
-                        <label class="form-label small">Years of Experience</label>
+                        <label class="form-label small">Years of Teaching Experience</label>
                         {{ appt_form.years_of_experience }}
                       </div>
                       <div class="col-md-3">
@@ -436,7 +446,7 @@
                 {{ form.highest_qualification }}
               </div>
               <div class="col-md-4">
-                <label for="id_years_of_experience" class="form-label">Total Years of Experience</label>
+                <label for="id_years_of_experience" class="form-label">Total Years of Teaching Experience</label>
                 {{ form.years_of_experience }}
               </div>
             </div>

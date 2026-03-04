@@ -74,7 +74,7 @@
             <dt class="col-sm-4">Qualification</dt>
             <dd class="col-sm-8">{{ registration.get_highest_qualification_display|default:"Not provided" }}</dd>
 
-            <dt class="col-sm-4">Experience</dt>
+            <dt class="col-sm-4">Teaching Experience</dt>
             <dd class="col-sm-8">
               {% if registration.years_of_experience is not None %}
                 {{ registration.years_of_experience }} year{{ registration.years_of_experience|pluralize }}

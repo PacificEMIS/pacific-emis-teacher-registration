@@ -206,13 +206,19 @@ document.addEventListener('DOMContentLoaded', function() {
       // Rebind event handlers
       bindRemoveButtons();
 
-      // For education rows, bind completed checkbox
+      // For education rows, bind completed checkbox and duration label
       if (formsetType === 'education') {
         const completedCheckbox = newRow.querySelector('[name$="-completed"]');
         if (completedCheckbox) {
           completedCheckbox.addEventListener('change', () => updateCompletedFields(newRow));
           updateCompletedFields(newRow);
         }
+        bindEducationDurationLabel(newRow);
+      }
+
+      // For training rows, bind duration label
+      if (formsetType === 'training') {
+        bindTrainingDurationLabel(newRow);
       }
 
       // For appointment rows, bind teacher level select
@@ -278,6 +284,51 @@ document.addEventListener('DOMContentLoaded', function() {
       businessCollapse.classList.add('show');
     }
   }
+
+  // =========================================================================
+  // Dynamic Duration Labels - Show "Duration (2 Months)" when both set
+  // =========================================================================
+  function updateDurationLabel(row, labelSelector, durationSelector, unitSelector) {
+    const label = row.querySelector(labelSelector);
+    const durationInput = row.querySelector(durationSelector);
+    const unitSelect = row.querySelector(unitSelector);
+    if (!label || !durationInput || !unitSelect) return;
+
+    const durationVal = durationInput.value.trim();
+    const unitText = unitSelect.options[unitSelect.selectedIndex]?.text || '';
+
+    if (durationVal && unitText) {
+      label.textContent = 'Duration (' + durationVal + ' ' + unitText + ')';
+    } else {
+      label.textContent = 'Duration';
+    }
+  }
+
+  function bindEducationDurationLabel(row) {
+    const durationInput = row.querySelector('[name$="-duration"]');
+    const unitSelect = row.querySelector('[name$="-duration_unit"]');
+    if (durationInput && unitSelect) {
+      const update = () => updateDurationLabel(row, '.edu-duration-label', '[name$="-duration"]', '[name$="-duration_unit"]');
+      durationInput.addEventListener('input', update);
+      unitSelect.addEventListener('change', update);
+      update();
+    }
+  }
+
+  function bindTrainingDurationLabel(row) {
+    const durationInput = row.querySelector('[name$="-duration"]');
+    const unitSelect = row.querySelector('[name$="-duration_unit"]');
+    if (durationInput && unitSelect) {
+      const update = () => updateDurationLabel(row, '.training-duration-label', '[name$="-duration"]', '[name$="-duration_unit"]');
+      durationInput.addEventListener('input', update);
+      unitSelect.addEventListener('change', update);
+      update();
+    }
+  }
+
+  // Bind to existing rows
+  document.querySelectorAll('.education-row').forEach(bindEducationDurationLabel);
+  document.querySelectorAll('.training-row').forEach(bindTrainingDurationLabel);
 
   // =========================================================================
   // Duties Modal - Load and Save

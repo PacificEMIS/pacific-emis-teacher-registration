@@ -42,13 +42,15 @@ class EducationRecordInline(admin.TabularInline):
 
     model = EducationRecord
     extra = 0
-    autocomplete_fields = ["qualification", "major", "minor"]
+    autocomplete_fields = ["qualification", "major", "major2", "minor", "minor2"]
     fields = [
         "institution_name",
         "qualification",
         "program_name",
         "major",
+        "major2",
         "minor",
+        "minor2",
         "completion_year",
         "completed",
     ]
@@ -64,6 +66,7 @@ class TrainingRecordInline(admin.TabularInline):
         "title",
         "provider_institution",
         "focus",
+        "general_focus_area",
         "format",
         "completion_year",
         "effective_date",
@@ -268,7 +271,7 @@ class EducationRecordAdmin(admin.ModelAdmin):
     ]
     list_filter = ["completed", "qualification", "completion_year"]
     search_fields = ["institution_name", "program_name"]
-    autocomplete_fields = ["registration", "qualification", "major", "minor"]
+    autocomplete_fields = ["registration", "qualification", "major", "major2", "minor", "minor2"]
 
 
 @admin.register(TrainingRecord)

@@ -416,7 +416,9 @@ class EducationRecordForm(forms.ModelForm):
             "qualification",
             "program_name",
             "major",
+            "major2",
             "minor",
+            "minor2",
             "completion_year",
             "duration",
             "duration_unit",
@@ -429,7 +431,9 @@ class EducationRecordForm(forms.ModelForm):
             "qualification": forms.Select(attrs={"class": "form-select"}),
             "program_name": forms.TextInput(attrs={"class": "form-control"}),
             "major": forms.Select(attrs={"class": "form-select"}),
+            "major2": forms.Select(attrs={"class": "form-select"}),
             "minor": forms.Select(attrs={"class": "form-select"}),
+            "minor2": forms.Select(attrs={"class": "form-select"}),
             "completion_year": forms.NumberInput(attrs={"class": "form-control", "min": "1950", "max": "2100"}),
             "duration": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
             "duration_unit": forms.Select(attrs={"class": "form-select"}),
@@ -447,7 +451,13 @@ class EducationRecordForm(forms.ModelForm):
         self.fields["major"].queryset = EmisSubject.objects.filter(
             active=True
         ).order_by("label")
+        self.fields["major2"].queryset = EmisSubject.objects.filter(
+            active=True
+        ).order_by("label")
         self.fields["minor"].queryset = EmisSubject.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["minor2"].queryset = EmisSubject.objects.filter(
             active=True
         ).order_by("label")
 
@@ -463,6 +473,7 @@ class TrainingRecordForm(forms.ModelForm):
             "provider_institution",
             "title",
             "focus",
+            "general_focus_area",
             "format",
             "completion_year",
             "duration",
@@ -474,6 +485,7 @@ class TrainingRecordForm(forms.ModelForm):
             "provider_institution": forms.TextInput(attrs={"class": "form-control"}),
             "title": forms.TextInput(attrs={"class": "form-control", "list": "training-title-options"}),
             "focus": forms.Select(attrs={"class": "form-select"}),
+            "general_focus_area": forms.TextInput(attrs={"class": "form-control"}),
             "format": forms.Select(attrs={"class": "form-select"}),
             "completion_year": forms.NumberInput(attrs={"class": "form-control", "min": "1950", "max": "2100"}),
             "duration": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),

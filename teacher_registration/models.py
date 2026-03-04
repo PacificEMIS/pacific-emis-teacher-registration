@@ -602,7 +602,9 @@ class TeacherRegistration(AuditModel):
                 qualification=edu_record.qualification,
                 program_name=edu_record.program_name,
                 major=edu_record.major,
+                major2=edu_record.major2,
                 minor=edu_record.minor,
+                minor2=edu_record.minor2,
                 completion_year=edu_record.completion_year,
                 duration=edu_record.duration,
                 duration_unit=edu_record.duration_unit,
@@ -620,6 +622,7 @@ class TeacherRegistration(AuditModel):
                 provider_institution=training_record.provider_institution,
                 title=training_record.title,
                 focus=training_record.focus,
+                general_focus_area=training_record.general_focus_area,
                 format=training_record.format,
                 completion_year=training_record.completion_year,
                 duration=training_record.duration,
@@ -779,7 +782,9 @@ class TeacherRegistration(AuditModel):
                     qualification=edu_record.qualification,
                     program_name=edu_record.program_name,
                     major=edu_record.major,
+                    major2=edu_record.major2,
                     minor=edu_record.minor,
+                    minor2=edu_record.minor2,
                     completion_year=edu_record.completion_year,
                     duration=edu_record.duration,
                     duration_unit=edu_record.duration_unit,
@@ -798,6 +803,7 @@ class TeacherRegistration(AuditModel):
                     provider_institution=training_record.provider_institution,
                     title=training_record.title,
                     focus=training_record.focus,
+                    general_focus_area=training_record.general_focus_area,
                     format=training_record.format,
                     completion_year=training_record.completion_year,
                     duration=training_record.duration,
@@ -1197,6 +1203,15 @@ class EducationRecord(AuditModel):
         verbose_name="Major subject",
     )
 
+    major2 = models.ForeignKey(
+        EmisSubject,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="education_major2_records",
+        verbose_name="Major subject 2",
+    )
+
     minor = models.ForeignKey(
         EmisSubject,
         null=True,
@@ -1204,6 +1219,15 @@ class EducationRecord(AuditModel):
         on_delete=models.PROTECT,
         related_name="education_minor_records",
         verbose_name="Minor subject",
+    )
+
+    minor2 = models.ForeignKey(
+        EmisSubject,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="education_minor2_records",
+        verbose_name="Minor subject 2",
     )
 
     completion_year = models.PositiveIntegerField(
@@ -1301,7 +1325,14 @@ class TrainingRecord(AuditModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="training_records",
-        verbose_name="Focus area",
+        verbose_name="KTC Focus Area",
+    )
+
+    general_focus_area = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="General Focus Area",
+        help_text="General area of focus for this training",
     )
 
     format = models.ForeignKey(
