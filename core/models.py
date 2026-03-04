@@ -602,6 +602,15 @@ class StaffEducationRecord(AuditModel):
         verbose_name="Major subject",
     )
 
+    major2 = models.ForeignKey(
+        EmisSubject,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="staff_education_major2_records",
+        verbose_name="Major subject 2",
+    )
+
     minor = models.ForeignKey(
         EmisSubject,
         null=True,
@@ -609,6 +618,15 @@ class StaffEducationRecord(AuditModel):
         on_delete=models.PROTECT,
         related_name="staff_education_minor_records",
         verbose_name="Minor subject",
+    )
+
+    minor2 = models.ForeignKey(
+        EmisSubject,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="staff_education_minor2_records",
+        verbose_name="Minor subject 2",
     )
 
     completion_year = models.PositiveIntegerField(
@@ -707,7 +725,14 @@ class StaffTrainingRecord(AuditModel):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="staff_training_records",
-        verbose_name="Focus area",
+        verbose_name="KTC Focus Area",
+    )
+
+    general_focus_area = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="General Focus Area",
+        help_text="General area of focus for this training",
     )
 
     format = models.ForeignKey(

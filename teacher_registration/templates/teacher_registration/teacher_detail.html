@@ -231,7 +231,7 @@
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
             </dd>
-            <dt class="col-5">Years of Experience</dt>
+            <dt class="col-5">Years of Teaching Experience</dt>
             <dd class="col-7">
               {% if teacher.years_of_experience is not None %}
                 {{ teacher.years_of_experience }} years
@@ -365,8 +365,14 @@
                         {% else %}
                           <span class="text-body-secondary">—</span>
                         {% endif %}
+                        {% if record.major2 %}
+                          <br>{{ record.major2 }}
+                        {% endif %}
                         {% if record.minor %}
                           <br><span class="text-body-secondary">Minor:</span> {{ record.minor }}
+                        {% endif %}
+                        {% if record.minor2 %}
+                          <br><span class="text-body-secondary">Minor:</span> {{ record.minor2 }}
                         {% endif %}
                       </td>
                       <td>
@@ -425,7 +431,7 @@
                   <tr>
                     <th scope="col">Training Title</th>
                     <th scope="col">Provider</th>
-                    <th scope="col">Focus</th>
+                    <th scope="col">Focus Area</th>
                     <th scope="col">Format</th>
                     <th scope="col">Year</th>
                     <th scope="col">Duration</th>
@@ -439,8 +445,13 @@
                       <td>{{ record.provider_institution }}</td>
                       <td class="small">
                         {% if record.focus %}
-                          {{ record.focus }}
-                        {% else %}
+                          <span class="text-body-secondary">KTC:</span> {{ record.focus }}
+                        {% endif %}
+                        {% if record.general_focus_area %}
+                          {% if record.focus %}<br>{% endif %}
+                          {{ record.general_focus_area }}
+                        {% endif %}
+                        {% if not record.focus and not record.general_focus_area %}
                           <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
