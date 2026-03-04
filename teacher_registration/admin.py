@@ -16,11 +16,13 @@ from django.contrib import admin
 from teacher_registration.models import (
     TeacherRegistration,
     RegistrationDocument,
+    RegistrationCondition,
     RegistrationChangeLog,
     EducationRecord,
     TrainingRecord,
     ClaimedSchoolAppointment,
     ClaimedDuty,
+    LookupCondition,
 )
 
 
@@ -103,6 +105,14 @@ class ClaimedSchoolAppointmentInline(admin.StackedInline):
     )
 
 
+class RegistrationConditionInline(admin.TabularInline):
+    """Inline admin for registration conditions."""
+
+    model = RegistrationCondition
+    extra = 0
+    fields = ["condition", "notes"]
+
+
 class RegistrationChangeLogInline(admin.TabularInline):
     """Inline admin for viewing change logs (read-only)."""
 
@@ -173,6 +183,7 @@ class TeacherRegistrationAdmin(admin.ModelAdmin):
         TrainingRecordInline,
         ClaimedSchoolAppointmentInline,
         RegistrationDocumentInline,
+        RegistrationConditionInline,
         RegistrationChangeLogInline,
     ]
 
@@ -360,3 +371,29 @@ class RegistrationChangeLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(LookupCondition)
+class LookupConditionAdmin(admin.ModelAdmin):
+    """Admin interface for managing condition type lookups."""
+
+    list_display = ["code", "label", "active"]
+    list_filter = ["active"]
+    search_fields = ["code", "label"]
+
+
+@admin.register(RegistrationCondition)
+class RegistrationConditionAdmin(admin.ModelAdmin):
+    """Admin interface for RegistrationCondition."""
+
+    list_display = [
+        "id",
+        "condition",
+        "registration",
+        "school_staff",
+        "created_at",
+    ]
+    list_filter = ["condition", "created_at"]
+    search_fields = ["condition__label", "notes"]
+    autocomplete_fields = ["registration", "school_staff", "condition"]
+    readonly_fields = ["created_at", "created_by"]

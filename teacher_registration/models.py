@@ -4,6 +4,8 @@ Models for the teacher_registration app.
 This module contains models for the teacher self-registration workflow:
 - TeacherRegistration: Holds registration data while pending approval
 - RegistrationDocument: Documents attached to registrations (moved to SchoolStaff on approval)
+- RegistrationCondition: Conditions attached to conditional registrations (moved to SchoolStaff on approval)
+- LookupCondition: Local lookup table for condition types
 - RegistrationChangeLog: Audit trail for registration workflow changes
 """
 
@@ -658,6 +660,12 @@ class TeacherRegistration(AuditModel):
             registration=None,
         )
 
+        # Move conditions to SchoolStaff (FK swap)
+        self.conditions.update(
+            school_staff=staff,
+            registration=None,
+        )
+
         # Update registration status
         old_status = self.status
         self.status = constants.APPROVED
@@ -824,6 +832,13 @@ class TeacherRegistration(AuditModel):
 
             # Move NEW renewal documents to SchoolStaff (existing staff docs stay)
             self.documents.update(
+                school_staff=staff,
+                registration=None,
+            )
+
+            # Replace conditions: delete old from staff, FK-swap new from registration
+            staff.conditions.all().delete()
+            self.conditions.update(
                 school_staff=staff,
                 registration=None,
             )
@@ -1488,3 +1503,95 @@ class ClaimedDuty(AuditModel):
 
     def __str__(self):
         return f"{self.year_level} - {self.subject}"
+
+
+class LookupCondition(models.Model):
+    """
+    Local lookup table for registration condition types.
+
+    Managed via Django admin. Not sourced from EMIS integration.
+    """
+
+    code = models.CharField(max_length=64, primary_key=True)
+    label = models.CharField(max_length=128)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Condition Type"
+        verbose_name_plural = "Condition Types"
+
+    def __str__(self):
+        return self.label
+
+
+class RegistrationCondition(AuditModel):
+    """
+    Condition attached to a conditional registration or approved staff profile.
+
+    Initially linked to TeacherRegistration while under review.
+    On approval, moved to SchoolStaff (registration FK cleared, school_staff FK set).
+    On renewal approval, old conditions on SchoolStaff are deleted and replaced
+    with the new conditions from the renewal registration.
+    """
+
+    # -------------------------------------------------------------------------
+    # Ownership - one of these will be set, not both
+    # -------------------------------------------------------------------------
+
+    registration = models.ForeignKey(
+        TeacherRegistration,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="conditions",
+        help_text="Registration this condition belongs to (while pending)",
+    )
+
+    school_staff = models.ForeignKey(
+        SchoolStaff,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="conditions",
+        help_text="Staff profile this condition belongs to (after approval)",
+    )
+
+    # -------------------------------------------------------------------------
+    # Condition fields
+    # -------------------------------------------------------------------------
+
+    condition = models.ForeignKey(
+        LookupCondition,
+        on_delete=models.PROTECT,
+        related_name="registration_conditions",
+        verbose_name="Condition type",
+        help_text="Condition type from local lookup",
+    )
+
+    notes = models.TextField(
+        blank=True,
+        help_text="Free-form notes about this condition",
+    )
+
+    class Meta:
+        ordering = ["condition", "created_at"]
+        verbose_name = "Registration Condition"
+        verbose_name_plural = "Registration Conditions"
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(registration__isnull=False, school_staff__isnull=True)
+                    | models.Q(registration__isnull=True, school_staff__isnull=False)
+                ),
+                name="condition_single_owner",
+            ),
+        ]
+
+    def __str__(self):
+        return self.condition.label
+
+    @property
+    def owner(self):
+        """Return the current owner (registration or staff profile)."""
+        return self.registration or self.school_staff
