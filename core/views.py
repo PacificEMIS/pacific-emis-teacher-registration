@@ -144,11 +144,9 @@ def dashboard(request):
 
     # Users by groups (count ALL users in these groups, not just SchoolStaff)
     admin_count = User.objects.filter(groups__name=GROUP_ADMINS).distinct().count()
-    staff_teacher_count = (
-        SchoolStaff.objects.filter(user__groups__name=GROUP_TEACHERS)
-        .distinct()
-        .count()
-    )
+    staff_teacher_count = SchoolStaff.objects.filter(
+        staff_type=SchoolStaff.TEACHING_STAFF
+    ).count()
 
     # --- SystemUser (MOE Staff) KPIs ---
     total_system_users = SystemUser.objects.count()
