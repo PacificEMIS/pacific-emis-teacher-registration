@@ -331,6 +331,18 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.training-row').forEach(bindTrainingDurationLabel);
 
   // =========================================================================
+  // Document Upload - Spinner on submit
+  // =========================================================================
+  const uploadForm = document.getElementById('document-upload-form');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', function() {
+      const btn = document.getElementById('upload-doc-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Uploading\u2026please wait';
+    });
+  }
+
+  // =========================================================================
   // Duties Modal - Load and Save
   // =========================================================================
   const dutiesModal = document.getElementById('dutiesModal');
