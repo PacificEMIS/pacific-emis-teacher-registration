@@ -52,6 +52,7 @@ def _get_user_active_registration_url(user):
                 constants.DRAFT,
                 constants.SUBMITTED,
                 constants.UNDER_REVIEW,
+                constants.READY_FOR_APPROVAL,
                 constants.REJECTED,
             ],
         )
@@ -59,8 +60,11 @@ def _get_user_active_registration_url(user):
         .first()
     )
     if active_registration:
-        # For rejected registrations, go to my_registration view (read-only history)
-        if active_registration.status == constants.REJECTED:
+        # For rejected/ready-for-approval, go to my_registration view (read-only)
+        if active_registration.status in (
+            constants.REJECTED,
+            constants.READY_FOR_APPROVAL,
+        ):
             return reverse("teacher_registration:my_registration")
         return reverse("teacher_registration:edit", kwargs={"pk": active_registration.pk})
     return None
@@ -99,6 +103,14 @@ def post_login_router(request):
     # Check if user is an approved teacher (has school_staff profile)
     # They should see their registration status page
     if hasattr(request.user, "school_staff"):
+        return redirect("teacher_registration:my_registration")
+
+    # Check if user has any registration history (any status).
+    # This catches teachers who signed in from / instead of /registration/
+    # and covers all statuses including READY_FOR_APPROVAL.
+    from teacher_registration.models import TeacherRegistration
+
+    if TeacherRegistration.objects.filter(user=request.user).exists():
         return redirect("teacher_registration:my_registration")
 
     return redirect("accounts:no_permissions")

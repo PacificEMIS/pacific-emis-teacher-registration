@@ -1,15 +1,13 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Teacher Registration{% endblock title %}
 {% block content %}
   <div class="row justify-content-center">
-    <div class="col-lg-8 col-xl-6">
-      <div class="text-center mb-5">
-        <i class="bi bi-mortarboard display-1 text-primary"></i>
-        <h1 class="mt-3">Teacher Registration</h1>
-        <p class="lead text-muted">
-          Welcome to the {{ emis_context }} Teacher Registration System
-        </p>
-      </div>
+    <div class="col-lg-10 col-xl-8">
+
+      <p class="lead text-muted text-center mb-4">
+        Welcome to the {{ emis_context }} Teacher Registration System
+      </p>
 
       {% if request.user.is_authenticated %}
         <div class="alert alert-warning mb-4">
@@ -27,31 +25,42 @@
 
       <div class="card shadow-sm mb-4">
         <div class="card-body p-4">
-          <h5 class="card-title mb-3">Register as a Teacher</h5>
-          <p class="card-text">
-            This portal allows teachers to register with the Ministry of Education.
-            The registration process includes:
-          </p>
-          <ul class="mb-4">
-            <li>Providing your personal information</li>
-            <li>Entering your professional qualifications</li>
-            <li>Uploading required documents (certificates, ID, etc.)</li>
-            <li>Submitting for review by the Ministry</li>
-          </ul>
-          {% if not request.user.is_authenticated %}
-            <p class="card-text text-muted small">
-              You will need to sign in with your Google account to begin the registration process. This is to verify your identity and ensure we secure all your data.
-            </p>
-          {% endif %}
-        </div>
-        <div class="card-footer bg-transparent border-top-0 p-4 pt-0">
-          <a href="{% url 'teacher_registration:public_start' %}" class="btn btn-primary btn-lg w-100">
-            {% if request.user.is_authenticated %}
-              <i class="bi bi-arrow-right-circle me-2"></i> Continue Registration
-            {% else %}
-              <i class="bi bi-box-arrow-in-right me-2"></i> Start Registration
-            {% endif %}
-          </a>
+          <div class="row align-items-center">
+            {# Branding column #}
+            <div class="col-md-4 text-center mb-4 mb-md-0">
+              <img src="{% static 'app/logos/' %}{{ emis_logo }}.png"
+                   alt="{{ emis_context }} Logo"
+                   class="login-logo mb-2">
+              <div class="login-app-title fw-bold">{{ emis_context }}</div>
+              <div class="login-app-subtitle text-muted">{{ app_name }}</div>
+            </div>
+            {# Content column #}
+            <div class="col-md-8">
+              <h5 class="card-title mb-3">Register as a Teacher</h5>
+              <p class="card-text">
+                This portal allows teachers to register with the Ministry of Education.
+                The registration process includes:
+              </p>
+              <ul class="mb-4">
+                <li>Providing your personal information</li>
+                <li>Entering your professional qualifications</li>
+                <li>Uploading required documents (certificates, ID, etc.)</li>
+                <li>Submitting for review by the Ministry</li>
+              </ul>
+              {% if not request.user.is_authenticated %}
+                <p class="card-text text-muted small">
+                  You will need to sign in with your Google account to begin the registration process. This is to verify your identity and ensure we secure all your data.
+                </p>
+              {% endif %}
+              <a href="{% url 'teacher_registration:public_start' %}" class="btn btn-primary btn-lg w-100">
+                {% if request.user.is_authenticated %}
+                  <i class="bi bi-arrow-right-circle me-2"></i> Continue Registration
+                {% else %}
+                  <i class="bi bi-box-arrow-in-right me-2"></i> Start Registration
+                {% endif %}
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
