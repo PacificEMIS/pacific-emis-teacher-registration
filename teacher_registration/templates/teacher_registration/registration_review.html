@@ -180,6 +180,263 @@
         </div>
       </div>
 
+      <!-- Education Records -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">Education Records</h5>
+          <span class="badge bg-light text-body-secondary">{{ registration.education_records.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% with education_records=registration.education_records.all %}
+          {% if education_records %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Institution</th>
+                    <th scope="col">Qualification</th>
+                    <th scope="col">Major / Minor</th>
+                    <th scope="col">Year</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col" class="text-end">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for record in education_records %}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{{ record.institution_name }}</div>
+                        {% if record.program_name %}
+                          <div class="small text-body-secondary">{{ record.program_name }}</div>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.qualification %}
+                          {{ record.qualification }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.major %}
+                          {{ record.major }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                        {% if record.major2 %}
+                          <br>{{ record.major2 }}
+                        {% endif %}
+                        {% if record.minor %}
+                          <br><span class="text-body-secondary">Minor:</span> {{ record.minor }}
+                        {% endif %}
+                        {% if record.minor2 %}
+                          <br><span class="text-body-secondary">Minor:</span> {{ record.minor2 }}
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.completion_year %}
+                          {{ record.completion_year }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.duration %}
+                          {{ record.duration }} {{ record.duration_unit }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end">
+                        {% if record.completed %}
+                          <span class="badge bg-success">Completed</span>
+                        {% else %}
+                          <span class="badge bg-warning text-dark">
+                            In Progress{% if record.percentage_progress %} ({{ record.percentage_progress }}%){% endif %}
+                          </span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No education records submitted.
+            </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- Training Records -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">Training Records</h5>
+          <span class="badge bg-light text-body-secondary">{{ registration.training_records.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% with training_records=registration.training_records.all %}
+          {% if training_records %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Training Title</th>
+                    <th scope="col">Provider</th>
+                    <th scope="col">Focus Area</th>
+                    <th scope="col">Format</th>
+                    <th scope="col">Year</th>
+                    <th scope="col">Duration</th>
+                    <th scope="col" class="text-end">Dates</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for record in training_records %}
+                    <tr>
+                      <td class="fw-semibold">{{ record.title }}</td>
+                      <td>{{ record.provider_institution }}</td>
+                      <td class="small">
+                        {% if record.focus %}
+                          <span class="text-body-secondary">KTC:</span> {{ record.focus }}
+                        {% endif %}
+                        {% if record.general_focus_area %}
+                          {% if record.focus %}<br>{% endif %}
+                          {{ record.general_focus_area }}
+                        {% endif %}
+                        {% if not record.focus and not record.general_focus_area %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.format %}
+                          {{ record.format }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if record.completion_year %}
+                          {{ record.completion_year }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if record.duration %}
+                          {{ record.duration }} {{ record.duration_unit }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-end small">
+                        {% if record.effective_date or record.expiration_date %}
+                          {% if record.effective_date %}
+                            From {{ record.effective_date|date:"Y-m-d" }}
+                          {% endif %}
+                          {% if record.expiration_date %}
+                            <br>Exp. {{ record.expiration_date|date:"Y-m-d" }}
+                          {% endif %}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No training records submitted.
+            </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
+      <!-- School Appointments -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0">School Appointments</h5>
+          <span class="badge bg-light text-body-secondary">{{ registration.claimed_appointments.count }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% with appointments=registration.claimed_appointments.all %}
+          {% if appointments %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">School</th>
+                    <th scope="col">Position</th>
+                    <th scope="col">Level</th>
+                    <th scope="col">Period</th>
+                    <th scope="col">Duties</th>
+                    <th scope="col" class="text-end">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for appointment in appointments %}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{{ appointment.current_school.emis_school_name }}</div>
+                        <div class="small text-body-secondary">{{ appointment.current_school.emis_school_no }}</div>
+                      </td>
+                      <td>
+                        {% if appointment.employment_position %}
+                          {{ appointment.employment_position.label }}
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {{ appointment.teacher_level_type.label }}
+                        {% if appointment.class_type %}
+                          <br><span class="text-body-secondary">{{ appointment.get_class_type_display }}</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% if appointment.start_date %}
+                          From {{ appointment.start_date|date:"Y-m-d" }}
+                        {% else %}
+                          From <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                        <br>
+                        {% if appointment.end_date %}
+                          To {{ appointment.end_date|date:"Y-m-d" }}
+                        {% else %}
+                          To <span class="text-body-secondary">ongoing</span>
+                        {% endif %}
+                        {% if appointment.years_of_experience is not None %}
+                          <br><span class="text-body-secondary">{{ appointment.years_of_experience }} yr{{ appointment.years_of_experience|pluralize }}</span>
+                        {% endif %}
+                      </td>
+                      <td class="small">
+                        {% include "teacher_registration/_duty_list.html" with duties=appointment.claimed_duties.all %}
+                      </td>
+                      <td class="text-end">
+                        {% if appointment.employment_status %}
+                          <span class="badge bg-secondary">{{ appointment.employment_status.label }}</span>
+                        {% else %}
+                          <span class="text-body-secondary">&mdash;</span>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-center text-body-secondary small">
+              No school appointments submitted.
+            </div>
+          {% endif %}
+          {% endwith %}
+        </div>
+      </div>
+
       <!-- Registration Conditions -->
       <div id="conditions-card" class="card shadow-sm mb-4" style="display: none;">
         <div class="card-header">

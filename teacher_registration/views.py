@@ -749,7 +749,18 @@ def registration_review(request, pk):
         TeacherRegistration.objects.select_related(
             "user", "preferred_school", "preferred_job_title", "reviewed_by",  # preferred_school/preferred_job_title: not currently in use
             "approved_staff_profile",
-        ).prefetch_related("documents__doc_link_type"),
+        ).prefetch_related(
+            "documents__doc_link_type",
+            "education_records__qualification",
+            "training_records__focus",
+            "training_records__format",
+            "claimed_appointments__current_school",
+            "claimed_appointments__employment_position",
+            "claimed_appointments__teacher_level_type",
+            "claimed_appointments__employment_status",
+            "claimed_appointments__claimed_duties__year_level",
+            "claimed_appointments__claimed_duties__subject",
+        ),
         pk=pk,
     )
 
