@@ -1369,7 +1369,20 @@ def teacher_certificate(request, pk):
     from pypdf import PdfReader, PdfWriter
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.colors import HexColor
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
+
+    # Register the cursive font for the teacher name
+    font_path = str(
+        django_settings.BASE_DIR
+        / "static"
+        / "teacher_registration"
+        / "fonts"
+        / "GreatVibes-Regular.ttf"
+    )
+    if "GreatVibes" not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont("GreatVibes", font_path))
 
     teacher = get_object_or_404(
         SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
@@ -1432,26 +1445,96 @@ def teacher_certificate(request, pk):
 
     dark_blue = HexColor("#1b3a5c")
 
-    # --- Teacher name (large, centered) above "Has been approved..." ---
-    c.setFont("Helvetica-Bold", 22)
+    # --- Teacher name (large, cursive, centered) above "Has been approved..." ---
+    c.setFont("GreatVibes", 32)
     c.setFillColor(dark_blue)
-    name_width = c.stringWidth(full_name, "Helvetica-Bold", 22)
+    name_width = c.stringWidth(full_name, "GreatVibes", 32)
     c.drawString((page_width - name_width) / 2, page_height * 0.545, full_name)
 
     # --- Registration Type value ---
     c.setFont("Helvetica", 13)
     c.setFillColor(dark_blue)
-    c.drawString(page_width * 0.34, page_height * 0.35, reg_type)
+    c.drawString(page_width * 0.40, page_height * 0.391, reg_type)
 
     # --- Registration Validity value ---
-    c.drawString(page_width * 0.40, page_height * 0.32, validity_text)
+    c.drawString(page_width * 0.40, page_height * 0.363, validity_text)
 
-    # --- Teacher name (bottom-left signature area, replacing "Kaua Tito") ---
-    c.setFont("Helvetica-Bold", 11)
-    # Center below the left signature line
-    sig_name_width = c.stringWidth(full_name, "Helvetica-Bold", 11)
-    sig_center_x = page_width * 0.31
-    c.drawString(sig_center_x - sig_name_width / 2, page_height * 0.22, full_name)
+    # --- Passport photo (bottom-left, replacing "Kaua Tito") ---
+    # Passport photo size (approx 35mm x 45mm = ~99 x 128 points)
+    photo_w = 99
+    photo_h = 128
+    photo_x = page_width * 0.175 
+    photo_y = page_height * 0.16
+
+    # Try to find a passport photo document for this teacher
+    photo_doc = (
+        teacher.documents
+        .filter(doc_link_type__code__in=["PHOTO", "PORTRAIT"])
+        .order_by("-created_at")
+        .first()
+    )
+
+    if photo_doc and photo_doc.file:
+        try:
+            photo_path = photo_doc.file.path
+            c.drawImage(
+                photo_path, photo_x, photo_y, photo_w, photo_h,
+                preserveAspectRatio=True, anchor="c",
+            )
+        except Exception:
+            # Fall back to placeholder on any error
+            photo_doc = None
+
+    if not photo_doc or not photo_doc.file:
+        placeholder_path = str(
+            django_settings.BASE_DIR
+            / "static"
+            / "teacher_registration"
+            / "img"
+            / "profile-photo-placeholder.png"
+        )
+        c.drawImage(
+            placeholder_path, photo_x, photo_y, photo_w, photo_h,
+            preserveAspectRatio=True, anchor="c",
+        )
+
+    # --- Bottom-left: teacher name + "Teacher" title under the photo ---
+    c.setFont("Helvetica-Bold", 13)
+    c.setFillColor(dark_blue)
+    photo_center_x = photo_x + photo_w / 2
+    teacher_name_w = c.stringWidth(full_name, "Helvetica-Bold", 13)
+    c.drawString(photo_center_x - teacher_name_w / 2, photo_y - 16, full_name)
+    c.setFont("Helvetica", 11)
+    teacher_title = "Teacher"
+    title_w = c.stringWidth(teacher_title, "Helvetica", 11)
+    c.drawString(photo_center_x - title_w / 2, photo_y - 30, teacher_title)
+
+    # --- Bottom-right: chair name + title ---
+    c.setFont("Helvetica-Bold", 13)
+    chair_name = "Buakura Metura Timeon"
+    chair_center_x = page_width * 0.735
+    chair_name_w = c.stringWidth(chair_name, "Helvetica-Bold", 13)
+    c.drawString(chair_center_x - chair_name_w / 2, photo_y - 16, chair_name)
+    c.setFont("Helvetica", 11)
+    chair_title = "Chair, Teacher Registration Committee"
+    chair_title_w = c.stringWidth(chair_title, "Helvetica", 11)
+    c.drawString(chair_center_x - chair_title_w / 2, photo_y - 30, chair_title)
+
+    # --- Stamp and signature (centered between the two bottom sections) ---
+    stamp_path = str(
+        django_settings.BASE_DIR
+        / "static"
+        / "teacher_registration"
+        / "img"
+        / "stamp-placeholder.png"
+    )
+    stamp_size = 82
+    stamp_x = chair_center_x - stamp_size / 2
+    stamp_y = photo_y
+    c.drawImage(
+        stamp_path, stamp_x, stamp_y, stamp_size, stamp_size,
+        preserveAspectRatio=True, anchor="c", mask="auto",
+    )
 
     c.save()
     overlay_buf.seek(0)
