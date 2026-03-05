@@ -951,6 +951,7 @@ def condition_add(request, pk):
                 "id": condition.pk,
                 "label": condition.condition.label,
                 "notes": condition.notes,
+                "deadline": condition.deadline.isoformat() if condition.deadline else "",
             })
         return JsonResponse({"error": form.errors}, status=400)
 

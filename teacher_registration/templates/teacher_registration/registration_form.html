@@ -229,7 +229,7 @@
                     </div>
                     <div class="col-md-6">
                       <label class="form-label small edu-duration-label">Duration</label>
-                      <div class="input-group input-group-sm">
+                      <div class="input-group">
                         {{ edu_form.duration }}
                         {{ edu_form.duration_unit }}
                       </div>
@@ -290,12 +290,12 @@
                       <label class="form-label small">Training Title</label>
                       {{ training_form.title }}
                     </div>
-                    <div class="col-md-4">
-                      <label class="form-label small">KTC Focus Area</label>
+                    <div class="col-md-4 ktc-focus-field">
+                      <label class="form-label small">Focus Area</label>
                       {{ training_form.focus }}
                     </div>
-                    <div class="col-md-4">
-                      <label class="form-label small">General Focus Area</label>
+                    <div class="col-md-4 general-focus-field">
+                      <label class="form-label small">Focus Area</label>
                       {{ training_form.general_focus_area }}
                     </div>
                     <div class="col-md-4">
@@ -306,20 +306,21 @@
                       <label class="form-label small">Completion Year</label>
                       {{ training_form.completion_year }}
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                       <label class="form-label small training-duration-label">Duration</label>
-                      <div class="input-group input-group-sm">
+                      <div class="input-group">
                         {{ training_form.duration }}
                         {{ training_form.duration_unit }}
                       </div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                       <label class="form-label small">Effective Date</label>
                       {{ training_form.effective_date }}
                     </div>
-                    <div class="col-md-3">
-                      <label class="form-label small">Expiration Date (leave blank for no expiry)</label>
+                    <div class="col-md-4">
+                      <label class="form-label small">Expiration Date</label>
                       {{ training_form.expiration_date }}
+                      <small class="text-muted d-block">Leave blank for no expiry</small>
                     </div>
                   </div>
                   {{ training_form.id }}
@@ -365,24 +366,24 @@
                         <label class="form-label small">Current School <span class="text-danger">*</span></label>
                         {{ appt_form.current_school }}
                       </div>
-                      <div class="col-md-3">
+                      <div class="col-md-4">
                         <label class="form-label small">Start Date</label>
                         {{ appt_form.start_date }}
                       </div>
-                      <div class="col-md-3">
+                      <div class="col-md-4">
                         <label class="form-label small">End Date</label>
                         {{ appt_form.end_date }}
                         <small class="text-muted d-block">Leave blank if current</small>
                       </div>
-                      <div class="col-md-3">
+                      <div class="col-md-4">
                         <label class="form-label small">Years of Teaching Experience</label>
                         {{ appt_form.years_of_experience }}
                       </div>
-                      <div class="col-md-3">
+                      <div class="col-md-6">
                         <label class="form-label small">Position <span class="text-danger">*</span></label>
                         {{ appt_form.employment_position }}
                       </div>
-                      <div class="col-md-3">
+                      <div class="col-md-6">
                         <label class="form-label small">Employment Status</label>
                         {{ appt_form.employment_status }}
                       </div>

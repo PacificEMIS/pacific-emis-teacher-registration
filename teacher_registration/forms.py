@@ -337,7 +337,7 @@ class RegistrationConditionForm(forms.ModelForm):
 
     class Meta:
         model = RegistrationCondition
-        fields = ["condition", "notes"]
+        fields = ["condition", "notes", "deadline"]
         widgets = {
             "condition": forms.Select(attrs={"class": "form-select"}),
             "notes": forms.Textarea(
@@ -345,6 +345,13 @@ class RegistrationConditionForm(forms.ModelForm):
                     "class": "form-control",
                     "rows": 2,
                     "placeholder": "Optional notes about this condition",
+                }
+            ),
+            "deadline": forms.DateInput(
+                attrs={
+                    "class": "form-control",
+                    "type": "date",
+                    "placeholder": "Optional deadline",
                 }
             ),
         }

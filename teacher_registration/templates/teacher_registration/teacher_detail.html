@@ -203,6 +203,7 @@
               {% for cond in teacher.conditions.all %}
                 <li class="list-group-item px-0 py-1">
                   <strong>{{ cond.condition.label }}</strong>
+                  {% if cond.deadline %}<br><span class="text-muted small"><i class="bi bi-calendar-event me-1"></i>Deadline: {{ cond.deadline }}</span>{% endif %}
                   {% if cond.notes %}<br><span class="text-muted small">{{ cond.notes }}</span>{% endif %}
                 </li>
               {% endfor %}
@@ -451,13 +452,10 @@
                       <td>{{ record.provider_institution }}</td>
                       <td class="small">
                         {% if record.focus %}
-                          <span class="text-body-secondary">KTC:</span> {{ record.focus }}
-                        {% endif %}
-                        {% if record.general_focus_area %}
-                          {% if record.focus %}<br>{% endif %}
+                          {{ record.focus }}
+                        {% elif record.general_focus_area %}
                           {{ record.general_focus_area }}
-                        {% endif %}
-                        {% if not record.focus and not record.general_focus_area %}
+                        {% else %}
                           <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>

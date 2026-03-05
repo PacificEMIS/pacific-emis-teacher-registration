@@ -299,13 +299,10 @@
                       <td>{{ record.provider_institution }}</td>
                       <td class="small">
                         {% if record.focus %}
-                          <span class="text-body-secondary">KTC:</span> {{ record.focus }}
-                        {% endif %}
-                        {% if record.general_focus_area %}
-                          {% if record.focus %}<br>{% endif %}
+                          {{ record.focus }}
+                        {% elif record.general_focus_area %}
                           {{ record.general_focus_area }}
-                        {% endif %}
-                        {% if not record.focus and not record.general_focus_area %}
+                        {% else %}
                           <span class="text-body-secondary">&mdash;</span>
                         {% endif %}
                       </td>
@@ -448,6 +445,7 @@
               <div class="d-flex justify-content-between align-items-start border-bottom py-2" data-condition-id="{{ cond.pk }}">
                 <div>
                   <strong>{{ cond.condition.label }}</strong>
+                  {% if cond.deadline %}<br><span class="text-muted small"><i class="bi bi-calendar-event me-1"></i>Deadline: {{ cond.deadline }}</span>{% endif %}
                   {% if cond.notes %}<br><span class="text-muted small">{{ cond.notes }}</span>{% endif %}
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger condition-remove-btn" data-url="{% url 'teacher_registration:condition_remove' pk=cond.pk %}">
@@ -462,8 +460,13 @@
 
           <hr>
           <div class="row g-2">
-            <div class="col-12">
+            <div class="col-9">
+              <label for="id_condition" class="form-label small text-muted mb-1">Condition</label>
               {{ condition_form.condition }}
+            </div>
+            <div class="col-3">
+              <label for="id_deadline" class="form-label small text-muted mb-1">Deadline (optional)</label>
+              {{ condition_form.deadline }}
             </div>
             <div class="col-12">
               {{ condition_form.notes }}
@@ -595,6 +598,7 @@
     const conditionAddBtn = document.getElementById('condition-add-btn');
     const conditionSelect = document.getElementById('id_condition');
     const notesField = document.getElementById('id_notes');
+    const deadlineField = document.getElementById('id_deadline');
     const addUrl = conditionAddBtn.dataset.url;
 
     function updateConditionsEmpty() {
@@ -610,6 +614,7 @@
       const formData = new FormData();
       formData.append('condition', conditionSelect.value);
       formData.append('notes', notesField.value);
+      formData.append('deadline', deadlineField.value);
 
       return fetch(addUrl, {
         method: 'POST',
@@ -630,6 +635,7 @@
         row.dataset.conditionId = data.id;
         row.innerHTML =
           '<div><strong>' + data.label + '</strong>' +
+          (data.deadline ? '<br><span class="text-muted small"><i class="bi bi-calendar-event me-1"></i>Deadline: ' + data.deadline + '</span>' : '') +
           (data.notes ? '<br><span class="text-muted small">' + data.notes + '</span>' : '') +
           '</div>' +
           '<button type="button" class="btn btn-sm btn-outline-danger condition-remove-btn" data-url="' + removeUrl + '">' +
@@ -638,6 +644,7 @@
 
         conditionSelect.value = '';
         notesField.value = '';
+        deadlineField.value = '';
         updateConditionsEmpty();
         return true;
       });
