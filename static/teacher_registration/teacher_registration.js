@@ -110,6 +110,39 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // =========================================================================
+  // Training Focus Area Toggle - KTC vs General based on provider
+  // =========================================================================
+  function isKtcProvider(value) {
+    const v = (value || '').toLowerCase().trim();
+    return v === 'ktc' || v.includes('kiribati teachers college') || v.includes('kiribati teacher college');
+  }
+
+  function updateTrainingFocusFields(trainingRow) {
+    const providerInput = trainingRow.querySelector('[name$="-provider_institution"]');
+    const ktcField = trainingRow.querySelector('.ktc-focus-field');
+    const generalField = trainingRow.querySelector('.general-focus-field');
+
+    if (!providerInput || !ktcField || !generalField) return;
+
+    if (isKtcProvider(providerInput.value)) {
+      ktcField.style.display = 'block';
+      generalField.style.display = 'none';
+    } else {
+      ktcField.style.display = 'none';
+      generalField.style.display = 'block';
+    }
+  }
+
+  // Bind to existing training rows
+  document.querySelectorAll('.training-row').forEach(row => {
+    const providerInput = row.querySelector('[name$="-provider_institution"]');
+    if (providerInput) {
+      providerInput.addEventListener('input', () => updateTrainingFocusFields(row));
+      updateTrainingFocusFields(row);
+    }
+  });
+
+  // =========================================================================
   // Formset Management - Add/Remove rows
   // =========================================================================
   function getFormsetInfo(formsetType) {
@@ -216,9 +249,14 @@ document.addEventListener('DOMContentLoaded', function() {
         bindEducationDurationLabel(newRow);
       }
 
-      // For training rows, bind duration label
+      // For training rows, bind duration label and focus area toggle
       if (formsetType === 'training') {
         bindTrainingDurationLabel(newRow);
+        const providerInput = newRow.querySelector('[name$="-provider_institution"]');
+        if (providerInput) {
+          providerInput.addEventListener('input', () => updateTrainingFocusFields(newRow));
+          updateTrainingFocusFields(newRow);
+        }
       }
 
       // For appointment rows, bind teacher level select

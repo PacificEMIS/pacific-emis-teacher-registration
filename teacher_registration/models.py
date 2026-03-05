@@ -1605,6 +1605,12 @@ class RegistrationCondition(AuditModel):
         help_text="Free-form notes about this condition",
     )
 
+    deadline = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Optional deadline date for this condition to be met",
+    )
+
     class Meta:
         ordering = ["condition", "created_at"]
         verbose_name = "Registration Condition"

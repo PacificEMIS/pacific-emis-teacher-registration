@@ -113,7 +113,7 @@ class RegistrationConditionInline(admin.TabularInline):
 
     model = RegistrationCondition
     extra = 0
-    fields = ["condition", "notes"]
+    fields = ["condition", "notes", "deadline"]
 
 
 class RegistrationChangeLogInline(admin.TabularInline):
@@ -392,11 +392,12 @@ class RegistrationConditionAdmin(admin.ModelAdmin):
     list_display = [
         "id",
         "condition",
+        "deadline",
         "registration",
         "school_staff",
         "created_at",
     ]
-    list_filter = ["condition", "created_at"]
+    list_filter = ["condition", "deadline", "created_at"]
     search_fields = ["condition__label", "notes"]
     autocomplete_fields = ["registration", "school_staff", "condition"]
     readonly_fields = ["created_at", "created_by"]
