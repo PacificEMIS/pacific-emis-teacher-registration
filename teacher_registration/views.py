@@ -9,6 +9,7 @@ This module provides views for:
 import re
 from collections import defaultdict
 from datetime import timedelta
+from io import BytesIO
 
 from django.contrib import messages
 from django.contrib.auth import logout
@@ -17,7 +18,7 @@ from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -1358,6 +1359,120 @@ def teacher_resend_renewal_notification(request, pk):
 
     messages.success(request, msg) if ok else messages.error(request, msg)
     return redirect("teacher_registration:teacher_detail", pk=pk)
+
+
+@login_required
+@require_app_access
+def teacher_certificate(request, pk):
+    """Generate a PDF certificate for an approved teacher."""
+    from django.conf import settings as django_settings
+    from pypdf import PdfReader, PdfWriter
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.colors import HexColor
+    from reportlab.pdfgen import canvas
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user", "teacher_registration_status"),
+        pk=pk,
+    )
+
+    if teacher.registration_application_status != constants.APPROVED:
+        raise PermissionDenied("Certificate is only available for approved teachers.")
+
+    # Build teacher full name with title
+    title_display = teacher.get_title_display() if teacher.title else ""
+    first = teacher.user.first_name or ""
+    last = teacher.user.last_name or ""
+    full_name = f"{title_display} {first} {last}".strip()
+    if not full_name:
+        full_name = teacher.user.username
+
+    # Registration type label
+    reg_type = ""
+    if teacher.teacher_registration_status:
+        reg_type = teacher.teacher_registration_status.label
+
+    # Registration validity: approval date → valid until
+    approved_reg = (
+        teacher.registration_history
+        .filter(status=constants.APPROVED)
+        .order_by("-reviewed_at")
+        .first()
+    )
+    from_date = approved_reg.reviewed_at if approved_reg else teacher.created_at
+    until_date = teacher.registration_valid_until
+
+    validity_text = ""
+    if from_date and until_date:
+        validity_text = (
+            f"{from_date.strftime('%d %B %Y')} until {until_date.strftime('%d %B %Y')}"
+        )
+    elif until_date:
+        validity_text = f"Until {until_date.strftime('%d %B %Y')}"
+
+    # Load the PDF template
+    template_path = (
+        django_settings.BASE_DIR
+        / "static"
+        / "teacher_registration"
+        / "template"
+        / "certificate-template.pdf"
+    )
+    reader = PdfReader(str(template_path))
+    template_page = reader.pages[0]
+
+    # Get the actual page dimensions from the template
+    page_width = float(template_page.mediabox.width)
+    page_height = float(template_page.mediabox.height)
+
+    # Create overlay with dynamic text
+    overlay_buf = BytesIO()
+    c = canvas.Canvas(overlay_buf, pagesize=(page_width, page_height))
+
+    dark_blue = HexColor("#1b3a5c")
+
+    # --- Teacher name (large, centered) above "Has been approved..." ---
+    c.setFont("Helvetica-Bold", 22)
+    c.setFillColor(dark_blue)
+    name_width = c.stringWidth(full_name, "Helvetica-Bold", 22)
+    c.drawString((page_width - name_width) / 2, page_height * 0.545, full_name)
+
+    # --- Registration Type value ---
+    c.setFont("Helvetica", 13)
+    c.setFillColor(dark_blue)
+    c.drawString(page_width * 0.34, page_height * 0.35, reg_type)
+
+    # --- Registration Validity value ---
+    c.drawString(page_width * 0.40, page_height * 0.32, validity_text)
+
+    # --- Teacher name (bottom-left signature area, replacing "Kaua Tito") ---
+    c.setFont("Helvetica-Bold", 11)
+    # Center below the left signature line
+    sig_name_width = c.stringWidth(full_name, "Helvetica-Bold", 11)
+    sig_center_x = page_width * 0.31
+    c.drawString(sig_center_x - sig_name_width / 2, page_height * 0.22, full_name)
+
+    c.save()
+    overlay_buf.seek(0)
+
+    # Merge overlay onto template
+    overlay_reader = PdfReader(overlay_buf)
+    overlay_page = overlay_reader.pages[0]
+    template_page.merge_page(overlay_page)
+
+    writer = PdfWriter()
+    writer.add_page(template_page)
+
+    output_buf = BytesIO()
+    writer.write(output_buf)
+    output_buf.seek(0)
+
+    response = HttpResponse(output_buf.read(), content_type="application/pdf")
+    response["Content-Disposition"] = (
+        f'inline; filename="certificate-{teacher.teacher_registration_number or pk}.pdf"'
+    )
+    return response
 
 
 # =============================================================================
