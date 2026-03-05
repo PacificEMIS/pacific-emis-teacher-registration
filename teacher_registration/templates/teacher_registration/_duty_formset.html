@@ -10,9 +10,12 @@ Expects context:
 <form id="duty-form-{{ appointment.pk }}" method="post" action="{% url 'teacher_registration:manage_claimed_duties' appointment.pk %}">
   {% csrf_token %}
 
-  <button type="button" class="btn btn-sm btn-outline-primary add-duty-group mb-3" data-appointment="{{ appointment.pk }}">
-    <i class="bi bi-plus-circle me-1"></i> Add Class Level
-  </button>
+  <div class="d-flex align-items-center mb-3 gap-2">
+    <button type="button" class="btn btn-sm btn-outline-primary add-duty-group flex-shrink-0" data-appointment="{{ appointment.pk }}">
+      <i class="bi bi-plus-circle me-1"></i> Add Class Level
+    </button>
+    <span class="text-muted small">Add <strong>all</strong> the class levels you teach and select for each <strong>all</strong> the subjects.</span>
+  </div>
 
   <div id="duty-groups-{{ appointment.pk }}" class="duty-groups-container">
     {% for group in grouped_duties %}
