@@ -1,14 +1,20 @@
 {% extends "base.html" %}
-{% load socialaccount %}
+{% load static socialaccount %}
 {% block content %}
   <div class="container d-flex justify-content-center">
     <div class="w-100">
       <div class="py-4 px-3 text-center">
+        {# Branding: logo + context + app name (mirrors sidebar) #}
+        <img src="{% static 'app/logos/' %}{{ emis_logo }}.png"
+             alt="{{ emis_context }} Logo"
+             class="login-logo mb-2">
+        <div class="login-app-title fw-bold">{{ emis_context }}</div>
+        <div class="login-app-subtitle text-muted">{{ app_name }}</div>
+
         {% if is_registration_flow %}
           {# Registration flow - teacher self-registration #}
-          <i class="bi bi-mortarboard display-1 text-primary"></i>
-          <h1 class="mt-3">Teacher Registration</h1>
-          <p class="lead text-muted">Sign in to start or continue your teacher registration</p>
+          <h1 class="h4 mt-4">Sign In</h1>
+          <p class="text-muted">Sign in to start or continue your teacher registration</p>
 
           <p class="mt-4">
             <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary btn-lg px-4 py-2">
@@ -27,8 +33,8 @@
           </div>
         {% else %}
           {# Standard admin/staff login #}
-          <h1>Sign in</h1>
-          <p>Use your organization Google account to access the {{ emis_context }} — {{ app_name }}.</p>
+          <h1 class="h4 mt-4">Sign In</h1>
+          <p class="text-muted">Use your organization Google account to sign in.</p>
 
           <p class="mt-4">
             <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary px-4 py-2">

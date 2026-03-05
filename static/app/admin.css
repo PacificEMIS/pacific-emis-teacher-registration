@@ -48,6 +48,22 @@
   color: #ccc;
 }
 
+/* Login page branding (larger than sidebar) */
+.login-logo {
+  width: 150px;
+  height: auto;
+  object-fit: contain;
+}
+
+.login-app-title {
+  font-size: 1.75rem;
+  letter-spacing: 0.05em;
+}
+
+.login-app-subtitle {
+  font-size: 1.25rem;
+}
+
 /* Keep sidebar tidy */
 .sidebar .nav-link {
   border-radius: .5rem;

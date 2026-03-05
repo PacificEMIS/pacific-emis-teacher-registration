@@ -759,7 +759,7 @@ class StaffTrainingRecord(AuditModel):
     duration_unit = models.CharField(
         max_length=10,
         choices=DURATION_UNIT_CHOICES,
-        default=HOURS,
+        default=DAYS,
     )
 
     effective_date = models.DateField(

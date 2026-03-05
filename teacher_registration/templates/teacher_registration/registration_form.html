@@ -556,7 +556,7 @@
         <div class="card-header">
           <h6 class="mb-0">Upload Document</h6>
         </div>
-        <form method="post"
+        <form id="document-upload-form" method="post"
               action="{% url 'teacher_registration:document_upload' registration.pk %}"
               enctype="multipart/form-data">
           {% csrf_token %}
@@ -583,7 +583,7 @@
               {{ document_form.file }}
               <div class="form-text">PDF or image files up to 10MB</div>
             </div>
-            <button type="submit" class="btn btn-outline-primary w-100">
+            <button type="submit" id="upload-doc-btn" class="btn btn-outline-primary w-100">
               <i class="bi bi-upload me-1"></i> Upload Document
             </button>
           </div>
