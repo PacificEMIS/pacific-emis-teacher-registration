@@ -652,14 +652,30 @@
 
     conditionAddBtn.addEventListener('click', saveCondition);
 
-    // Auto-save pending condition before form submission
+    // Auto-save pending condition before form submission + require at least one
     const reviewForm = decisionPanel.closest('form');
     reviewForm.addEventListener('submit', function(e) {
-      if (hasPendingCondition() && conditionsCard.style.display !== 'none') {
+      var isConditional = conditionsCard.style.display !== 'none';
+      if (!isConditional) return;
+
+      var hasExisting = conditionsList.querySelectorAll('[data-condition-id]').length > 0;
+      var hasPending = hasPendingCondition();
+
+      if (hasPending) {
         e.preventDefault();
-        saveCondition().then(function() {
-          reviewForm.submit();
+        saveCondition().then(function(saved) {
+          if (saved || hasExisting) {
+            reviewForm.submit();
+          } else {
+            alert('Conditional registration requires at least one condition.');
+          }
         });
+        return;
+      }
+
+      if (!hasExisting) {
+        e.preventDefault();
+        alert('Conditional registration requires at least one condition. Please add conditions before approving.');
       }
     });
 

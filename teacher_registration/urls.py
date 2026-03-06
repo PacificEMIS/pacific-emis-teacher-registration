@@ -58,6 +58,11 @@ urlpatterns = [
         name="teacher_force_expiry",
     ),
     path(
+        "teachers/<int:pk>/renew-on-behalf/",
+        views.teacher_renew_on_behalf,
+        name="teacher_renew_on_behalf",
+    ),
+    path(
         "teachers/<int:pk>/certificate/",
         views.teacher_certificate,
         name="teacher_certificate",

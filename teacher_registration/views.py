@@ -385,6 +385,15 @@ def staff_register_teacher(request):
             if existing_user:
                 # Already registered as school staff
                 if hasattr(existing_user, "school_staff"):
+                    staff = existing_user.school_staff
+                    if staff.registration_application_status == constants.EXPIRED:
+                        # Redirect to teacher profile where they can use "Renew on Behalf"
+                        messages.info(
+                            request,
+                            f"{existing_user.get_full_name() or email} has an expired registration. "
+                            f"Use the \"Renew on Behalf\" button on their profile to start a renewal.",
+                        )
+                        return redirect("teacher_registration:teacher_detail", pk=staff.pk)
                     messages.warning(
                         request,
                         f"{existing_user.get_full_name() or email} is already registered as school staff.",
@@ -930,7 +939,7 @@ def registration_review(request, pk):
                 messages.success(request, "Checklist saved.")
             return redirect("teacher_registration:review", pk=registration.pk)
 
-        form = RegistrationReviewForm(request.POST)
+        form = RegistrationReviewForm(request.POST, registration=registration)
 
         if form.is_valid():
             action = form.cleaned_data["action"]
@@ -1592,15 +1601,179 @@ def teacher_force_expiry(request, pk):
 
 @login_required
 @require_app_access
+def teacher_renew_on_behalf(request, pk):
+    """Start a renewal registration on behalf of an expired teacher."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    staff = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user", "teacher_registration_status"),
+        pk=pk,
+    )
+
+    if staff.registration_application_status != constants.EXPIRED:
+        messages.error(request, "Only expired registrations can be renewed.")
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    teacher_user = staff.user
+    name_display = teacher_user.get_full_name() or teacher_user.email
+
+    # Guard: check for existing in-progress renewal
+    existing_renewal = TeacherRegistration.objects.filter(
+        user=teacher_user,
+        registration_type=TeacherRegistration.RENEWAL,
+        status__in=[constants.DRAFT, constants.SUBMITTED, constants.UNDER_REVIEW],
+    ).first()
+
+    if existing_renewal:
+        if existing_renewal.is_editable:
+            messages.info(
+                request,
+                f"{name_display} already has a renewal in progress.",
+            )
+            return redirect("teacher_registration:edit", pk=existing_renewal.pk)
+        messages.info(
+            request,
+            f"{name_display} already has a renewal pending review.",
+        )
+        return redirect("teacher_registration:review", pk=existing_renewal.pk)
+
+    # Create RENEWAL registration pre-filled from SchoolStaff
+    registration = TeacherRegistration.objects.create(
+        user=teacher_user,
+        registration_type=TeacherRegistration.RENEWAL,
+        teacher_category=TeacherRegistration.CURRENT_TEACHER,
+        status=constants.DRAFT,
+        approved_staff_profile=staff,
+        # Personal information
+        title=staff.title,
+        date_of_birth=staff.date_of_birth,
+        gender=staff.gender,
+        marital_status=staff.marital_status,
+        nationality=staff.nationality,
+        national_id_number=staff.national_id_number,
+        home_island=staff.home_island,
+        # Contact information
+        phone_number=staff.phone_number,
+        phone_home=staff.phone_home,
+        # Residential address
+        residential_address=staff.residential_address,
+        nearby_school=staff.nearby_school,
+        # Business address
+        business_address=staff.business_address,
+        # Professional information
+        teacher_payroll_number=staff.teacher_payroll_number,
+        highest_qualification=staff.highest_qualification,
+        years_of_experience=staff.years_of_experience,
+        # Audit
+        created_by=request.user,
+        last_updated_by=request.user,
+    )
+
+    # Copy education records from StaffEducationRecord → EducationRecord
+    for edu in staff.education_records.all():
+        EducationRecord.objects.create(
+            registration=registration,
+            institution_name=edu.institution_name,
+            qualification=edu.qualification,
+            program_name=edu.program_name,
+            major=edu.major,
+            major2=edu.major2,
+            minor=edu.minor,
+            minor2=edu.minor2,
+            completion_year=edu.completion_year,
+            duration=edu.duration,
+            duration_unit=edu.duration_unit,
+            completed=edu.completed,
+            percentage_progress=edu.percentage_progress,
+            comment=edu.comment,
+            created_by=request.user,
+            last_updated_by=request.user,
+        )
+
+    # Copy training records from StaffTrainingRecord → TrainingRecord
+    for training in staff.training_records.all():
+        TrainingRecord.objects.create(
+            registration=registration,
+            provider_institution=training.provider_institution,
+            title=training.title,
+            focus=training.focus,
+            general_focus_area=training.general_focus_area,
+            format=training.format,
+            completion_year=training.completion_year,
+            duration=training.duration,
+            duration_unit=training.duration_unit,
+            effective_date=training.effective_date,
+            expiration_date=training.expiration_date,
+            created_by=request.user,
+            last_updated_by=request.user,
+        )
+
+    # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
+    for assignment in staff.assignments.all():
+        appointment = ClaimedSchoolAppointment.objects.create(
+            registration=registration,
+            current_school=assignment.school,
+            employment_position=assignment.job_title,
+            teacher_level_type=assignment.teacher_level_type,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+            created_by=request.user,
+            last_updated_by=request.user,
+        )
+
+        for duty in assignment.teaching_duties.all():
+            ClaimedDuty.objects.create(
+                appointment=appointment,
+                year_level=duty.year_level,
+                subject=duty.subject,
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+    # Log creation
+    RegistrationChangeLog.log_change(
+        registration=registration,
+        field_name="status",
+        old_value="",
+        new_value=constants.DRAFT,
+        changed_by=request.user,
+        notes="Renewal registration created (by staff on behalf of teacher)",
+    )
+
+    # Send admin notification email
+    pending_registrations_url = request.build_absolute_uri(
+        reverse("teacher_registration:pending_list")
+    )
+    send_new_teacher_registration_email_async(
+        registration=registration,
+        pending_registrations_url=pending_registrations_url,
+    )
+
+    messages.success(
+        request,
+        f"Renewal started for {name_display}. Information has been pre-filled from their existing profile.",
+    )
+    return redirect("teacher_registration:edit", pk=registration.pk)
+
+
+@login_required
+@require_app_access
 def teacher_certificate(request, pk):
     """Generate a PDF certificate for an approved teacher."""
     from django.conf import settings as django_settings
     from pypdf import PdfReader, PdfWriter
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.colors import HexColor
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
+    from reportlab.platypus import Paragraph, Table, TableStyle
 
     # Register the cursive font for the teacher name
     font_path = str(
@@ -1615,12 +1788,15 @@ def teacher_certificate(request, pk):
 
     teacher = get_object_or_404(
         SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
-        .select_related("user", "teacher_registration_status"),
+        .select_related("user", "teacher_registration_status")
+        .prefetch_related("conditions__condition"),
         pk=pk,
     )
 
-    if teacher.registration_application_status != constants.APPROVED:
-        raise PermissionDenied("Certificate is only available for approved teachers.")
+    if teacher.registration_application_status not in (constants.APPROVED, constants.EXPIRED):
+        raise PermissionDenied("Certificate is only available for approved or expired teachers.")
+
+    is_expired = teacher.registration_application_status == constants.EXPIRED
 
     # Build teacher full name with title
     title_display = teacher.get_title_display() if teacher.title else ""
@@ -1646,7 +1822,9 @@ def teacher_certificate(request, pk):
     until_date = teacher.registration_valid_until
 
     validity_text = ""
-    if from_date and until_date:
+    if is_expired and until_date:
+        validity_text = f"Expired on {until_date.strftime('%d %B %Y')}"
+    elif from_date and until_date:
         validity_text = (
             f"{from_date.strftime('%d %B %Y')} until {until_date.strftime('%d %B %Y')}"
         )
@@ -1765,6 +1943,46 @@ def teacher_certificate(request, pk):
         preserveAspectRatio=True, anchor="c", mask="auto",
     )
 
+    # --- Determine extra pages before finalising the first-page overlay ---
+    is_conditional = (
+        teacher.teacher_registration_status is not None
+        and teacher.teacher_registration_status.badge_class == "bg-reg-conditional"
+    )
+    conditions = list(teacher.conditions.all()) if is_conditional else []
+    has_conditions_page = is_conditional and bool(conditions)
+
+    is_full_reg = (
+        teacher.teacher_registration_status is not None
+        and teacher.teacher_registration_status.badge_class == "bg-reg-full"
+    )
+    total_pages = 1 + (1 if has_conditions_page else 0)
+
+    # --- Page footer (bottom-right, for non-Full Registration) ---
+    if not is_full_reg:
+        c.setFont("Helvetica", 8)
+        c.setFillColor(HexColor("#2B2B2B"))
+        footer_parts = []
+        if total_pages > 1:
+            footer_parts.append("(See more pages attached)")
+        footer_parts.append(f"Page 1 of {total_pages}")
+        footer_text = "  ".join(footer_parts)
+        footer_w = c.stringWidth(footer_text, "Helvetica", 8)
+        c.drawString(page_width - footer_w - 50, 60, footer_text)
+        c.setFillColor(dark_blue)  # restore
+
+    # --- "REGISTRATION EXPIRED" watermark for expired teachers ---
+    if is_expired:
+        c.saveState()
+        c.setFillColor(HexColor("#e53935"))
+        c.setFillAlpha(0.25)
+        c.setFont("Helvetica-Bold", 50)
+        c.translate(page_width / 2, page_height / 2)
+        c.rotate(35)
+        watermark = "REGISTRATION EXPIRED"
+        wm_width = c.stringWidth(watermark, "Helvetica-Bold", 50)
+        c.drawString(-wm_width / 2, 0, watermark)
+        c.restoreState()
+
     c.save()
     overlay_buf.seek(0)
 
@@ -1775,6 +1993,131 @@ def teacher_certificate(request, pk):
 
     writer = PdfWriter()
     writer.add_page(template_page)
+
+    # --- Conditions page (for conditional registration with conditions) ---
+    if has_conditions_page:
+        # Load page-2 template
+        page2_template_path = (
+            django_settings.BASE_DIR
+            / "static"
+            / "teacher_registration"
+            / "template"
+            / "certificate-page2-template.pdf"
+        )
+        page2_reader = PdfReader(str(page2_template_path))
+        page2_template = page2_reader.pages[0]
+
+        cond_buf = BytesIO()
+        cond_canvas = canvas.Canvas(cond_buf, pagesize=(page_width, page_height))
+
+        # Title
+        cond_canvas.setFont("Helvetica-Bold", 20)
+        cond_canvas.setFillColor(dark_blue)
+        title_text = "Conditions for Registration"
+        title_w = cond_canvas.stringWidth(title_text, "Helvetica-Bold", 20)
+        cond_canvas.drawString(
+            (page_width - title_w) / 2, page_height - 160, title_text
+        )
+
+        # Subtitle
+        cond_canvas.setFont("Helvetica", 11)
+        subtitle = (
+            "Continued registration is subject to meeting the following conditions:"
+        )
+        subtitle_w = cond_canvas.stringWidth(subtitle, "Helvetica", 11)
+        cond_canvas.drawString(
+            (page_width - subtitle_w) / 2, page_height - 190, subtitle
+        )
+
+        # Teacher identification
+        cond_canvas.setFont("Helvetica", 10)
+        id_text = f"{full_name}  \u2014  {reg_type}"
+        id_w = cond_canvas.stringWidth(id_text, "Helvetica", 10)
+        cond_canvas.drawString(
+            (page_width - id_w) / 2, page_height - 210, id_text
+        )
+
+        # Build table data with Paragraph cells for text wrapping
+        notes_style = ParagraphStyle(
+            "ConditionNotes",
+            fontName="Helvetica",
+            fontSize=9,
+            leading=12,
+            textColor=HexColor("#333333"),
+        )
+        header_style = ParagraphStyle(
+            "ConditionHeader",
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=13,
+            textColor=HexColor("#ffffff"),
+        )
+
+        table_data = [
+            [
+                Paragraph("Condition", header_style),
+                Paragraph("Notes", header_style),
+                Paragraph("Deadline", header_style),
+            ]
+        ]
+
+        for cond in conditions:
+            deadline_str = (
+                cond.deadline.strftime("%d %B %Y") if cond.deadline else "\u2014"
+            )
+            table_data.append([
+                Paragraph(cond.condition.label, notes_style),
+                Paragraph(cond.notes or "\u2014", notes_style),
+                Paragraph(deadline_str, notes_style),
+            ])
+
+        left_margin = 60
+        usable_width = page_width - 120
+        col_widths = [
+            usable_width * 0.30,
+            usable_width * 0.50,
+            usable_width * 0.20,
+        ]
+
+        table = Table(table_data, colWidths=col_widths)
+        table.setStyle(TableStyle([
+            # Header row
+            ("BACKGROUND", (0, 0), (-1, 0), dark_blue),
+            ("TEXTCOLOR", (0, 0), (-1, 0), HexColor("#ffffff")),
+            # Alternating row colors
+            *[
+                ("BACKGROUND", (0, i), (-1, i), HexColor("#f0f4f8"))
+                for i in range(2, len(table_data), 2)
+            ],
+            # Padding
+            ("TOPPADDING", (0, 0), (-1, 0), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 1), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+            # Grid and alignment
+            ("GRID", (0, 0), (-1, -1), 0.5, HexColor("#cccccc")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+
+        table_top_y = page_height - 240
+        _, th = table.wrapOn(cond_canvas, usable_width, table_top_y)
+        table.drawOn(cond_canvas, left_margin, table_top_y - th)
+
+        # Page footer
+        cond_canvas.setFont("Helvetica", 8)
+        cond_canvas.setFillColor(HexColor("#2B2B2B"))
+        pg2_text = f"Page 2 of {total_pages}"
+        pg2_w = cond_canvas.stringWidth(pg2_text, "Helvetica", 8)
+        cond_canvas.drawString(page_width - pg2_w - 50, 60, pg2_text)
+
+        cond_canvas.save()
+        cond_buf.seek(0)
+
+        cond_reader = PdfReader(cond_buf)
+        page2_template.merge_page(cond_reader.pages[0])
+        writer.add_page(page2_template)
 
     output_buf = BytesIO()
     writer.write(output_buf)

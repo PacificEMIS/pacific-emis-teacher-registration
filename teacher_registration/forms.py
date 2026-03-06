@@ -355,6 +355,10 @@ class RegistrationReviewForm(forms.Form):
         ),
     )
 
+    def __init__(self, *args, registration=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.registration = registration
+
     def clean(self):
         """Require comments for rejection. Require registration status for approval."""
         cleaned_data = super().clean()
@@ -369,6 +373,20 @@ class RegistrationReviewForm(forms.Form):
         if action == self.ACTION_APPROVE and not cleaned_data.get("teacher_registration_status"):
             raise forms.ValidationError(
                 {"teacher_registration_status": "Please select a registration status for approval."}
+            )
+
+        # Conditional registration requires at least one condition
+        reg_status = cleaned_data.get("teacher_registration_status")
+        if (
+            action == self.ACTION_APPROVE
+            and reg_status
+            and reg_status.badge_class == "bg-reg-conditional"
+            and self.registration
+            and not self.registration.conditions.exists()
+        ):
+            raise forms.ValidationError(
+                "Conditional registration requires at least one condition. "
+                "Please add conditions before approving."
             )
 
         return cleaned_data
