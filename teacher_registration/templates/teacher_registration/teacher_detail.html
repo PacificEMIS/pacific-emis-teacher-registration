@@ -41,16 +41,8 @@
         {% endif %}
       </div>
     </div>
-    <div class="d-flex gap-2">
-      <a href="{% url 'teacher_registration:teachers_list' %}"
-         class="btn btn-sm btn-outline-secondary">← Back to teachers</a>
-      {% if can_delete %}
-        <a href="{% url 'teacher_registration:teacher_delete' teacher.pk %}"
-           class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-trash me-1"></i> Delete
-        </a>
-      {% endif %}
-    </div>
+    <a href="{% url 'teacher_registration:teachers_list' %}"
+       class="btn btn-sm btn-outline-secondary">← Back to teachers</a>
   </div>
 
   {# FIRST ROW: Profile + Registration Info #}
@@ -62,6 +54,21 @@
           <h2 class="h6 mb-0">Profile</h2>
         </div>
         <div class="card-body small">
+          <div class="d-flex gap-3">
+            {# Passport photo #}
+            <div class="flex-shrink-0">
+              {% if passport_photo and passport_photo.file %}
+                <img src="{{ passport_photo.file.url }}"
+                     alt="Passport photo"
+                     class="passport-photo">
+              {% else %}
+                <img src="{% static 'teacher_registration/img/profile-photo-placeholder.png' %}"
+                     alt="No photo"
+                     class="passport-photo">
+              {% endif %}
+            </div>
+            {# Profile details #}
+            <div class="flex-grow-1">
           <dl class="row mb-2">
             <dt class="col-5">Name</dt>
             <dd class="col-7">
@@ -120,6 +127,8 @@
               {% endif %}
             </dd>
           </dl>
+            </div>
+          </div>
           <hr>
           <dl class="row mb-0">
             <dt class="col-5">Residential Address</dt>
@@ -250,24 +259,6 @@
         </div>
       </div>
 
-      <!-- External Data -->
-      <div class="card shadow-sm flex-fill">
-        <div class="card-header">
-          <h2 class="h6 mb-0">External Data</h2>
-        </div>
-        <div class="card-body small">
-          <dl class="row mb-0">
-            <dt class="col-5">Payroll Number</dt>
-            <dd class="col-7">
-              {% if teacher.teacher_payroll_number %}
-                {{ teacher.teacher_payroll_number }}
-              {% else %}
-                <span class="text-body-secondary">Not set</span>
-              {% endif %}
-            </dd>
-          </dl>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -601,17 +592,36 @@
     </div>
   {% endif %}
 
-  {# Audit Information #}
+  {# External Data + Audit Information #}
   <div class="row g-3 mt-2">
-    <div class="col-12">
-      <div class="card shadow-sm">
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
+        <div class="card-header">
+          <h2 class="h6 mb-0">External Data</h2>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-0">
+            <dt class="col-5">Payroll Number</dt>
+            <dd class="col-7">
+              {% if teacher.teacher_payroll_number %}
+                {{ teacher.teacher_payroll_number }}
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm h-100">
         <div class="card-header">
           <h2 class="h6 mb-0">Audit Information</h2>
         </div>
         <div class="card-body small">
           <dl class="row mb-0">
-            <dt class="col-3">Created</dt>
-            <dd class="col-9">
+            <dt class="col-5">Created</dt>
+            <dd class="col-7">
               <time class="local-datetime" datetime="{{ teacher.created_at|date:'c' }}">{{ teacher.created_at|date:"Y-m-d H:i" }} UTC</time>
               {% if teacher.created_by %}
                 <span class="text-body-secondary">
@@ -619,8 +629,8 @@
                 </span>
               {% endif %}
             </dd>
-            <dt class="col-3">Last Updated</dt>
-            <dd class="col-9">
+            <dt class="col-5">Last Updated</dt>
+            <dd class="col-7">
               <time class="local-datetime" datetime="{{ teacher.last_updated_at|date:'c' }}">{{ teacher.last_updated_at|date:"Y-m-d H:i" }} UTC</time>
               {% if teacher.last_updated_by %}
                 <span class="text-body-secondary">

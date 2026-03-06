@@ -12,7 +12,7 @@ from datetime import timedelta
 from io import BytesIO
 
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -48,6 +48,7 @@ from teacher_registration.models import (
 )
 from teacher_registration.forms import (
     TeacherRegistrationForm,
+    StaffTeacherCreateForm,
     RegistrationDocumentForm,
     RegistrationConditionForm,
     RegistrationReviewForm,
@@ -353,6 +354,123 @@ def registration_create(request):
 
 
 @login_required
+def staff_register_teacher(request):
+    """
+    Staff-initiated teacher registration.
+
+    Allows staff with appropriate permissions to create a registration
+    on behalf of a teacher by entering their email and optional name.
+    Creates a placeholder User (no password) and a DRAFT registration.
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    User = get_user_model()
+
+    if request.method == "POST":
+        form = StaffTeacherCreateForm(request.POST)
+        if form.is_valid():
+            email = form.cleaned_data["email"].strip().lower()
+            first_name = form.cleaned_data.get("first_name", "").strip()
+            last_name = form.cleaned_data.get("last_name", "").strip()
+
+            # Check if a User with this email already exists
+            existing_user = User.objects.filter(email__iexact=email).first()
+
+            if existing_user:
+                # Already registered as school staff
+                if hasattr(existing_user, "school_staff"):
+                    messages.warning(
+                        request,
+                        f"{existing_user.get_full_name() or email} is already registered as school staff.",
+                    )
+                    return redirect("teacher_registration:staff_register_teacher")
+
+                # Has an active registration
+                active_reg = TeacherRegistration.objects.filter(
+                    user=existing_user,
+                    status__in=[
+                        constants.DRAFT,
+                        constants.SUBMITTED,
+                        constants.UNDER_REVIEW,
+                        constants.READY_FOR_APPROVAL,
+                    ],
+                ).first()
+                if active_reg:
+                    messages.info(
+                        request,
+                        f"{existing_user.get_full_name() or email} already has an active registration.",
+                    )
+                    if active_reg.is_editable:
+                        return redirect("teacher_registration:edit", pk=active_reg.pk)
+                    return redirect("teacher_registration:review", pk=active_reg.pk)
+
+                # User exists but no active registration — reuse them
+                teacher_user = existing_user
+                # Update name if provided and currently blank
+                if first_name and not teacher_user.first_name:
+                    teacher_user.first_name = first_name
+                if last_name and not teacher_user.last_name:
+                    teacher_user.last_name = last_name
+                teacher_user.save(update_fields=["first_name", "last_name"])
+            else:
+                # Create placeholder User
+                teacher_user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                )
+                teacher_user.set_unusable_password()
+                teacher_user.save(update_fields=["password"])
+
+            # Create DRAFT registration
+            registration = TeacherRegistration.objects.create(
+                user=teacher_user,
+                registration_type=TeacherRegistration.INITIAL,
+                status=constants.DRAFT,
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+            RegistrationChangeLog.log_change(
+                registration=registration,
+                field_name="status",
+                old_value="",
+                new_value=constants.DRAFT,
+                changed_by=request.user,
+                notes="Registration created (by staff on behalf of teacher)",
+            )
+
+            # Send email notification to admins
+            pending_registrations_url = request.build_absolute_uri(
+                reverse("teacher_registration:pending_list")
+            )
+            send_new_teacher_registration_email_async(
+                registration=registration,
+                pending_registrations_url=pending_registrations_url,
+            )
+
+            name_display = teacher_user.get_full_name() or email
+            messages.success(
+                request,
+                f"Registration created for {name_display}. Please fill out the form below.",
+            )
+            return redirect("teacher_registration:edit", pk=registration.pk)
+    else:
+        form = StaffTeacherCreateForm()
+
+    return render(
+        request,
+        "teacher_registration/staff_register_teacher.html",
+        {
+            "form": form,
+            "active": "register_teacher",
+        },
+    )
+
+
+@login_required
 @never_cache
 def registration_edit(request, pk):
     """
@@ -380,8 +498,11 @@ def registration_edit(request, pk):
             return redirect("teacher_registration:pending_list")
         return redirect("teacher_registration:my_registration")
 
+    # Email is editable only when the teacher has no linked Google account
+    email_editable = not registration.user.socialaccount_set.exists()
+
     if request.method == "POST":
-        form = TeacherRegistrationForm(request.POST, instance=registration)
+        form = TeacherRegistrationForm(request.POST, instance=registration, email_editable=email_editable)
         education_formset = EducationRecordFormSet(request.POST, instance=registration, prefix="education_records")
         training_formset = TrainingRecordFormSet(request.POST, instance=registration, prefix="training_records")
         appointment_formset = ClaimedSchoolAppointmentFormSet(request.POST, instance=registration, prefix="claimed_appointments")
@@ -404,6 +525,12 @@ def registration_edit(request, pk):
                     errors.append("First name is required.")
                 if not last_name:
                     errors.append("Last name is required.")
+                if not form.cleaned_data.get("national_id_number", "").strip():
+                    errors.append("National ID number is required.")
+                if not form.cleaned_data.get("date_of_birth"):
+                    errors.append("Date of birth is required.")
+                if not form.cleaned_data.get("gender"):
+                    errors.append("Gender is required.")
 
                 if errors:
                     for error in errors:
@@ -429,6 +556,7 @@ def registration_edit(request, pk):
                             "staff_documents": staff_documents,
                             "document_form": RegistrationDocumentForm(),
                             "is_admin": is_admin,
+                            "email_editable": email_editable,
                             "required_docs_status": required_docs_status,
                             "checklist_items": constants.CHECKLIST_ITEMS,
                             "is_renewal": is_renewal,
@@ -448,12 +576,6 @@ def registration_edit(request, pk):
             appointment_formset.instance = registration
             appointment_formset.save()
 
-            # Also save the user's name
-            first_name = form.cleaned_data.get("first_name", "")
-            last_name = form.cleaned_data.get("last_name", "")
-            registration.user.first_name = first_name
-            registration.user.last_name = last_name
-            registration.user.save(update_fields=["first_name", "last_name"])
             messages.success(request, "Registration saved.")
 
             # If submitting, submit and redirect appropriately
@@ -493,7 +615,7 @@ def registration_edit(request, pk):
                         for error in errors:
                             messages.error(request, f"{name} - {field}: {error}")
     else:
-        form = TeacherRegistrationForm(instance=registration, user=registration.user)
+        form = TeacherRegistrationForm(instance=registration, user=registration.user, email_editable=email_editable)
         education_formset = EducationRecordFormSet(instance=registration, prefix="education_records")
         training_formset = TrainingRecordFormSet(instance=registration, prefix="training_records")
         appointment_formset = ClaimedSchoolAppointmentFormSet(instance=registration, prefix="claimed_appointments")
@@ -534,6 +656,7 @@ def registration_edit(request, pk):
             "staff_documents": staff_documents,
             "document_form": RegistrationDocumentForm(),
             "is_admin": is_admin,
+            "email_editable": email_editable,
             "pd_types": pd_types,
             "required_docs_status": required_docs_status,
             "checklist_items": constants.CHECKLIST_ITEMS,
@@ -1253,6 +1376,14 @@ def teacher_detail(request, pk):
     # Only Admins and System Admins can delete teachers
     can_delete = can_manage_pending_users(request.user)
 
+    # Passport photo for profile card
+    passport_photo = (
+        teacher.documents
+        .filter(doc_link_type__code__in=["PHOTO", "PORTRAIT"])
+        .order_by("-created_at")
+        .first()
+    )
+
     return render(
         request,
         "teacher_registration/teacher_detail.html",
@@ -1262,6 +1393,7 @@ def teacher_detail(request, pk):
             "active_assignments": active_assignments,
             "registration_history": registration_history,
             "can_delete": can_delete,
+            "passport_photo": passport_photo,
         },
     )
 

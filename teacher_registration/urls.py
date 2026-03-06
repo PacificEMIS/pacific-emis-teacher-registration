@@ -34,6 +34,8 @@ urlpatterns = [
     ),
     # Renewal (placeholder)
     path("renew/", views.registration_renew, name="registration_renew"),
+    # Staff-initiated registration (on behalf of teacher)
+    path("register-for-teacher/", views.staff_register_teacher, name="staff_register_teacher"),
     # Admin-facing (review workflow)
     path("pending/", views.pending_registrations_list, name="pending_list"),
     path("<int:pk>/review/", views.registration_review, name="review"),

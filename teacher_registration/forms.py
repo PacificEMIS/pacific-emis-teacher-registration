@@ -38,12 +38,37 @@ from integrations.models import (
 User = get_user_model()
 
 
+class StaffTeacherCreateForm(forms.Form):
+    """
+    Form for staff to initiate a registration on behalf of a teacher.
+
+    Collects the teacher's email (required) and optional name to create
+    a placeholder User and DRAFT TeacherRegistration.
+    """
+
+    email = forms.EmailField(
+        widget=forms.EmailInput(
+            attrs={"class": "form-control", "placeholder": "teacher@gmail.com"}
+        ),
+    )
+    first_name = forms.CharField(
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+
+
 class TeacherRegistrationForm(forms.ModelForm):
     """
     Form for teachers to fill out their registration application.
 
     Includes personal information, professional details, and school preferences.
-    Also allows updating the user's first/last name.
+    Also allows updating the user's first/last name and email (when no Google link).
     """
 
     # User fields (stored on User model, not TeacherRegistration)
@@ -57,6 +82,10 @@ class TeacherRegistrationForm(forms.ModelForm):
         max_length=150,
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    email = forms.EmailField(
+        required=False,
+        widget=forms.EmailInput(attrs={"class": "form-control"}),
     )
 
     class Meta:
@@ -138,21 +167,27 @@ class TeacherRegistrationForm(forms.ModelForm):
             "checklist_applicant_fee_receipt": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
-        # Get initial data for first/last name before calling super
+    def __init__(self, *args, user=None, email_editable=True, **kwargs):
+        # Get initial data for first/last name and email before calling super
         instance = kwargs.get("instance")
         initial = kwargs.get("initial", {})
 
-        # Set initial values for first_name and last_name from user
+        # Set initial values for first_name, last_name, and email from user
         if instance and instance.pk and instance.user:
             initial.setdefault("first_name", instance.user.first_name)
             initial.setdefault("last_name", instance.user.last_name)
+            initial.setdefault("email", instance.user.email)
         elif user:
             initial.setdefault("first_name", user.first_name)
             initial.setdefault("last_name", user.last_name)
+            initial.setdefault("email", user.email)
 
         kwargs["initial"] = initial
         super().__init__(*args, **kwargs)
+
+        # Make email read-only when User has a linked Google SocialAccount
+        if not email_editable:
+            self.fields["email"].disabled = True
 
         # Filter FK querysets to active records only
         self.fields["gender"].queryset = EmisGender.objects.filter(
@@ -172,17 +207,26 @@ class TeacherRegistrationForm(forms.ModelForm):
         ).order_by("label")
 
     def save(self, commit=True):
-        """Save the registration and update user's name."""
+        """Save the registration and update user's name and email."""
         instance = super().save(commit=False)
 
-        # Always update user's name from form data
-        if instance.user and commit:
+        # Always update the related User (separate model, not gated by commit)
+        if instance.user:
             first_name = self.cleaned_data.get("first_name", "")
             last_name = self.cleaned_data.get("last_name", "")
-            # Update user model with whatever was submitted
             instance.user.first_name = first_name
             instance.user.last_name = last_name
-            instance.user.save(update_fields=["first_name", "last_name"])
+            update_fields = ["first_name", "last_name"]
+
+            # Update email+username only if field was editable (not disabled)
+            if not self.fields["email"].disabled:
+                email = self.cleaned_data.get("email", "")
+                if email:
+                    instance.user.email = email
+                    instance.user.username = email
+                    update_fields.extend(["email", "username"])
+
+            instance.user.save(update_fields=update_fields)
 
         if commit:
             instance.save()
