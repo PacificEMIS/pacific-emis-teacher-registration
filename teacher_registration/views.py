@@ -26,7 +26,12 @@ from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
 from core.models import SchoolStaff, SchoolStaffAssignment
-from integrations.models import EmisSchool, EmisClassLevel, EmisSubject
+from integrations.models import (
+    EmisSchool,
+    EmisClassLevel,
+    EmisSubject,
+    EmisTeacherRegistrationStatus,
+)
 from core.emails import (
     send_new_teacher_registration_email_async,
     send_teacher_registration_submitted_email_async,
@@ -1491,6 +1496,97 @@ def teacher_resend_renewal_notification(request, pk):
         return JsonResponse({"ok": ok, "message": msg})
 
     messages.success(request, msg) if ok else messages.error(request, msg)
+    return redirect("teacher_registration:teacher_detail", pk=pk)
+
+
+@login_required
+@require_app_access
+def teacher_force_expiry(request, pk):
+    """Force-expire an approved teacher's registration."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user", "teacher_registration_status"),
+        pk=pk,
+    )
+
+    if teacher.registration_application_status != constants.APPROVED:
+        msg = "Only approved registrations can be force-expired."
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "message": msg})
+        messages.error(request, msg)
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    # Look up the "Expired" registration status record
+    try:
+        expired_status = EmisTeacherRegistrationStatus.objects.get(
+            label__icontains="expired"
+        )
+    except EmisTeacherRegistrationStatus.DoesNotExist:
+        expired_status = None
+    except EmisTeacherRegistrationStatus.MultipleObjectsReturned:
+        expired_status = EmisTeacherRegistrationStatus.objects.filter(
+            label__icontains="expired"
+        ).first()
+
+    previous_status_label = (
+        teacher.teacher_registration_status.label
+        if teacher.teacher_registration_status
+        else None
+    )
+    old_app_status = teacher.registration_application_status
+
+    # Update the SchoolStaff record
+    teacher.registration_application_status = constants.EXPIRED
+    if expired_status:
+        teacher.teacher_registration_status = expired_status
+    teacher.save(update_fields=[
+        "registration_application_status",
+        "teacher_registration_status",
+        "last_updated_at",
+    ])
+
+    # Log the change against the most recent TeacherRegistration
+    registration = (
+        teacher.registration_history
+        .order_by("-reviewed_at")
+        .first()
+    )
+    if registration:
+        RegistrationChangeLog.log_change(
+            registration=registration,
+            field_name="status",
+            old_value=old_app_status,
+            new_value=constants.EXPIRED,
+            changed_by=request.user,
+            notes=(
+                f"Registration force-expired by {request.user.get_full_name() or request.user.username}. "
+                f"Previous status: {previous_status_label or 'N/A'}."
+            ),
+        )
+
+    # Send notification email
+    renewal_url = request.build_absolute_uri(
+        reverse("teacher_registration:registration_renew")
+    )
+    try:
+        send_teacher_registration_expired_email(
+            staff=teacher,
+            renewal_url=renewal_url,
+            previous_status_label=previous_status_label,
+        )
+    except Exception:
+        pass
+
+    msg = f"Registration for {teacher.user.get_full_name() or teacher.user.username} has been force-expired."
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "message": msg})
+    messages.success(request, msg)
     return redirect("teacher_registration:teacher_detail", pk=pk)
 
 
