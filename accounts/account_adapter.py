@@ -31,7 +31,8 @@ class EmailAsUsernameSocialAdapter(DefaultSocialAccountAdapter):
     def populate_user(self, request, sociallogin, data):
         """
         Populate user instance with data from social provider.
-        Uses email as username for clarity.
+        Uses email as username for clarity. Preserves existing names
+        (e.g. when staff already entered them for a placeholder user).
         """
         user = super().populate_user(request, sociallogin, data)
 
@@ -40,5 +41,12 @@ class EmailAsUsernameSocialAdapter(DefaultSocialAccountAdapter):
         if email:
             user.username = email
             user.email = email
+
+        # Preserve names already set (e.g. by staff during on-behalf registration)
+        # Only populate from Google if the user doesn't already have them
+        if not user.first_name:
+            user.first_name = data.get("first_name", "")
+        if not user.last_name:
+            user.last_name = data.get("last_name", "")
 
         return user

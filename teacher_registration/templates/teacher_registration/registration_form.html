@@ -7,6 +7,18 @@
 {% endblock extra_css %}
 
 {% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">Teacher Registration ({% if is_renewal %}Renewal{% else %}Initial{% endif %})</h1>
+      <div class="small text-body-secondary">
+        {{ registration.user.get_full_name|default:registration.user.username }}
+        · <span class="badge bg-app-draft">{{ registration.get_status_display }}</span>
+      </div>
+    </div>
+    <a href="{% if is_admin %}{% url 'teacher_registration:pending_list' %}{% else %}{% url 'teacher_registration:my_registration' %}{% endif %}"
+       class="btn btn-sm btn-outline-secondary">← Back to {% if is_admin %}pending list{% else %}my registration{% endif %}</a>
+  </div>
+
   <!-- Rejection Feedback Banner (shown when registration was rejected and returned to draft) -->
   {% if registration.reviewer_comments %}
     <div class="alert alert-warning border-start border-warning border-4 mb-4" role="alert">
@@ -51,9 +63,8 @@
       <!-- Main form -->
       <div class="col-lg-8">
         <div class="card shadow-sm mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h1 class="h4 mb-0">Teacher Registration ({% if is_renewal %}Renewal{% else %}Initial{% endif %})</h1>
-            <span class="badge bg-app-draft">{{ registration.get_status_display }}</span>
+          <div class="card-header">
+            <h5 class="mb-0">Registration Form</h5>
           </div>
           <div class="card-body">
 
@@ -100,15 +111,27 @@
                   <div class="invalid-feedback d-block">{{ form.last_name.errors.0 }}</div>
                 {% endif %}
               </div>
+              <div class="col-md-6">
+                <label for="id_email" class="form-label">
+                  Email
+                  {% if not email_editable %}
+                    <i class="bi bi-lock-fill text-muted small" title="Linked to Google account"></i>
+                  {% endif %}
+                </label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                  <div class="invalid-feedback d-block">{{ form.email.errors.0 }}</div>
+                {% endif %}
+              </div>
               <div class="col-md-4">
-                <label for="id_date_of_birth" class="form-label">Date of Birth</label>
+                <label for="id_date_of_birth" class="form-label">Date of Birth <span class="text-danger">*</span></label>
                 {{ form.date_of_birth }}
                 {% if form.date_of_birth.errors %}
                   <div class="invalid-feedback d-block">{{ form.date_of_birth.errors.0 }}</div>
                 {% endif %}
               </div>
               <div class="col-md-4">
-                <label for="id_gender" class="form-label">Gender</label>
+                <label for="id_gender" class="form-label">Gender <span class="text-danger">*</span></label>
                 {{ form.gender }}
               </div>
               <div class="col-md-4">
@@ -117,7 +140,7 @@
               </div>
               <div class="col-md-6">
                 <label for="id_national_id_number" class="form-label">
-                  National ID Number
+                  National ID Number <span class="text-danger">*</span>
                   <i class="bi bi-info-circle text-muted tooltip-icon"
                      data-bs-toggle="tooltip"
                      data-bs-placement="top"
@@ -153,7 +176,7 @@
             <h6 class="text-muted mb-2">Residential Address</h6>
             <div class="row g-3 mb-4">
               <div class="col-md-8">
-                <label for="id_residential_address" class="form-label">Residential Address <span class="text-danger">*</span></label>
+                <label for="id_residential_address" class="form-label">Residential Address</label>
                 {{ form.residential_address }}
               </div>
               <div class="col-md-4">
