@@ -204,6 +204,13 @@
                target="_blank" class="btn btn-sm btn-outline-primary mt-2">
               <i class="bi bi-file-earmark-pdf me-1"></i> View Certificate
             </a>
+            {% if can_delete %}
+              {% csrf_token %}
+              <button id="force-expiry-btn" type="button" class="btn btn-sm btn-outline-danger mt-2"
+                      data-url="{% url 'teacher_registration:teacher_force_expiry' teacher.pk %}">
+                <i class="bi bi-x-octagon me-1"></i> Force Expiry
+              </button>
+            {% endif %}
           {% endif %}
           {% if teacher.conditions.exists %}
             <hr>
@@ -648,48 +655,97 @@
 {% block extra_js %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    var btn = document.getElementById('resend-renewal-btn');
-    if (!btn) return;
+    // --- Resend Renewal Notification ---
+    var resendBtn = document.getElementById('resend-renewal-btn');
+    if (resendBtn) {
+      resendBtn.addEventListener('click', function () {
+        var originalHTML = resendBtn.innerHTML;
+        resendBtn.disabled = true;
+        resendBtn.innerHTML =
+          '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sending\u2026';
 
-    btn.addEventListener('click', function () {
-      var originalHTML = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Sending\u2026';
-
-      fetch(btn.dataset.url, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          btn.innerHTML = data.ok
-            ? '<i class="bi bi-check-circle me-1"></i> Sent'
-            : '<i class="bi bi-x-circle me-1"></i> Failed';
-          btn.classList.remove('btn-outline-warning');
-          btn.classList.add(data.ok ? 'btn-outline-success' : 'btn-outline-danger');
-          setTimeout(function () {
-            btn.innerHTML = originalHTML;
-            btn.classList.remove('btn-outline-success', 'btn-outline-danger');
-            btn.classList.add('btn-outline-warning');
-            btn.disabled = false;
-          }, 3000);
+        fetch(resendBtn.dataset.url, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
         })
-        .catch(function () {
-          btn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Failed';
-          btn.classList.remove('btn-outline-warning');
-          btn.classList.add('btn-outline-danger');
-          setTimeout(function () {
-            btn.innerHTML = originalHTML;
-            btn.classList.remove('btn-outline-danger');
-            btn.classList.add('btn-outline-warning');
-            btn.disabled = false;
-          }, 3000);
-        });
-    });
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            resendBtn.innerHTML = data.ok
+              ? '<i class="bi bi-check-circle me-1"></i> Sent'
+              : '<i class="bi bi-x-circle me-1"></i> Failed';
+            resendBtn.classList.remove('btn-outline-warning');
+            resendBtn.classList.add(data.ok ? 'btn-outline-success' : 'btn-outline-danger');
+            setTimeout(function () {
+              resendBtn.innerHTML = originalHTML;
+              resendBtn.classList.remove('btn-outline-success', 'btn-outline-danger');
+              resendBtn.classList.add('btn-outline-warning');
+              resendBtn.disabled = false;
+            }, 3000);
+          })
+          .catch(function () {
+            resendBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Failed';
+            resendBtn.classList.remove('btn-outline-warning');
+            resendBtn.classList.add('btn-outline-danger');
+            setTimeout(function () {
+              resendBtn.innerHTML = originalHTML;
+              resendBtn.classList.remove('btn-outline-danger');
+              resendBtn.classList.add('btn-outline-warning');
+              resendBtn.disabled = false;
+            }, 3000);
+          });
+      });
+    }
+
+    // --- Force Expiry ---
+    var expiryBtn = document.getElementById('force-expiry-btn');
+    if (expiryBtn) {
+      expiryBtn.addEventListener('click', function () {
+        if (!confirm('Are you sure you want to force-expire this registration? The teacher will be notified.')) return;
+
+        var originalHTML = expiryBtn.innerHTML;
+        expiryBtn.disabled = true;
+        expiryBtn.innerHTML =
+          '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Expiring\u2026';
+
+        fetch(expiryBtn.dataset.url, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              location.reload();
+            } else {
+              expiryBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Failed';
+              expiryBtn.classList.remove('btn-outline-danger');
+              expiryBtn.classList.add('btn-outline-secondary');
+              setTimeout(function () {
+                expiryBtn.innerHTML = originalHTML;
+                expiryBtn.classList.remove('btn-outline-secondary');
+                expiryBtn.classList.add('btn-outline-danger');
+                expiryBtn.disabled = false;
+              }, 3000);
+            }
+          })
+          .catch(function () {
+            expiryBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i> Failed';
+            expiryBtn.classList.remove('btn-outline-danger');
+            expiryBtn.classList.add('btn-outline-secondary');
+            setTimeout(function () {
+              expiryBtn.innerHTML = originalHTML;
+              expiryBtn.classList.remove('btn-outline-secondary');
+              expiryBtn.classList.add('btn-outline-danger');
+              expiryBtn.disabled = false;
+            }, 3000);
+          });
+      });
+    }
   });
 </script>
 {% endblock extra_js %}
