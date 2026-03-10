@@ -13,7 +13,7 @@ import shutil
 import uuid
 import zipfile
 from datetime import timedelta
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import Path
 
 from django.conf import settings
@@ -21,9 +21,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db.models import Q, Prefetch, OuterRef, Subquery
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -1479,3 +1480,47 @@ def pdf_merge(request):
             return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
 
     return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+
+# ============================================================================
+# Settings
+# ============================================================================
+
+
+@login_required
+@require_app_access
+def admin_settings(request):
+    """Admin settings page with EMIS lookup sync action."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    return render(request, "core/settings.html", {"active": "settings"})
+
+
+@login_required
+@require_app_access
+def sync_emis_lookups(request):
+    """Run the emis_sync_lookups management command via AJAX."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("core:settings")
+
+    try:
+        out = StringIO()
+        call_command("emis_sync_lookups", stdout=out)
+        msg = out.getvalue().strip()
+        ok = True
+    except Exception as e:
+        msg = f"Sync failed: {e}"
+        ok = False
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": ok, "message": msg})
+
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    return redirect("core:settings")

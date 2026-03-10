@@ -65,4 +65,7 @@ urlpatterns = [
         name="pdf_split_download_all",
     ),
     path("utilities/merge-pdf/", views.pdf_merge, name="pdf_merge"),
+    # Settings
+    path("settings/", views.admin_settings, name="settings"),
+    path("settings/sync-emis-lookups/", views.sync_emis_lookups, name="sync_emis_lookups"),
 ]
