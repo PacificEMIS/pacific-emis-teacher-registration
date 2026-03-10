@@ -61,6 +61,25 @@ Access is controlled through Django groups. Users must be assigned to at least o
 | **System Admins** | SystemUser | System-wide | ✓ | ✓ | ✓ | ✓ |
 | **System Staff** | SystemUser | System-wide | ✗ | ✗ | ✗ | ✓ |
 
+## System Dependencies
+
+Beyond Python packages (listed in `requirements.txt`), this application requires system-level libraries.
+
+### Debian / Ubuntu
+
+```bash
+# WeasyPrint — PDF report generation (requires GTK/Pango rendering libraries)
+sudo apt install libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libfontconfig1
+
+# PostgreSQL client library (needed by psycopg2)
+sudo apt install libpq-dev
+```
+
+### Windows
+
+- **GTK3 Runtime** — required by WeasyPrint. Download and install from the [WeasyPrint documentation](https://doc.courtbouillon.org/weasyprint/stable/first_steps.html#windows).
+- **PostgreSQL** — `libpq` is bundled with the PostgreSQL installer or available via `psycopg2-binary`.
+
 ## Management Commands
 
 ### `seed_groups`

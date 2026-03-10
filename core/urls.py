@@ -65,6 +65,13 @@ urlpatterns = [
         name="pdf_split_download_all",
     ),
     path("utilities/merge-pdf/", views.pdf_merge, name="pdf_merge"),
+    # Reports
+    path("reports/", views.reports_index, name="reports"),
+    path(
+        "reports/teacher-summary/",
+        views.report_teacher_summary,
+        name="report_teacher_summary",
+    ),
     # Settings
     path("settings/", views.admin_settings, name="settings"),
     path("settings/sync-emis-lookups/", views.sync_emis_lookups, name="sync_emis_lookups"),
