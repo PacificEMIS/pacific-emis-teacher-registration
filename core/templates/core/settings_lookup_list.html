@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load dict_extras %}
+{% block title %}{{ config.label }} — Settings{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:settings' %}">Settings</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ config.label }}</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h1 class="h5 mb-0">
+            <i class="{{ config.icon }} me-2"></i>
+            {{ config.label }}
+          </h1>
+          <span class="badge text-bg-secondary">{{ items|length }} items</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  {% for field_name, field_label in config.fields %}
+                    <th>{{ field_label }}</th>
+                  {% endfor %}
+                  <th class="text-center">Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr data-pk="{{ item.pk }}">
+                    {% for field_name, field_label in config.fields %}
+                      {% if field_name == "validity_value" %}
+                        <td>
+                          <input type="number"
+                                 class="form-control form-control-sm js-validity-value"
+                                 value="{{ item.validity_value|default_if_none:'' }}"
+                                 min="0"
+                                 data-pk="{{ item.pk }}">
+                        </td>
+                      {% elif field_name == "validity_unit" %}
+                        <td>
+                          <select class="form-select form-select-sm js-validity-unit"
+                                  data-pk="{{ item.pk }}">
+                            <option value="">—</option>
+                            <option value="minutes" {% if item.validity_unit == "minutes" %}selected{% endif %}>Minutes</option>
+                            <option value="hours" {% if item.validity_unit == "hours" %}selected{% endif %}>Hours</option>
+                            <option value="days" {% if item.validity_unit == "days" %}selected{% endif %}>Days</option>
+                            <option value="years" {% if item.validity_unit == "years" %}selected{% endif %}>Years</option>
+                          </select>
+                        </td>
+                      {% elif field_name == "needs_renewal" %}
+                        <td>
+                          {% if item.needs_renewal %}
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                          {% else %}
+                            <i class="bi bi-x-circle text-secondary"></i>
+                          {% endif %}
+                        </td>
+                      {% else %}
+                        <td>{{ item|getfield:field_name }}</td>
+                      {% endif %}
+                    {% endfor %}
+                    <td class="text-center">
+                      <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input js-active-toggle"
+                               type="checkbox"
+                               role="switch"
+                               data-pk="{{ item.pk }}"
+                               {% if item.active %}checked{% endif %}>
+                      </div>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="99" class="text-center text-body-secondary py-4">
+                      No items found. Run a sync to populate this lookup.
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var slug = '{{ slug }}';
+  var csrfToken = '{{ csrf_token }}';
+
+  var baseUrl = '{% url "core:settings_lookup_list" slug %}';
+
+  function postUpdate(pk, data) {
+    var formData = new FormData();
+    for (var key in data) {
+      formData.append(key, data[key]);
+    }
+    return fetch(baseUrl + encodeURIComponent(pk) + '/update/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    }).then(function (r) { return r.json(); });
+  }
+
+  // Active toggle
+  document.querySelectorAll('.js-active-toggle').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var pk = this.dataset.pk;
+      var active = this.checked;
+      var row = this.closest('tr');
+      postUpdate(pk, { active: active }).then(function (data) {
+        if (data.ok) {
+          row.classList.add('table-success');
+          setTimeout(function () { row.classList.remove('table-success'); }, 600);
+        }
+      });
+    });
+  });
+
+  // Validity fields (debounced)
+  var timers = {};
+  function saveValidity(pk) {
+    var row = document.querySelector('tr[data-pk="' + pk + '"]');
+    var valInput = row.querySelector('.js-validity-value');
+    var unitSelect = row.querySelector('.js-validity-unit');
+    if (!valInput || !unitSelect) return;
+
+    postUpdate(pk, {
+      validity_value: valInput.value,
+      validity_unit: unitSelect.value,
+    }).then(function (data) {
+      if (data.ok) {
+        row.classList.add('table-success');
+        setTimeout(function () { row.classList.remove('table-success'); }, 600);
+      }
+    });
+  }
+
+  document.querySelectorAll('.js-validity-value, .js-validity-unit').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var pk = this.dataset.pk;
+      clearTimeout(timers[pk]);
+      timers[pk] = setTimeout(function () { saveValidity(pk); }, 300);
+    });
+  });
+})();
+</script>
+{% endblock extra_js %}

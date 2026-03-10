@@ -63,7 +63,26 @@ from core.permissions import (
     GROUP_SYSTEM_ADMINS,
     _in_group,
 )
-from integrations.models import EmisSchool
+from collections import OrderedDict
+from integrations.models import (
+    EmisSchool,
+    EmisClassLevel,
+    EmisJobTitle,
+    EmisWarehouseYear,
+    EmisSubject,
+    EmisTeacherQual,
+    EmisMaritalStatus,
+    EmisIsland,
+    EmisTeacherStatus,
+    EmisTeacherRegistrationStatus,
+    EmisEducationLevel,
+    EmisTeacherLinkType,
+    EmisGender,
+    EmisTeacherPdFocus,
+    EmisTeacherPdFormat,
+    EmisTeacherPdType,
+    EmisNationality,
+)
 
 User = get_user_model()
 
@@ -1494,7 +1513,20 @@ def admin_settings(request):
     if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
-    return render(request, "core/settings.html", {"active": "settings"})
+    # Build lookup summary with counts
+    lookup_categories = []
+    for slug, config in LOOKUP_REGISTRY.items():
+        lookup_categories.append({
+            "slug": slug,
+            "label": config["label"],
+            "icon": config["icon"],
+            "count": config["model"].objects.count(),
+        })
+
+    return render(request, "core/settings.html", {
+        "active": "settings",
+        "lookup_categories": lookup_categories,
+    })
 
 
 @login_required
@@ -1524,3 +1556,177 @@ def sync_emis_lookups(request):
     else:
         messages.error(request, msg)
     return redirect("core:settings")
+
+
+# Lookup registry: slug → model + display config
+LOOKUP_REGISTRY = OrderedDict([
+    ("schools", {
+        "model": EmisSchool,
+        "label": "Schools",
+        "icon": "bi-building",
+        "fields": [("emis_school_no", "School No."), ("emis_school_name", "Name")],
+    }),
+    ("class-levels", {
+        "model": EmisClassLevel,
+        "label": "Class Levels",
+        "icon": "bi-list-ol",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("job-titles", {
+        "model": EmisJobTitle,
+        "label": "Job Titles",
+        "icon": "bi-briefcase",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("school-years", {
+        "model": EmisWarehouseYear,
+        "label": "School Years",
+        "icon": "bi-calendar",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("subjects", {
+        "model": EmisSubject,
+        "label": "Subjects",
+        "icon": "bi-book",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("qualifications", {
+        "model": EmisTeacherQual,
+        "label": "Teacher Qualifications",
+        "icon": "bi-mortarboard",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("marital-statuses", {
+        "model": EmisMaritalStatus,
+        "label": "Marital Statuses",
+        "icon": "bi-people",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("islands", {
+        "model": EmisIsland,
+        "label": "Islands",
+        "icon": "bi-geo-alt",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("teacher-statuses", {
+        "model": EmisTeacherStatus,
+        "label": "Teacher Statuses",
+        "icon": "bi-person-badge",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("registration-statuses", {
+        "model": EmisTeacherRegistrationStatus,
+        "label": "Registration Statuses",
+        "icon": "bi-award",
+        "fields": [("code", "Code"), ("label", "Label"), ("validity_value", "Validity"), ("validity_unit", "Unit")],
+        "extra_editable": ["validity_value", "validity_unit"],
+    }),
+    ("education-levels", {
+        "model": EmisEducationLevel,
+        "label": "Education Levels",
+        "icon": "bi-bar-chart-steps",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("link-types", {
+        "model": EmisTeacherLinkType,
+        "label": "Teacher Link Types",
+        "icon": "bi-link-45deg",
+        "fields": [("code", "Code"), ("label", "Label"), ("needs_renewal", "Needs Renewal")],
+    }),
+    ("genders", {
+        "model": EmisGender,
+        "label": "Genders",
+        "icon": "bi-gender-ambiguous",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-focuses", {
+        "model": EmisTeacherPdFocus,
+        "label": "PD Focuses",
+        "icon": "bi-bullseye",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-formats", {
+        "model": EmisTeacherPdFormat,
+        "label": "PD Formats",
+        "icon": "bi-collection",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-types", {
+        "model": EmisTeacherPdType,
+        "label": "PD Types",
+        "icon": "bi-tags",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("nationalities", {
+        "model": EmisNationality,
+        "label": "Nationalities",
+        "icon": "bi-flag",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+])
+
+
+@login_required
+@require_app_access
+def settings_lookup_list(request, slug):
+    """List view for a single EMIS lookup model."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    config = LOOKUP_REGISTRY.get(slug)
+    if not config:
+        from django.http import Http404
+        raise Http404
+
+    model = config["model"]
+    items = model.objects.all()
+
+    return render(request, "core/settings_lookup_list.html", {
+        "active": "settings",
+        "slug": slug,
+        "config": config,
+        "items": items,
+    })
+
+
+@login_required
+@require_app_access
+def settings_lookup_update(request, slug, pk):
+    """AJAX endpoint to update editable fields on a lookup item."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "POST required"}, status=405)
+
+    config = LOOKUP_REGISTRY.get(slug)
+    if not config:
+        return JsonResponse({"ok": False, "message": "Unknown lookup"}, status=404)
+
+    model = config["model"]
+    try:
+        item = model.objects.get(pk=pk)
+    except model.DoesNotExist:
+        return JsonResponse({"ok": False, "message": "Item not found"}, status=404)
+
+    update_fields = []
+
+    # All models support toggling active
+    if "active" in request.POST:
+        item.active = request.POST["active"] == "true"
+        update_fields.append("active")
+
+    # Extra editable fields (e.g. validity_value/validity_unit on registration statuses)
+    for field_name in config.get("extra_editable", []):
+        if field_name in request.POST:
+            value = request.POST[field_name]
+            if field_name == "validity_value":
+                item.validity_value = int(value) if value else None
+            else:
+                setattr(item, field_name, value)
+            update_fields.append(field_name)
+
+    if update_fields:
+        item.save(update_fields=update_fields)
+
+    return JsonResponse({"ok": True})
