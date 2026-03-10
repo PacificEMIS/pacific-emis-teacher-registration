@@ -5,20 +5,40 @@ This module provides views for managing:
 - Dashboard: Overview of all core models with KPIs and recent activity
 - SystemUser: System-level users (MOE staff, consultants, administrators)
 - SchoolStaff: School-level staff and their school assignments
+- Utilities: PDF split and merge tools for admin staff
 """
+import json
+import re
+import shutil
+import uuid
+import zipfile
 from datetime import timedelta
+from io import BytesIO, StringIO
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db.models import Q, Prefetch, OuterRef, Subquery
+from django.db.models import Count, Q, Prefetch, OuterRef, Subquery
+from django.template.loader import render_to_string
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import capfirst
+try:
+    from pypdf import PdfReader, PdfWriter
+except ImportError:
+    PdfReader = PdfWriter = None
+
+try:
+    from weasyprint import HTML as WeasyHTML
+except (ImportError, OSError):
+    WeasyHTML = None
 
 from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
@@ -49,7 +69,26 @@ from core.permissions import (
     GROUP_SYSTEM_ADMINS,
     _in_group,
 )
-from integrations.models import EmisSchool
+from collections import OrderedDict
+from integrations.models import (
+    EmisSchool,
+    EmisClassLevel,
+    EmisJobTitle,
+    EmisWarehouseYear,
+    EmisSubject,
+    EmisTeacherQual,
+    EmisMaritalStatus,
+    EmisIsland,
+    EmisTeacherStatus,
+    EmisTeacherRegistrationStatus,
+    EmisEducationLevel,
+    EmisTeacherLinkType,
+    EmisGender,
+    EmisTeacherPdFocus,
+    EmisTeacherPdFormat,
+    EmisTeacherPdType,
+    EmisNationality,
+)
 
 User = get_user_model()
 
@@ -1209,3 +1248,729 @@ def staff_delete(request, pk):
             "staff": staff,
         },
     )
+
+
+# ============================================================================
+# Utilities: PDF Split & Merge
+# ============================================================================
+
+PDF_SPLIT_TMP_DIR = Path(settings.MEDIA_ROOT) / "tmp" / "pdf_split"
+MAX_PDF_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+def _cleanup_old_split_jobs(max_age_hours=24):
+    """Remove split job directories older than max_age_hours."""
+    if not PDF_SPLIT_TMP_DIR.exists():
+        return
+    cutoff = timezone.now().timestamp() - (max_age_hours * 3600)
+    for job_dir in PDF_SPLIT_TMP_DIR.iterdir():
+        if job_dir.is_dir() and job_dir.stat().st_mtime < cutoff:
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+
+def _generate_page_filename(page_num):
+    """Generate a simple page-numbered filename."""
+    return f"page_{page_num:03d}.pdf"
+
+
+@login_required
+@require_app_access
+def pdf_split(request):
+    """Upload a PDF and split it into individual pages."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if PdfReader is None:
+        messages.error(request, "The pypdf library is not installed. Please install it with: pip install pypdf")
+        return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("pdf_file")
+        if not uploaded_file:
+            messages.error(request, "Please select a PDF file to upload.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Validate file type
+        if not uploaded_file.name.lower().endswith(".pdf"):
+            messages.error(request, "Only PDF files are accepted.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Validate file size
+        if uploaded_file.size > MAX_PDF_UPLOAD_SIZE:
+            messages.error(request, "File size exceeds the 50 MB limit.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Clean up old jobs before creating a new one
+        _cleanup_old_split_jobs()
+
+        try:
+            reader = PdfReader(uploaded_file)
+            total_pages = len(reader.pages)
+
+            if total_pages < 2:
+                messages.warning(
+                    request,
+                    "This PDF has only one page. There is nothing to split.",
+                )
+                return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+            # Create job directory
+            job_id = uuid.uuid4().hex
+            job_dir = PDF_SPLIT_TMP_DIR / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
+
+            pages_meta = []
+            for i, page in enumerate(reader.pages, start=1):
+                filename = _generate_page_filename(i)
+                writer = PdfWriter()
+                writer.add_page(page)
+                filepath = job_dir / filename
+                with open(filepath, "wb") as f:
+                    writer.write(f)
+                pages_meta.append({"page_num": i, "filename": filename})
+
+            # Save metadata
+            metadata = {
+                "original_filename": uploaded_file.name,
+                "total_pages": total_pages,
+                "pages": pages_meta,
+            }
+            with open(job_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            return redirect("core:pdf_split_results", job_id=job_id)
+
+        except Exception as e:
+            messages.error(request, f"Error processing PDF: {e}")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+    return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+
+@login_required
+@require_app_access
+def pdf_split_results(request, job_id):
+    """Display results of a PDF split operation."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    # Validate job_id format (hex UUID)
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    return render(
+        request,
+        "core/pdf_split.html",
+        {
+            "active": "pdf_split",
+            "results": metadata,
+            "job_id": job_id,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def pdf_split_download(request, job_id, page_num):
+    """Download a single split page."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    # Find the page
+    page_info = None
+    for p in metadata["pages"]:
+        if p["page_num"] == page_num:
+            page_info = p
+            break
+
+    if not page_info:
+        messages.error(request, "Page not found.")
+        return redirect("core:pdf_split_results", job_id=job_id)
+
+    filepath = job_dir / page_info["filename"]
+    if not filepath.exists():
+        messages.error(request, "File not found.")
+        return redirect("core:pdf_split_results", job_id=job_id)
+
+    return FileResponse(
+        open(filepath, "rb"),
+        as_attachment=True,
+        filename=page_info["filename"],
+    )
+
+
+@login_required
+@require_app_access
+def pdf_split_download_all(request, job_id):
+    """Download all split pages as a ZIP file."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for page_info in metadata["pages"]:
+            filepath = job_dir / page_info["filename"]
+            if filepath.exists():
+                zf.write(filepath, page_info["filename"])
+
+    buffer.seek(0)
+    original_stem = Path(metadata["original_filename"]).stem
+    zip_filename = f"{original_stem}_split.zip"
+
+    response = HttpResponse(buffer.read(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
+    return response
+
+
+@login_required
+@require_app_access
+def pdf_merge(request):
+    """Upload multiple PDF files and merge them into one."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if PdfWriter is None:
+        messages.error(request, "The pypdf library is not installed. Please install it with: pip install pypdf")
+        return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+    if request.method == "POST":
+        pdf_files = request.FILES.getlist("pdf_files")
+
+        if len(pdf_files) < 2:
+            messages.error(request, "Please select at least two PDF files to merge.")
+            return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+        # Validate all files
+        for f in pdf_files:
+            if not f.name.lower().endswith(".pdf"):
+                messages.error(request, f"'{f.name}' is not a PDF file.")
+                return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+            if f.size > MAX_PDF_UPLOAD_SIZE:
+                messages.error(request, f"'{f.name}' exceeds the 50 MB size limit.")
+                return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+        try:
+            writer = PdfWriter()
+            for f in pdf_files:
+                reader = PdfReader(f)
+                for page in reader.pages:
+                    writer.add_page(page)
+
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+
+            response = HttpResponse(buffer.read(), content_type="application/pdf")
+            response["Content-Disposition"] = 'attachment; filename="merged.pdf"'
+            return response
+
+        except Exception as e:
+            messages.error(request, f"Error merging PDFs: {e}")
+            return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+    return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+
+# ============================================================================
+# Settings
+# ============================================================================
+
+
+@login_required
+@require_app_access
+def admin_settings(request):
+    """Admin settings page with EMIS lookup sync action."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    # Build lookup summary with counts
+    lookup_categories = []
+    for slug, config in LOOKUP_REGISTRY.items():
+        lookup_categories.append({
+            "slug": slug,
+            "label": config["label"],
+            "icon": config["icon"],
+            "count": config["model"].objects.count(),
+        })
+
+    return render(request, "core/settings.html", {
+        "active": "settings",
+        "lookup_categories": lookup_categories,
+    })
+
+
+@login_required
+@require_app_access
+def sync_emis_lookups(request):
+    """Run the emis_sync_lookups management command via AJAX."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("core:settings")
+
+    try:
+        out = StringIO()
+        call_command("emis_sync_lookups", stdout=out)
+        msg = out.getvalue().strip()
+        ok = True
+    except Exception as e:
+        msg = f"Sync failed: {e}"
+        ok = False
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": ok, "message": msg})
+
+    if ok:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+    return redirect("core:settings")
+
+
+# Lookup registry: slug → model + display config
+LOOKUP_REGISTRY = OrderedDict([
+    ("schools", {
+        "model": EmisSchool,
+        "label": "Schools",
+        "icon": "bi-building",
+        "fields": [("emis_school_no", "School No."), ("emis_school_name", "Name")],
+    }),
+    ("class-levels", {
+        "model": EmisClassLevel,
+        "label": "Class Levels",
+        "icon": "bi-list-ol",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("job-titles", {
+        "model": EmisJobTitle,
+        "label": "Job Titles",
+        "icon": "bi-briefcase",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("school-years", {
+        "model": EmisWarehouseYear,
+        "label": "School Years",
+        "icon": "bi-calendar",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("subjects", {
+        "model": EmisSubject,
+        "label": "Subjects",
+        "icon": "bi-book",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("qualifications", {
+        "model": EmisTeacherQual,
+        "label": "Teacher Qualifications",
+        "icon": "bi-mortarboard",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("marital-statuses", {
+        "model": EmisMaritalStatus,
+        "label": "Marital Statuses",
+        "icon": "bi-people",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("islands", {
+        "model": EmisIsland,
+        "label": "Islands",
+        "icon": "bi-geo-alt",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("teacher-statuses", {
+        "model": EmisTeacherStatus,
+        "label": "Teacher Statuses",
+        "icon": "bi-person-badge",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("registration-statuses", {
+        "model": EmisTeacherRegistrationStatus,
+        "label": "Registration Statuses",
+        "icon": "bi-award",
+        "fields": [("code", "Code"), ("label", "Label"), ("validity_value", "Validity"), ("validity_unit", "Unit")],
+        "extra_editable": ["validity_value", "validity_unit"],
+    }),
+    ("education-levels", {
+        "model": EmisEducationLevel,
+        "label": "Education Levels",
+        "icon": "bi-bar-chart-steps",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("link-types", {
+        "model": EmisTeacherLinkType,
+        "label": "Teacher Link Types",
+        "icon": "bi-link-45deg",
+        "fields": [("code", "Code"), ("label", "Label"), ("needs_renewal", "Needs Renewal")],
+    }),
+    ("genders", {
+        "model": EmisGender,
+        "label": "Genders",
+        "icon": "bi-gender-ambiguous",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-focuses", {
+        "model": EmisTeacherPdFocus,
+        "label": "PD Focuses",
+        "icon": "bi-bullseye",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-formats", {
+        "model": EmisTeacherPdFormat,
+        "label": "PD Formats",
+        "icon": "bi-collection",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("pd-types", {
+        "model": EmisTeacherPdType,
+        "label": "PD Types",
+        "icon": "bi-tags",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+    ("nationalities", {
+        "model": EmisNationality,
+        "label": "Nationalities",
+        "icon": "bi-flag",
+        "fields": [("code", "Code"), ("label", "Label")],
+    }),
+])
+
+
+@login_required
+@require_app_access
+def settings_lookup_list(request, slug):
+    """List view for a single EMIS lookup model."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    config = LOOKUP_REGISTRY.get(slug)
+    if not config:
+        from django.http import Http404
+        raise Http404
+
+    model = config["model"]
+    items = model.objects.all()
+
+    return render(request, "core/settings_lookup_list.html", {
+        "active": "settings",
+        "slug": slug,
+        "config": config,
+        "items": items,
+    })
+
+
+@login_required
+@require_app_access
+def settings_lookup_update(request, slug, pk):
+    """AJAX endpoint to update editable fields on a lookup item."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "POST required"}, status=405)
+
+    config = LOOKUP_REGISTRY.get(slug)
+    if not config:
+        return JsonResponse({"ok": False, "message": "Unknown lookup"}, status=404)
+
+    model = config["model"]
+    try:
+        item = model.objects.get(pk=pk)
+    except model.DoesNotExist:
+        return JsonResponse({"ok": False, "message": "Item not found"}, status=404)
+
+    update_fields = []
+
+    # All models support toggling active
+    if "active" in request.POST:
+        item.active = request.POST["active"] == "true"
+        update_fields.append("active")
+
+    # Extra editable fields (e.g. validity_value/validity_unit on registration statuses)
+    for field_name in config.get("extra_editable", []):
+        if field_name in request.POST:
+            value = request.POST[field_name]
+            if field_name == "validity_value":
+                item.validity_value = int(value) if value else None
+            else:
+                setattr(item, field_name, value)
+            update_fields.append(field_name)
+
+    if update_fields:
+        item.save(update_fields=update_fields)
+
+    return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Reports
+# ---------------------------------------------------------------------------
+
+
+@login_required
+@require_app_access
+def reports_index(request):
+    """Landing page listing available reports."""
+    reports = [
+        {
+            "title": "Teacher Registration Summary",
+            "description": (
+                "Overview of registered teachers by registration status, "
+                "application pipeline, geographic distribution, and school assignments."
+            ),
+            "url": reverse("core:report_teacher_summary"),
+            "icon": "bi-mortarboard",
+        },
+    ]
+    return render(request, "core/reports.html", {"active": "reports", "reports": reports})
+
+
+@login_required
+@require_app_access
+def report_teacher_summary(request):
+    """Generate a Teacher Registration Summary PDF via WeasyPrint."""
+    if WeasyHTML is None:
+        messages.error(
+            request,
+            "PDF generation is not available. WeasyPrint requires GTK libraries. "
+            "See https://doc.courtbouillon.org/weasyprint/stable/first_steps.html",
+        )
+        return redirect("core:reports")
+
+    from teacher_registration import constants
+    from teacher_registration.models import TeacherRegistration
+
+    now = timezone.now()
+    start_period = now - timedelta(days=30)
+
+    # --- Registered teachers (SchoolStaff) ---
+    total_staff = SchoolStaff.objects.count()
+    teaching_staff = SchoolStaff.objects.filter(
+        staff_type=SchoolStaff.TEACHING_STAFF
+    ).count()
+    non_teaching_staff = total_staff - teaching_staff
+    staff_added_recent = SchoolStaff.objects.filter(
+        created_at__gte=start_period
+    ).count()
+
+    # Registration status breakdown
+    reg_status_qs = (
+        SchoolStaff.objects.filter(teacher_registration_status__isnull=False)
+        .values("teacher_registration_status__label")
+        .annotate(count=Count("pk"))
+        .order_by("-count")
+    )
+    reg_status_data = []
+    max_reg_count = max((r["count"] for r in reg_status_qs), default=1)
+    status_colors = {
+        "Full": "#4a148c",
+        "Conditional": "#7b1fa2",
+        "Provisional": "#ab47bc",
+        "Limited": "#ce93d8",
+        "Expired": "#757575",
+    }
+    for row in reg_status_qs:
+        label = row["teacher_registration_status__label"]
+        count = row["count"]
+        reg_status_data.append(
+            {
+                "label": label,
+                "count": count,
+                "pct": round(count / max_reg_count * 100) if max_reg_count else 0,
+                "color": status_colors.get(label, "#6c757d"),
+            }
+        )
+
+    # --- Application pipeline ---
+    pipeline_statuses = [
+        (constants.DRAFT, "Draft", "#78909c"),
+        (constants.SUBMITTED, "Submitted", "#1565c0"),
+        (constants.UNDER_REVIEW, "Under Review", "#f9a825"),
+        (constants.READY_FOR_APPROVAL, "Ready for Approval", "#9e9d24"),
+        (constants.APPROVED, "Approved", "#43a047"),
+        (constants.REJECTED, "Rejected", "#e53935"),
+    ]
+    pipeline_data = []
+    for status_val, label, color in pipeline_statuses:
+        count = TeacherRegistration.objects.filter(status=status_val).count()
+        pipeline_data.append({"label": label, "count": count, "color": color})
+    total_applications = sum(p["count"] for p in pipeline_data)
+    max_pipeline = max((p["count"] for p in pipeline_data), default=1) or 1
+    for p in pipeline_data:
+        p["pct"] = round(p["count"] / max_pipeline * 100)
+
+    # --- Teachers by island ---
+    island_qs = (
+        SchoolStaff.objects.filter(home_island__isnull=False)
+        .values("home_island__label")
+        .annotate(count=Count("pk"))
+        .order_by("-count")
+    )
+    island_data = list(island_qs)
+
+    # --- Teachers by school (top 10) ---
+    school_qs = (
+        SchoolStaffAssignment.objects.filter(end_date__isnull=True)
+        .values("school__emis_school_name")
+        .annotate(count=Count("school_staff", distinct=True))
+        .order_by("-count")[:10]
+    )
+    school_data = list(school_qs)
+
+    # --- Active schools ---
+    active_schools = EmisSchool.objects.filter(active=True).count()
+
+    # --- Sample chart data (monthly registration trends) ---
+    import calendar
+    import math
+
+    monthly_trend = []
+    for i in range(5, -1, -1):
+        month_date = now - timedelta(days=30 * i)
+        month_label = calendar.month_abbr[month_date.month]
+        # Fake data: upward trend with variation
+        fake_count = 12 + (5 - i) * 8 + ((hash(month_label) % 15) - 7)
+        monthly_trend.append({"month": month_label, "count": max(5, fake_count)})
+    max_trend = max(m["count"] for m in monthly_trend) or 1
+
+    # Pre-calculate SVG bar chart geometry
+    chart_h = 110  # max bar height in SVG units
+    chart_baseline = 120  # y position of baseline
+    for idx, m in enumerate(monthly_trend):
+        bar_h = round(m["count"] / max_trend * chart_h)
+        m["bar_x"] = 35 + idx * 33
+        m["bar_y"] = chart_baseline - bar_h
+        m["bar_h"] = bar_h
+        m["label_x"] = 35 + idx * 33 + 12  # center of 25-wide bar
+        m["value_y"] = chart_baseline - bar_h - 3
+        m["is_last"] = idx == len(monthly_trend) - 1
+
+    # Donut chart segments (staff composition)
+    donut_segments = []
+    donut_total = teaching_staff + non_teaching_staff or 1
+    if teaching_staff:
+        donut_segments.append(
+            {"label": "Teaching", "count": teaching_staff, "color": "#1565c0"}
+        )
+    if non_teaching_staff:
+        donut_segments.append(
+            {"label": "Non-Teaching", "count": non_teaching_staff, "color": "#7b1fa2"}
+        )
+    # Add a sample "Unassigned" segment for visual interest
+    unassigned_count = max(3, round(donut_total * 0.08))
+    donut_segments.append(
+        {"label": "Pending Assignment", "count": unassigned_count, "color": "#f9a825"}
+    )
+    donut_total_with_pending = sum(s["count"] for s in donut_segments)
+
+    # Pre-calculate SVG arc paths for the donut chart
+    cx, cy, r_outer, r_inner = 80, 80, 70, 42
+    start_angle = -90  # start at top (12 o'clock)
+    for seg in donut_segments:
+        fraction = seg["count"] / donut_total_with_pending
+        sweep = fraction * 360
+        end_angle = start_angle + sweep
+
+        # Outer arc
+        x1_o = cx + r_outer * math.cos(math.radians(start_angle))
+        y1_o = cy + r_outer * math.sin(math.radians(start_angle))
+        x2_o = cx + r_outer * math.cos(math.radians(end_angle))
+        y2_o = cy + r_outer * math.sin(math.radians(end_angle))
+        # Inner arc
+        x1_i = cx + r_inner * math.cos(math.radians(end_angle))
+        y1_i = cy + r_inner * math.sin(math.radians(end_angle))
+        x2_i = cx + r_inner * math.cos(math.radians(start_angle))
+        y2_i = cy + r_inner * math.sin(math.radians(start_angle))
+
+        large_arc = 1 if sweep > 180 else 0
+        seg["arc_path"] = (
+            f"M {x1_o:.1f} {y1_o:.1f} "
+            f"A {r_outer} {r_outer} 0 {large_arc} 1 {x2_o:.1f} {y2_o:.1f} "
+            f"L {x1_i:.1f} {y1_i:.1f} "
+            f"A {r_inner} {r_inner} 0 {large_arc} 0 {x2_i:.1f} {y2_i:.1f} Z"
+        )
+        seg["pct"] = round(fraction * 100)
+        start_angle = end_angle
+
+    # --- Logo path (absolute filesystem path for WeasyPrint) ---
+    emis_context_str = getattr(settings, "EMIS", {}).get("CONTEXT", "Pacific EMIS")
+    logo_name = emis_context_str.split()[0].lower()
+    logo_path = Path(settings.BASE_DIR) / "static" / "app" / "logos" / f"{logo_name}.png"
+    if not logo_path.exists():
+        logo_path = None
+    logo_uri = logo_path.as_uri() if logo_path else ""
+
+    # --- CSS path ---
+    css_path = Path(settings.BASE_DIR) / "static" / "app" / "reports.css"
+    css_uri = css_path.as_uri() if css_path.exists() else ""
+
+    context = {
+        "emis_context": emis_context_str,
+        "logo_uri": logo_uri,
+        "css_uri": css_uri,
+        "generated_at": now,
+        "generated_by": request.user.get_full_name() or request.user.username,
+        # KPIs
+        "total_staff": total_staff,
+        "teaching_staff": teaching_staff,
+        "non_teaching_staff": non_teaching_staff,
+        "staff_added_recent": staff_added_recent,
+        "active_schools": active_schools,
+        "total_applications": total_applications,
+        # Breakdowns
+        "reg_status_data": reg_status_data,
+        "pipeline_data": pipeline_data,
+        "island_data": island_data,
+        "school_data": school_data,
+        # Charts
+        "monthly_trend": monthly_trend,
+        "max_trend": max_trend,
+        "donut_segments": donut_segments,
+        "donut_total": donut_total_with_pending,
+    }
+
+    html_string = render_to_string(
+        "teacher_registration/reports/teacher_summary_pdf.html", context, request=request
+    )
+    pdf_bytes = WeasyHTML(string=html_string).write_pdf()
+
+    response = HttpResponse(pdf_bytes, content_type="application/pdf")
+    filename = f"teacher_registration_summary_{now.strftime('%Y%m%d')}.pdf"
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response

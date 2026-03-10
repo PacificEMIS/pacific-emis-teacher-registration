@@ -1,0 +1,250 @@
+{% load tz %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Teacher Registration Summary</title>
+  {% if css_uri %}
+    <link rel="stylesheet" href="{{ css_uri }}">
+  {% endif %}
+</head>
+<body>
+
+  {# --- Fixed header band: repeats on every page, full A4 width --- #}
+  <div class="header-band">
+    <span>{{ emis_context }}</span>
+    <span>Teacher Registration Summary</span>
+  </div>
+
+  {# ================================================================ #}
+  {# TITLE BLOCK                                                      #}
+  {# ================================================================ #}
+  <div class="report-title-block">
+    {% if logo_uri %}
+      <img src="{{ logo_uri }}" alt="Logo" class="report-logo">
+    {% endif %}
+    <div class="report-title-text">
+      <h1>Teacher Registration Summary</h1>
+      <div class="subtitle">{{ emis_context }} &mdash; Teacher Registration System</div>
+      <div class="report-meta">
+        Generated {{ generated_at|date:"j F Y, H:i" }} by {{ generated_by }}
+      </div>
+    </div>
+  </div>
+
+  {# ================================================================ #}
+  {# KPI CARDS                                                        #}
+  {# ================================================================ #}
+  <div class="kpi-row">
+    <div class="kpi-card kpi-primary">
+      <div class="kpi-value">{{ total_staff }}</div>
+      <div class="kpi-label">Registered Teachers</div>
+    </div>
+    <div class="kpi-card kpi-purple">
+      <div class="kpi-value">{{ teaching_staff }}</div>
+      <div class="kpi-label">Teaching Staff</div>
+    </div>
+    <div class="kpi-card kpi-emerald">
+      <div class="kpi-value">{{ total_applications }}</div>
+      <div class="kpi-label">Total Applications</div>
+    </div>
+    <div class="kpi-card kpi-slate">
+      <div class="kpi-value">{{ active_schools }}</div>
+      <div class="kpi-label">Active Schools</div>
+    </div>
+  </div>
+
+  {# ================================================================ #}
+  {# REGISTRATION STATUS BREAKDOWN                                    #}
+  {# ================================================================ #}
+  <div class="avoid-break">
+    <h2 class="section-heading">Registration Status</h2>
+    {% if reg_status_data %}
+      <div class="bar-chart">
+        {% for row in reg_status_data %}
+          <div class="bar-row">
+            <div class="bar-label">{{ row.label }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ row.pct }}%; background: {{ row.color }};"></div>
+            </div>
+            <div class="bar-value">{{ row.count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: #999; font-size: 9pt;">No registration status data available.</p>
+    {% endif %}
+  </div>
+
+  {# ================================================================ #}
+  {# APPLICATION PIPELINE                                             #}
+  {# ================================================================ #}
+  <div class="avoid-break">
+    <h2 class="section-heading">Application Pipeline</h2>
+    {% if pipeline_data %}
+      <div class="bar-chart">
+        {% for row in pipeline_data %}
+          <div class="bar-row">
+            <div class="bar-label">{{ row.label }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ row.pct }}%; background: {{ row.color }};"></div>
+            </div>
+            <div class="bar-value">{{ row.count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p style="color: #999; font-size: 9pt;">No application data available.</p>
+    {% endif %}
+  </div>
+
+  {# ================================================================ #}
+  {# CHARTS: DONUT + MONTHLY TREND                                   #}
+  {# ================================================================ #}
+  <div class="two-col avoid-break" style="margin-top: 10pt;">
+
+    {# --- Donut chart: Staff Composition --- #}
+    <div class="col-half">
+      <h2 class="section-heading">Staff Composition</h2>
+      <div class="chart-container">
+        <svg width="160" height="160" viewBox="0 0 160 160">
+          {% for seg in donut_segments %}
+            <path d="{{ seg.arc_path }}" fill="{{ seg.color }}" />
+          {% endfor %}
+          <text x="80" y="76" text-anchor="middle" font-size="18" font-weight="700" fill="#333">{{ donut_total }}</text>
+          <text x="80" y="92" text-anchor="middle" font-size="7" fill="#999" text-transform="uppercase">TOTAL</text>
+        </svg>
+        <div class="chart-legend">
+          {% for seg in donut_segments %}
+            <div class="chart-legend-item">
+              <span class="chart-legend-swatch" style="background: {{ seg.color }};"></span>
+              {{ seg.label }} ({{ seg.pct }}%)
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    {# --- Vertical bar chart: Monthly Trends --- #}
+    <div class="col-half">
+      <h2 class="section-heading">Monthly Registration Trends</h2>
+      <div class="chart-container">
+        <svg width="240" height="150" viewBox="0 0 240 150">
+          {# Grid #}
+          <line x1="30" y1="10" x2="30" y2="120" stroke="#ccc" stroke-width="0.5" />
+          <line x1="30" y1="120" x2="230" y2="120" stroke="#ccc" stroke-width="0.5" />
+          <line x1="30" y1="37" x2="230" y2="37" stroke="#f0f0f0" stroke-width="0.5" />
+          <line x1="30" y1="65" x2="230" y2="65" stroke="#f0f0f0" stroke-width="0.5" />
+          <line x1="30" y1="92" x2="230" y2="92" stroke="#f0f0f0" stroke-width="0.5" />
+          <text x="26" y="123" text-anchor="end" font-size="7" fill="#999">0</text>
+          <text x="26" y="14" text-anchor="end" font-size="7" fill="#999">{{ max_trend }}</text>
+          {# Bars — coordinates pre-calculated in view #}
+          {% for m in monthly_trend %}
+            <rect x="{{ m.bar_x }}" y="{{ m.bar_y }}" width="25" height="{{ m.bar_h }}" rx="3"
+                  fill="{% if m.is_last %}#0d6efd{% else %}#90caf9{% endif %}" />
+            <text x="{{ m.label_x }}" y="135" font-size="7" fill="#666" text-anchor="middle">{{ m.month }}</text>
+            <text x="{{ m.label_x }}" y="{{ m.value_y }}" font-size="7" font-weight="600" fill="#333" text-anchor="middle">{{ m.count }}</text>
+          {% endfor %}
+        </svg>
+      </div>
+    </div>
+
+  </div>
+
+  {# ================================================================ #}
+  {# TWO-COLUMN: TEACHERS BY ISLAND + BY SCHOOL                      #}
+  {# ================================================================ #}
+  <div class="two-col" style="margin-top: 10pt;">
+
+    {# --- Teachers by Island --- #}
+    <div class="col-half avoid-break">
+      <h2 class="section-heading">Teachers by Island</h2>
+      {% if island_data %}
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>Island</th>
+              <th>Teachers</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in island_data %}
+              <tr>
+                <td>{{ row.home_island__label }}</td>
+                <td>{{ row.count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color: #999; font-size: 9pt;">No island data available.</p>
+      {% endif %}
+    </div>
+
+    {# --- Top 10 Schools --- #}
+    <div class="col-half avoid-break">
+      <h2 class="section-heading">Top 10 Schools</h2>
+      {% if school_data %}
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>School</th>
+              <th>Staff</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in school_data %}
+              <tr>
+                <td>
+                  <span class="rank">{{ forloop.counter }}</span>
+                  {{ row.school__emis_school_name }}
+                </td>
+                <td>{{ row.count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p style="color: #999; font-size: 9pt;">No school assignment data available.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {# ================================================================ #}
+  {# ADDITIONAL STATISTICS                                            #}
+  {# ================================================================ #}
+  <div class="avoid-break" style="margin-top: 16pt;">
+    <h2 class="section-heading">Additional Statistics</h2>
+    <table class="report-table">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Non-teaching staff</td>
+          <td>{{ non_teaching_staff }}</td>
+        </tr>
+        <tr>
+          <td>Registrations in last 30 days</td>
+          <td>{{ staff_added_recent }}</td>
+        </tr>
+        <tr>
+          <td>Active schools in system</td>
+          <td>{{ active_schools }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  {# --- Footer band: placed AFTER content to avoid ghost on page 2 --- #}
+  <div class="footer-band">
+    <span>Confidential</span>
+    <span>{{ emis_context }}</span>
+  </div>
+
+</body>
+</html>

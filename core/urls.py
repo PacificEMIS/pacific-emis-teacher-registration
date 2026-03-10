@@ -47,4 +47,38 @@ urlpatterns = [
         views.delete_pending_user,
         name="delete_pending_user",
     ),
+    # Utilities
+    path("utilities/split-pdf/", views.pdf_split, name="pdf_split"),
+    path(
+        "utilities/split-pdf/results/<str:job_id>/",
+        views.pdf_split_results,
+        name="pdf_split_results",
+    ),
+    path(
+        "utilities/split-pdf/download/<str:job_id>/<int:page_num>/",
+        views.pdf_split_download,
+        name="pdf_split_download",
+    ),
+    path(
+        "utilities/split-pdf/download-all/<str:job_id>/",
+        views.pdf_split_download_all,
+        name="pdf_split_download_all",
+    ),
+    path("utilities/merge-pdf/", views.pdf_merge, name="pdf_merge"),
+    # Reports
+    path("reports/", views.reports_index, name="reports"),
+    path(
+        "reports/teacher-summary/",
+        views.report_teacher_summary,
+        name="report_teacher_summary",
+    ),
+    # Settings
+    path("settings/", views.admin_settings, name="settings"),
+    path("settings/sync-emis-lookups/", views.sync_emis_lookups, name="sync_emis_lookups"),
+    path("settings/lookups/<slug:slug>/", views.settings_lookup_list, name="settings_lookup_list"),
+    path(
+        "settings/lookups/<slug:slug>/<str:pk>/update/",
+        views.settings_lookup_update,
+        name="settings_lookup_update",
+    ),
 ]

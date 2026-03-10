@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item active" aria-current="page">Reports</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-bar-chart me-2"></i>
+            Reports
+          </h1>
+        </div>
+        <div class="card-body">
+          <p class="text-body-secondary small">
+            Generate PDF reports for printing or sharing. Each report opens in a
+            new tab as a PDF document.
+          </p>
+        </div>
+        <ul class="list-group list-group-flush">
+          {% for report in reports %}
+            <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+              <div>
+                <i class="bi {{ report.icon }} me-2 text-primary"></i>
+                <strong>{{ report.title }}</strong>
+                <div class="text-body-secondary small mt-1">{{ report.description }}</div>
+              </div>
+              <a href="{{ report.url }}" target="_blank" class="btn btn-primary btn-sm ms-3 text-nowrap">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Generate PDF
+              </a>
+            </li>
+          {% empty %}
+            <li class="list-group-item text-body-secondary">No reports available.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

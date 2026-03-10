@@ -121,6 +121,33 @@
                         <i class="bi bi-person-plus me-2"></i> Pending Users
                       </a>
                     </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'reports' %}active{% endif %}"
+                         href="{% url 'core:reports' %}">
+                        <i class="bi bi-bar-chart me-2"></i> Reports
+                      </a>
+                    </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'settings' %}active{% endif %}"
+                         href="{% url 'core:settings' %}">
+                        <i class="bi bi-gear me-2"></i> Settings
+                      </a>
+                    </li>
+                    <li class="nav-item mt-3">
+                      <span class="sidebar-section-label px-3 small text-uppercase text-light">Utilities</span>
+                    </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'pdf_split' %}active{% endif %}"
+                         href="{% url 'core:pdf_split' %}">
+                        <i class="bi bi-scissors me-2"></i> Split PDF
+                      </a>
+                    </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'pdf_merge' %}active{% endif %}"
+                         href="{% url 'core:pdf_merge' %}">
+                        <i class="bi bi-file-earmark-plus me-2"></i> Merge PDF
+                      </a>
+                    </li>
                   {% endif %}
                 {% endif %}
               </ul>
