@@ -9,6 +9,7 @@
  * - Dynamic formset management (add/remove rows)
  * - Business address auto-expand
  * - Duties modal AJAX handlers
+ * - School autocomplete (Tom-Select)
  */
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -259,13 +260,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      // For appointment rows, bind teacher level select
+      // For appointment rows, bind teacher level select and school autocomplete
       if (formsetType === 'appointment') {
         const levelSelect = newRow.querySelector('[name$="-teacher_level_type"]');
         if (levelSelect) {
           levelSelect.addEventListener('change', () => updateTeacherLevelFields(newRow));
           updateTeacherLevelFields(newRow);
         }
+        // Clean up cloned Tom-Select wrappers and re-initialize
+        newRow.querySelectorAll('.ts-wrapper').forEach(function(w) { w.remove(); });
+        newRow.querySelectorAll('select[name$="-current_school"]').forEach(function(sel) {
+          sel.style.display = '';
+          sel.removeAttribute('tabindex');
+        });
+        initSchoolAutocomplete(newRow);
       }
     });
   });
@@ -619,4 +627,23 @@ document.addEventListener('DOMContentLoaded', function() {
         saveDutiesBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i> Save Duties';
       });
   });
+
+  // =========================================================================
+  // School Autocomplete (Tom-Select)
+  // =========================================================================
+  function initSchoolAutocomplete(container) {
+    const root = container || document;
+    root.querySelectorAll('select[name$="current_school"], select[name="nearby_school"]').forEach(function(select) {
+      if (select.tomselect) return;
+      new TomSelect(select, {
+        create: false,
+        sortField: { field: 'text', direction: 'asc' },
+        placeholder: 'Type to search for a school\u2026',
+      });
+    });
+  }
+
+  if (typeof TomSelect !== 'undefined') {
+    initSchoolAutocomplete(document);
+  }
 });

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Teacher Registration{% endblock title %}
 
-{% block extra_css %}
-  {% load static %}
-  <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
-{% endblock extra_css %}
+{% block extra_head %}
+  <!-- Tom-Select for school autocomplete -->
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.5.2/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock extra_head %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -649,5 +649,6 @@
 
 {% block extra_js %}
   {% load static %}
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.5.2/dist/js/tom-select.complete.min.js"></script>
   <script src="{% static 'teacher_registration/teacher_registration.js' %}"></script>
 {% endblock extra_js %}
