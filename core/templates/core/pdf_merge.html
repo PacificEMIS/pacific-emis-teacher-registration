@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Merge PDF{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item active" aria-current="page">Merge PDF</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-12 col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-file-earmark-plus me-2"></i>
+            Merge PDF
+          </h1>
+        </div>
+        <div class="card-body">
+          <form method="post" enctype="multipart/form-data" id="mergeForm">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="pdf_files" class="form-label">PDF files</label>
+              <input type="file"
+                     class="form-control"
+                     id="pdf_files"
+                     name="pdf_files"
+                     accept=".pdf"
+                     multiple
+                     required>
+              <div class="form-text">
+                Select two or more PDF files. They will be merged in the order shown below.
+                Maximum 50 MB per file.
+              </div>
+            </div>
+
+            {# File list preview (populated by JS) #}
+            <div id="fileList" class="mb-3 d-none">
+              <label class="form-label">Merge order</label>
+              <div class="small text-body-secondary mb-2">
+                Drag files to reorder, or use the arrow buttons.
+              </div>
+              <ul id="fileListItems" class="list-group"></ul>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="mergeBtn" disabled>
+              <i class="bi bi-file-earmark-plus me-1"></i> Merge &amp; Download
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {# ── Help panel ── #}
+    <div class="col-12 col-lg-4 mt-3 mt-lg-0">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h6 mb-0"><i class="bi bi-info-circle me-1"></i> About Merge PDF</h2>
+        </div>
+        <div class="card-body small">
+          <p>
+            Select multiple PDF files and combine them into a single document.
+            This is useful when a document was split across multiple pages and
+            needs to be recombined.
+          </p>
+          <p class="mb-2">
+            Files are merged in the order displayed. Drag to reorder before
+            merging.
+          </p>
+          <hr>
+          <h3 class="h6">Tips</h3>
+          <ul class="mb-0">
+            <li>The merged file downloads immediately.</li>
+            <li>Use <a href="{% url 'core:pdf_split' %}">Split PDF</a> first to break apart a combined document.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+  <script>
+    (function () {
+      var input = document.getElementById('pdf_files');
+      var listContainer = document.getElementById('fileList');
+      var listItems = document.getElementById('fileListItems');
+      var mergeBtn = document.getElementById('mergeBtn');
+      var form = document.getElementById('mergeForm');
+
+      var orderedFiles = [];
+
+      input.addEventListener('change', function () {
+        orderedFiles = Array.from(input.files);
+        renderList();
+      });
+
+      function renderList() {
+        listItems.innerHTML = '';
+        if (orderedFiles.length === 0) {
+          listContainer.classList.add('d-none');
+          mergeBtn.disabled = true;
+          return;
+        }
+        listContainer.classList.remove('d-none');
+        mergeBtn.disabled = orderedFiles.length < 2;
+
+        orderedFiles.forEach(function (file, idx) {
+          var li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.draggable = true;
+          li.dataset.index = idx;
+
+          var nameSpan = document.createElement('span');
+          nameSpan.textContent = (idx + 1) + '. ' + file.name;
+          nameSpan.className = 'text-break';
+
+          var btnGroup = document.createElement('span');
+          btnGroup.className = 'd-flex gap-1';
+
+          if (idx > 0) {
+            var upBtn = document.createElement('button');
+            upBtn.type = 'button';
+            upBtn.className = 'btn btn-sm btn-outline-secondary';
+            upBtn.innerHTML = '<i class="bi bi-arrow-up"></i>';
+            upBtn.title = 'Move up';
+            upBtn.addEventListener('click', function () { moveFile(idx, idx - 1); });
+            btnGroup.appendChild(upBtn);
+          }
+          if (idx < orderedFiles.length - 1) {
+            var downBtn = document.createElement('button');
+            downBtn.type = 'button';
+            downBtn.className = 'btn btn-sm btn-outline-secondary';
+            downBtn.innerHTML = '<i class="bi bi-arrow-down"></i>';
+            downBtn.title = 'Move down';
+            downBtn.addEventListener('click', function () { moveFile(idx, idx + 1); });
+            btnGroup.appendChild(downBtn);
+          }
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'btn btn-sm btn-outline-danger';
+          removeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+          removeBtn.title = 'Remove';
+          removeBtn.addEventListener('click', function () {
+            orderedFiles.splice(idx, 1);
+            renderList();
+          });
+          btnGroup.appendChild(removeBtn);
+
+          li.appendChild(nameSpan);
+          li.appendChild(btnGroup);
+
+          // Drag events
+          li.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('text/plain', String(idx));
+            li.classList.add('opacity-50');
+          });
+          li.addEventListener('dragend', function () {
+            li.classList.remove('opacity-50');
+          });
+          li.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            li.classList.add('border-primary');
+          });
+          li.addEventListener('dragleave', function () {
+            li.classList.remove('border-primary');
+          });
+          li.addEventListener('drop', function (e) {
+            e.preventDefault();
+            li.classList.remove('border-primary');
+            var fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+            if (fromIdx !== idx) moveFile(fromIdx, idx);
+          });
+
+          listItems.appendChild(li);
+        });
+      }
+
+      function moveFile(fromIdx, toIdx) {
+        var item = orderedFiles.splice(fromIdx, 1)[0];
+        orderedFiles.splice(toIdx, 0, item);
+        renderList();
+      }
+
+      // Submit files in the reordered sequence via FormData + fetch
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        mergeBtn.disabled = true;
+        mergeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Merging\u2026';
+
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+        orderedFiles.forEach(function (f) { fd.append('pdf_files', f); });
+
+        fetch(form.action || window.location.href, { method: 'POST', body: fd })
+          .then(function (resp) {
+            if (!resp.ok) {
+              // Server returned an error page (validation, etc.) — reload to show messages
+              window.location.reload();
+              return;
+            }
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('application/pdf') === -1) {
+              // Not a PDF response — likely an error page redirect
+              window.location.reload();
+              return;
+            }
+            return resp.blob().then(function (blob) {
+              var cd = resp.headers.get('content-disposition') || '';
+              var match = cd.match(/filename="?([^"]+)"?/);
+              var filename = match ? match[1] : 'merged.pdf';
+              var a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(a.href);
+            });
+          })
+          .catch(function () { window.location.reload(); })
+          .finally(function () {
+            mergeBtn.disabled = false;
+            mergeBtn.innerHTML = '<i class="bi bi-file-earmark-plus me-1"></i> Merge & Download';
+          });
+      });
+    })();
+  </script>
+{% endblock extra_js %}

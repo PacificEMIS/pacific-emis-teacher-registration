@@ -47,4 +47,22 @@ urlpatterns = [
         views.delete_pending_user,
         name="delete_pending_user",
     ),
+    # Utilities
+    path("utilities/split-pdf/", views.pdf_split, name="pdf_split"),
+    path(
+        "utilities/split-pdf/results/<str:job_id>/",
+        views.pdf_split_results,
+        name="pdf_split_results",
+    ),
+    path(
+        "utilities/split-pdf/download/<str:job_id>/<int:page_num>/",
+        views.pdf_split_download,
+        name="pdf_split_download",
+    ),
+    path(
+        "utilities/split-pdf/download-all/<str:job_id>/",
+        views.pdf_split_download_all,
+        name="pdf_split_download_all",
+    ),
+    path("utilities/merge-pdf/", views.pdf_merge, name="pdf_merge"),
 ]

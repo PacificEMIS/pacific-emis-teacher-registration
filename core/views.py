@@ -5,8 +5,16 @@ This module provides views for managing:
 - Dashboard: Overview of all core models with KPIs and recent activity
 - SystemUser: System-level users (MOE staff, consultants, administrators)
 - SchoolStaff: School-level staff and their school assignments
+- Utilities: PDF split and merge tools for admin staff
 """
+import json
+import re
+import shutil
+import uuid
+import zipfile
 from datetime import timedelta
+from io import BytesIO
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -15,10 +23,15 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db.models import Q, Prefetch, OuterRef, Subquery
+from django.http import FileResponse, HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import capfirst
+try:
+    from pypdf import PdfReader, PdfWriter
+except ImportError:
+    PdfReader = PdfWriter = None
 
 from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
@@ -1209,3 +1222,260 @@ def staff_delete(request, pk):
             "staff": staff,
         },
     )
+
+
+# ============================================================================
+# Utilities: PDF Split & Merge
+# ============================================================================
+
+PDF_SPLIT_TMP_DIR = Path(settings.MEDIA_ROOT) / "tmp" / "pdf_split"
+MAX_PDF_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
+
+def _cleanup_old_split_jobs(max_age_hours=24):
+    """Remove split job directories older than max_age_hours."""
+    if not PDF_SPLIT_TMP_DIR.exists():
+        return
+    cutoff = timezone.now().timestamp() - (max_age_hours * 3600)
+    for job_dir in PDF_SPLIT_TMP_DIR.iterdir():
+        if job_dir.is_dir() and job_dir.stat().st_mtime < cutoff:
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+
+def _generate_page_filename(page_num):
+    """Generate a simple page-numbered filename."""
+    return f"page_{page_num:03d}.pdf"
+
+
+@login_required
+@require_app_access
+def pdf_split(request):
+    """Upload a PDF and split it into individual pages."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if PdfReader is None:
+        messages.error(request, "The pypdf library is not installed. Please install it with: pip install pypdf")
+        return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("pdf_file")
+        if not uploaded_file:
+            messages.error(request, "Please select a PDF file to upload.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Validate file type
+        if not uploaded_file.name.lower().endswith(".pdf"):
+            messages.error(request, "Only PDF files are accepted.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Validate file size
+        if uploaded_file.size > MAX_PDF_UPLOAD_SIZE:
+            messages.error(request, "File size exceeds the 50 MB limit.")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+        # Clean up old jobs before creating a new one
+        _cleanup_old_split_jobs()
+
+        try:
+            reader = PdfReader(uploaded_file)
+            total_pages = len(reader.pages)
+
+            if total_pages < 2:
+                messages.warning(
+                    request,
+                    "This PDF has only one page. There is nothing to split.",
+                )
+                return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+            # Create job directory
+            job_id = uuid.uuid4().hex
+            job_dir = PDF_SPLIT_TMP_DIR / job_id
+            job_dir.mkdir(parents=True, exist_ok=True)
+
+            pages_meta = []
+            for i, page in enumerate(reader.pages, start=1):
+                filename = _generate_page_filename(i)
+                writer = PdfWriter()
+                writer.add_page(page)
+                filepath = job_dir / filename
+                with open(filepath, "wb") as f:
+                    writer.write(f)
+                pages_meta.append({"page_num": i, "filename": filename})
+
+            # Save metadata
+            metadata = {
+                "original_filename": uploaded_file.name,
+                "total_pages": total_pages,
+                "pages": pages_meta,
+            }
+            with open(job_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            return redirect("core:pdf_split_results", job_id=job_id)
+
+        except Exception as e:
+            messages.error(request, f"Error processing PDF: {e}")
+            return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+    return render(request, "core/pdf_split.html", {"active": "pdf_split"})
+
+
+@login_required
+@require_app_access
+def pdf_split_results(request, job_id):
+    """Display results of a PDF split operation."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    # Validate job_id format (hex UUID)
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    return render(
+        request,
+        "core/pdf_split.html",
+        {
+            "active": "pdf_split",
+            "results": metadata,
+            "job_id": job_id,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def pdf_split_download(request, job_id, page_num):
+    """Download a single split page."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    # Find the page
+    page_info = None
+    for p in metadata["pages"]:
+        if p["page_num"] == page_num:
+            page_info = p
+            break
+
+    if not page_info:
+        messages.error(request, "Page not found.")
+        return redirect("core:pdf_split_results", job_id=job_id)
+
+    filepath = job_dir / page_info["filename"]
+    if not filepath.exists():
+        messages.error(request, "File not found.")
+        return redirect("core:pdf_split_results", job_id=job_id)
+
+    return FileResponse(
+        open(filepath, "rb"),
+        as_attachment=True,
+        filename=page_info["filename"],
+    )
+
+
+@login_required
+@require_app_access
+def pdf_split_download_all(request, job_id):
+    """Download all split pages as a ZIP file."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if not re.fullmatch(r"[0-9a-f]{32}", job_id):
+        raise PermissionDenied
+
+    job_dir = PDF_SPLIT_TMP_DIR / job_id
+    metadata_path = job_dir / "metadata.json"
+
+    if not metadata_path.exists():
+        messages.error(request, "Split results not found or have expired.")
+        return redirect("core:pdf_split")
+
+    with open(metadata_path) as f:
+        metadata = json.load(f)
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for page_info in metadata["pages"]:
+            filepath = job_dir / page_info["filename"]
+            if filepath.exists():
+                zf.write(filepath, page_info["filename"])
+
+    buffer.seek(0)
+    original_stem = Path(metadata["original_filename"]).stem
+    zip_filename = f"{original_stem}_split.zip"
+
+    response = HttpResponse(buffer.read(), content_type="application/zip")
+    response["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
+    return response
+
+
+@login_required
+@require_app_access
+def pdf_merge(request):
+    """Upload multiple PDF files and merge them into one."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if PdfWriter is None:
+        messages.error(request, "The pypdf library is not installed. Please install it with: pip install pypdf")
+        return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+    if request.method == "POST":
+        pdf_files = request.FILES.getlist("pdf_files")
+
+        if len(pdf_files) < 2:
+            messages.error(request, "Please select at least two PDF files to merge.")
+            return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+        # Validate all files
+        for f in pdf_files:
+            if not f.name.lower().endswith(".pdf"):
+                messages.error(request, f"'{f.name}' is not a PDF file.")
+                return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+            if f.size > MAX_PDF_UPLOAD_SIZE:
+                messages.error(request, f"'{f.name}' exceeds the 50 MB size limit.")
+                return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+        try:
+            writer = PdfWriter()
+            for f in pdf_files:
+                reader = PdfReader(f)
+                for page in reader.pages:
+                    writer.add_page(page)
+
+            buffer = BytesIO()
+            writer.write(buffer)
+            buffer.seek(0)
+
+            response = HttpResponse(buffer.read(), content_type="application/pdf")
+            response["Content-Disposition"] = 'attachment; filename="merged.pdf"'
+            return response
+
+        except Exception as e:
+            messages.error(request, f"Error merging PDFs: {e}")
+            return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+    return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})

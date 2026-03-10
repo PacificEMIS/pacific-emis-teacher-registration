@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Split PDF{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item active" aria-current="page">Split PDF</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-12 col-lg-8">
+      {% if results %}
+        {# ── Results view ── #}
+        <div class="card shadow-sm">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h1 class="h5 mb-0">
+              <i class="bi bi-scissors me-2"></i>
+              Split Results
+            </h1>
+            <a href="{% url 'core:pdf_split_download_all' job_id=job_id %}"
+               class="btn btn-sm btn-success">
+              <i class="bi bi-file-earmark-zip me-1"></i> Download All as ZIP
+            </a>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-light border mb-4">
+              <dl class="row mb-0 small">
+                <dt class="col-sm-4">Original file</dt>
+                <dd class="col-sm-8">{{ results.original_filename }}</dd>
+                <dt class="col-sm-4">Pages extracted</dt>
+                <dd class="col-sm-8 mb-0">{{ results.total_pages }}</dd>
+              </dl>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="col-page-num">Page</th>
+                    <th>Filename</th>
+                    <th class="col-download text-end">Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for page in results.pages %}
+                    <tr>
+                      <td>{{ page.page_num }}</td>
+                      <td class="text-break">{{ page.filename }}</td>
+                      <td class="text-end">
+                        <a href="{% url 'core:pdf_split_download' job_id=job_id page_num=page.page_num %}"
+                           class="btn btn-sm btn-outline-primary"
+                           title="Download page {{ page.page_num }}">
+                          <i class="bi bi-download"></i>
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <hr>
+            <a href="{% url 'core:pdf_split' %}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i> Split Another PDF
+            </a>
+          </div>
+        </div>
+
+      {% else %}
+        {# ── Upload form ── #}
+        <div class="card shadow-sm">
+          <div class="card-header">
+            <h1 class="h5 mb-0">
+              <i class="bi bi-scissors me-2"></i>
+              Split PDF
+            </h1>
+          </div>
+          <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="pdf_file" class="form-label">PDF file</label>
+                <input type="file"
+                       class="form-control"
+                       id="pdf_file"
+                       name="pdf_file"
+                       accept=".pdf"
+                       required>
+                <div class="form-text">Maximum file size: 50 MB</div>
+              </div>
+              <button type="submit" class="btn btn-primary" id="splitBtn">
+                <i class="bi bi-scissors me-1"></i> Split PDF
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── Help panel ── #}
+    <div class="col-12 col-lg-4 mt-3 mt-lg-0">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h6 mb-0"><i class="bi bi-info-circle me-1"></i> About Split PDF</h2>
+        </div>
+        <div class="card-body small">
+          <p>
+            Upload a combined PDF document and this tool will split it into
+            individual pages, numbered sequentially.
+          </p>
+          <p class="mb-2">
+            You can then download pages individually or all at once as a ZIP
+            file. If a document spans multiple pages, use the
+            <a href="{% url 'core:pdf_merge' %}">Merge PDF</a> tool to
+            recombine them.
+          </p>
+          <hr>
+          <h3 class="h6">Tips</h3>
+          <ul class="mb-0">
+            <li>Filenames are suggestions based on page content &mdash; verify before using.</li>
+            <li>Split results are available for 24 hours.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+  <script>
+    // Show spinner on upload
+    var form = document.querySelector('form[enctype]');
+    if (form) {
+      form.addEventListener('submit', function () {
+        var btn = document.getElementById('splitBtn');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Splitting\u2026';
+        }
+      });
+    }
+  </script>
+{% endblock extra_js %}

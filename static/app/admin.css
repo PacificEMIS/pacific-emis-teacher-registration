@@ -134,3 +134,11 @@
 .appointment-row .duties-list-container .list-group-item {
   padding-left: 0.5rem !important;
 }
+
+/* PDF split results table column widths */
+.col-page-num {
+  width: 80px;
+}
+.col-download {
+  width: 100px;
+}
