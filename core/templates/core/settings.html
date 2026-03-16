@@ -8,7 +8,110 @@
   </nav>
 
   <div class="row">
-    <div class="col-12 col-lg-8">
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h5 mb-0">
+            <i class="bi bi-signpost-split me-2"></i>
+            Application Workflow
+          </h2>
+        </div>
+        <div class="card-body">
+          <p class="text-body-secondary small mb-3">
+            Every teacher registration application follows this lifecycle.
+          </p>
+
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span class="workflow-node bg-app-draft">Draft</span>
+            <i class="bi bi-arrow-right workflow-arrow"></i>
+            <span class="workflow-node bg-app-submitted">Submitted</span>
+            <i class="bi bi-arrow-right workflow-arrow"></i>
+            <span class="workflow-node bg-app-under-review">Under Review</span>
+            <i class="bi bi-arrow-right workflow-arrow"></i>
+            <span class="workflow-node bg-app-ready-for-approval">Ready for Approval</span>
+            <i class="bi bi-arrow-right workflow-arrow"></i>
+            <span class="workflow-node bg-app-approved">Approved</span>
+          </div>
+
+          <div class="workflow-branch">
+            <i class="bi bi-arrow-return-right workflow-arrow"></i>
+            <span class="workflow-node bg-app-rejected">Rejected</span>
+            <span class="text-body-secondary small ms-1">at any review stage</span>
+          </div>
+
+          <hr class="my-3">
+
+          <div class="row g-2 small">
+            <div class="col-sm-6">
+              <span class="badge bg-app-draft me-1">Draft</span>
+              Application started, not yet submitted
+            </div>
+            <div class="col-sm-6">
+              <span class="badge bg-app-submitted me-1">Submitted</span>
+              Sent to MOE for processing
+            </div>
+            <div class="col-sm-6">
+              <span class="badge bg-app-under-review me-1">Under Review</span>
+              Reviewer is checking documents
+            </div>
+            <div class="col-sm-6">
+              <span class="badge bg-app-ready-for-approval me-1">Ready</span>
+              Awaiting final decision by TR committee
+            </div>
+            <div class="col-sm-6">
+              <span class="badge bg-app-approved me-1">Approved</span>
+              Accepted by TR committee, teacher registered
+            </div>
+            <div class="col-sm-6">
+              <span class="badge bg-app-rejected me-1">Rejected</span>
+              Declined by reviewer or TR committee
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h5 mb-0">
+            <i class="bi bi-award me-2"></i>
+            Registration Statuses
+          </h2>
+        </div>
+        <div class="card-body">
+          <p class="text-body-secondary small mb-3">
+            Once approved, each teacher holds one of these registration levels.
+          </p>
+
+          <div class="reg-status-row">
+            <span class="reg-status-badge bg-reg-full">Full</span>
+            <span class="reg-status-desc">Fully qualified — no conditions or restrictions</span>
+          </div>
+          <div class="reg-status-row">
+            <span class="reg-status-badge bg-reg-conditional">Full Conditional</span>
+            <span class="reg-status-desc">Conditions must be met to maintain status</span>
+          </div>
+          <div class="reg-status-row">
+            <span class="reg-status-badge bg-reg-provisional">Provisional</span>
+            <span class="reg-status-desc">Temporary while completing qualifications</span>
+          </div>
+          <div class="reg-status-row">
+            <span class="reg-status-badge bg-reg-limited">Limited</span>
+            <span class="reg-status-desc">Restricted scope or duration limits</span>
+          </div>
+          <div class="reg-status-row">
+            <span class="reg-status-badge bg-reg-expired">Expired</span>
+            <span class="reg-status-desc">Registration lapsed — renewal required</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-12 col-lg-5">
       <div class="card shadow-sm">
         <div class="card-header">
           <h1 class="h5 mb-0">
@@ -33,10 +136,8 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="row mt-4">
-    <div class="col-12 col-lg-8">
+    <div class="col-12 col-lg-7">
       <div class="card shadow-sm">
         <div class="card-header">
           <h2 class="h5 mb-0">
