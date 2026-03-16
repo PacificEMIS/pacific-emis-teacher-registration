@@ -51,6 +51,15 @@ Two distinct CSS palettes in `static/teacher_registration/teacher_registration.c
 
 The `badge_class` property on `EmisTeacherRegistrationStatus` maps status labels to `bg-reg-*` classes automatically.
 
+## CSS and Styles
+
+**IMPORTANT**: Never put CSS in Django templates — no inline `style=""` attributes and no `<style>` blocks. All styles must go in the appropriate static CSS file:
+- `static/app/admin.css` — layout, sidebar, login page, general UI
+- `static/teacher_registration/teacher_registration.css` — registration-specific styles, badge palettes
+- `static/app/reports.css` — PDF report styles
+
+Always create CSS classes in these files and reference them in templates.
+
 ## Django Template Comments
 
 **IMPORTANT**: `{# ... #}` is for **single-line** comments only. For multi-line blocks use `{% comment %}...{% endcomment %}`:

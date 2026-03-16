@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load static socialaccount %}
 {% block content %}
-  <div class="container d-flex justify-content-center">
+  <div class="container d-flex justify-content-center login-page-compact">
     <div class="w-100">
-      <div class="py-4 px-3 text-center">
+      <div class="pt-0 pb-3 px-3 text-center">
         {# Branding: logo + context + app name (mirrors sidebar) #}
         <img src="{% static 'app/logos/' %}{{ emis_logo }}.png"
              alt="{{ emis_context }} Logo"
-             class="login-logo mb-2">
+             class="login-logo mb-1">
         <div class="login-app-title fw-bold">{{ emis_context }}</div>
         <div class="login-app-subtitle text-muted">{{ app_name }}</div>
 
@@ -33,18 +33,46 @@
           </div>
         {% else %}
           {# Standard admin/staff login #}
-          <h1 class="h4 mt-4">Sign In</h1>
-          <p class="text-muted">Use your organization Google account to sign in.</p>
+          <p class="text-muted mt-3 mb-3">Choose how you'd like to continue</p>
 
-          <p class="mt-4">
-            <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary px-4 py-2">
-              Continue with Google
-            </a>
-          </p>
-
-          <p class="mt-3 text-muted small">
-            Don't have access yet? Sign in first, then an administrator can grant permissions.
-          </p>
+          <div class="row g-3 justify-content-center login-choices">
+            {# Staff login card #}
+            <div class="col-sm-6">
+              <div class="card border-0 shadow-sm h-100 login-card-staff">
+                <div class="card-body p-3 text-center d-flex flex-column">
+                  <i class="bi bi-building-fill text-primary login-card-icon"></i>
+                  <h6 class="mt-2 mb-1 fw-bold">Staff Portal</h6>
+                  <p class="text-muted small flex-grow-1 mb-2">
+                    For Ministry staff and administrators.
+                  </p>
+                  <a href="{% provider_login_url 'google' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="btn btn-primary px-3 py-2">
+                    <i class="bi bi-google me-2"></i> Staff Sign In
+                  </a>
+                  <p class="text-muted small mt-2 mb-0">
+                    New staff? Sign in first, then an admin can grant access.
+                  </p>
+                </div>
+              </div>
+            </div>
+            {# Teacher registration card #}
+            <div class="col-sm-6">
+              <div class="card border-0 shadow-sm h-100 login-card-teacher">
+                <div class="card-body p-3 text-center d-flex flex-column">
+                  <i class="bi bi-mortarboard-fill login-card-icon"></i>
+                  <h6 class="mt-2 mb-1 fw-bold">Teacher Registration</h6>
+                  <p class="text-muted small flex-grow-1 mb-2">
+                    Register with the Ministry of Education.
+                  </p>
+                  <a href="{% url 'teacher_registration:public_landing' %}" class="btn btn-teacher-reg px-3 py-2">
+                    <i class="bi bi-arrow-right-circle me-2"></i> Go to Registration
+                  </a>
+                  <p class="text-muted small mt-2 mb-0">
+                    You'll be guided through the process step by step.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         {% endif %}
       </div>
     </div>

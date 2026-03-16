@@ -63,6 +63,43 @@
   font-size: 1.25rem;
 }
 
+/* Login page: reduce top whitespace for unauthenticated pages */
+.login-page-compact {
+  padding-top: 1rem !important;
+}
+
+/* Login choice cards */
+.login-choices {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.login-card-staff {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+}
+
+.login-card-teacher {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+}
+
+.login-card-icon {
+  font-size: 2rem;
+}
+
+.login-card-teacher .login-card-icon {
+  color: #7b1fa2;
+}
+
+.btn-teacher-reg {
+  background-color: #7b1fa2;
+  color: #fff;
+}
+
+.btn-teacher-reg:hover {
+  background-color: #6a1b9a;
+  color: #fff;
+}
+
 /* Keep sidebar tidy */
 .sidebar .nav-link {
   border-radius: .5rem;
