@@ -1823,7 +1823,7 @@ def report_teacher_summary(request):
         (constants.DRAFT, "Draft", "#78909c"),
         (constants.SUBMITTED, "Submitted", "#1565c0"),
         (constants.UNDER_REVIEW, "Under Review", "#f9a825"),
-        (constants.READY_FOR_APPROVAL, "Ready for Approval", "#9e9d24"),
+        (constants.READY_FOR_APPROVAL, "Ready for Decision Approval/Rejection", "#9e9d24"),
         (constants.APPROVED, "Approved", "#43a047"),
         (constants.REJECTED, "Rejected", "#e53935"),
     ]

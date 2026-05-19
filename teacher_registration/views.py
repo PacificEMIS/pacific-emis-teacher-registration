@@ -931,10 +931,10 @@ def registration_review(request, pk):
             registration.refresh_from_db()
             if registration.checklist_ready_for_approval and registration.status == constants.UNDER_REVIEW:
                 registration.mark_ready_for_approval(request.user)
-                messages.success(request, "Checklist saved. Registration marked as ready for approval.")
+                messages.success(request, "Checklist saved. Registration marked as ready for decision approval/rejection.")
             elif not registration.checklist_ready_for_approval and registration.status == constants.READY_FOR_APPROVAL:
                 registration.revert_to_under_review(request.user)
-                messages.success(request, "Checklist saved. Ready for Approval status removed.")
+                messages.success(request, "Checklist saved. Ready for Decision Approval/Rejection status removed.")
             else:
                 messages.success(request, "Checklist saved.")
             return redirect("teacher_registration:review", pk=registration.pk)
@@ -1115,6 +1115,41 @@ def condition_remove(request, pk):
         return JsonResponse({"success": True})
 
     return JsonResponse({"error": "POST required."}, status=405)
+
+
+@login_required
+@require_app_access
+def toggle_ready_for_approval(request, pk):
+    """
+    Persist the "Ready for Decision Approval/Rejection" checkbox immediately
+    (AJAX) and apply the same status transition as the checklist save flow.
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    registration = get_object_or_404(TeacherRegistration, pk=pk)
+
+    if registration.status not in [
+        constants.UNDER_REVIEW,
+        constants.READY_FOR_APPROVAL,
+    ]:
+        return JsonResponse(
+            {"error": "Ready status can only be changed during review."}, status=400
+        )
+
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required."}, status=405)
+
+    ready = request.POST.get("ready") == "true"
+    registration.checklist_ready_for_approval = ready
+    registration.save(update_fields=["checklist_ready_for_approval", "last_updated_at"])
+
+    if ready and registration.status == constants.UNDER_REVIEW:
+        registration.mark_ready_for_approval(request.user)
+    elif not ready and registration.status == constants.READY_FOR_APPROVAL:
+        registration.revert_to_under_review(request.user)
+
+    return JsonResponse({"ready": ready, "status": registration.status})
 
 
 @login_required

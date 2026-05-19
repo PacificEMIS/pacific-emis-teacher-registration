@@ -13,11 +13,13 @@
       <div class="small text-body-secondary">
         {{ registration.user.get_full_name|default:registration.user.username }}
         ·
-        {% if registration.status == 'ready_for_approval' %}
-          <span class="badge bg-app-ready-for-approval">Ready for Approval</span>
-        {% else %}
-          <span class="badge bg-app-under-review">Under Review</span>
-        {% endif %}
+        <span id="status-badge">
+          {% if registration.status == 'ready_for_approval' %}
+            <span class="badge bg-app-ready-for-approval">Ready for Decision Approval/Rejection</span>
+          {% else %}
+            <span class="badge bg-app-under-review">Under Review</span>
+          {% endif %}
+        </span>
       </div>
     </div>
     <a href="{% url 'teacher_registration:pending_list' %}"
@@ -214,14 +216,14 @@
                         {% if record.qualification %}
                           {{ record.qualification }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="small">
                         {% if record.major %}
                           {{ record.major }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                         {% if record.major2 %}
                           <br>{{ record.major2 }}
@@ -237,14 +239,14 @@
                         {% if record.completion_year %}
                           {{ record.completion_year }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="small">
                         {% if record.duration %}
                           {{ record.duration }} {{ record.duration_unit }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="text-end">
@@ -303,28 +305,28 @@
                         {% elif record.general_focus_area %}
                           {{ record.general_focus_area }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="small">
                         {% if record.format %}
                           {{ record.format }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td>
                         {% if record.completion_year %}
                           {{ record.completion_year }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="small">
                         {% if record.duration %}
                           {{ record.duration }} {{ record.duration_unit }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="text-end small">
@@ -336,7 +338,7 @@
                             <br>Exp. {{ record.expiration_date|date:"Y-m-d" }}
                           {% endif %}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                     </tr>
@@ -385,7 +387,7 @@
                         {% if appointment.employment_position %}
                           {{ appointment.employment_position.label }}
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                       <td class="small">
@@ -398,7 +400,7 @@
                         {% if appointment.start_date %}
                           From {{ appointment.start_date|date:"Y-m-d" }}
                         {% else %}
-                          From <span class="text-body-secondary">&mdash;</span>
+                          From <span class="text-body-secondary">—</span>
                         {% endif %}
                         <br>
                         {% if appointment.end_date %}
@@ -417,7 +419,7 @@
                         {% if appointment.employment_status %}
                           <span class="badge bg-secondary">{{ appointment.employment_status.label }}</span>
                         {% else %}
-                          <span class="text-body-secondary">&mdash;</span>
+                          <span class="text-body-secondary">—</span>
                         {% endif %}
                       </td>
                     </tr>
@@ -435,7 +437,7 @@
       </div>
 
       <!-- Registration Conditions -->
-      <div id="conditions-card" class="card shadow-sm mb-4" style="display: none;">
+      <div id="conditions-card" class="card shadow-sm mb-4 d-none">
         <div class="card-header">
           <h5 class="mb-0">Registration Conditions</h5>
         </div>
@@ -494,6 +496,16 @@
             <h5 class="mb-0">Review Decision</h5>
           </div>
           <div class="card-body">
+            <div class="form-check mb-3 pb-3 border-bottom"
+                 data-toggle-url="{% url 'teacher_registration:toggle_ready' pk=registration.pk %}">
+              {{ checklist_form.checklist_ready_for_approval }}
+              <label class="form-check-label fw-semibold" for="id_checklist_ready_for_approval">
+                Ready for Decision Approval/Rejection
+              </label>
+              <div class="form-text">Tick to save and unlock the approve/reject decision below.</div>
+            </div>
+
+            <div id="decision-fields">
             <div class="mb-3">
               <label class="form-label">Decision</label>
               <div class="form-check">
@@ -539,6 +551,7 @@
                 Submit Decision
               </button>
             </div>
+            </div>
           </div>
         </div>
       </form>
@@ -553,6 +566,7 @@
     const statusSelect = document.getElementById('id_teacher_registration_status');
     const radios = document.querySelectorAll('input[name="action"]');
     const decisionPanel = document.getElementById('review-decision-panel');
+    const decisionFields = document.getElementById('decision-fields');
     const readyCheckbox = document.getElementById('id_checklist_ready_for_approval');
     const conditionsCard = document.getElementById('conditions-card');
     const conditionsList = document.getElementById('conditions-list');
@@ -565,8 +579,48 @@
       toggleConditionsCard();
     }
 
-    function toggleDecisionPanel() {
-      decisionPanel.style.display = readyCheckbox.checked ? '' : 'none';
+    function toggleDecisionFields() {
+      const locked = !readyCheckbox.checked;
+      decisionFields.classList.toggle('decision-fields-locked', locked);
+      decisionFields.querySelectorAll('input, select, textarea, button').forEach(function(el) {
+        el.disabled = locked;
+      });
+    }
+
+    const readyToggleUrl = readyCheckbox.closest('[data-toggle-url]').dataset.toggleUrl;
+    const statusBadge = document.getElementById('status-badge');
+
+    function persistReady() {
+      const formData = new FormData();
+      formData.append('ready', readyCheckbox.checked ? 'true' : 'false');
+      readyCheckbox.disabled = true;
+
+      fetch(readyToggleUrl, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken},
+        body: formData,
+      })
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        readyCheckbox.disabled = false;
+        if (data.error) {
+          alert('Error: ' + data.error);
+          readyCheckbox.checked = !readyCheckbox.checked;
+          toggleDecisionFields();
+          return;
+        }
+        if (data.status === 'ready_for_approval') {
+          statusBadge.innerHTML = '<span class="badge bg-app-ready-for-approval">Ready for Decision Approval/Rejection</span>';
+        } else {
+          statusBadge.innerHTML = '<span class="badge bg-app-under-review">Under Review</span>';
+        }
+      })
+      .catch(function() {
+        readyCheckbox.disabled = false;
+        alert('Could not save the Ready status. Please try again.');
+        readyCheckbox.checked = !readyCheckbox.checked;
+        toggleDecisionFields();
+      });
     }
 
     function toggleConditionsCard() {
@@ -574,9 +628,10 @@
       if (selected && selected.value === 'approve' && statusSelect) {
         const selectedOption = statusSelect.options[statusSelect.selectedIndex];
         const label = selectedOption ? selectedOption.text.toLowerCase() : '';
-        conditionsCard.style.display = (label.includes('full') && label.includes('condition')) ? '' : 'none';
+        const isConditional = label.includes('full') && label.includes('condition');
+        conditionsCard.classList.toggle('d-none', !isConditional);
       } else {
-        conditionsCard.style.display = 'none';
+        conditionsCard.classList.add('d-none');
       }
     }
 
@@ -588,10 +643,13 @@
       statusSelect.addEventListener('change', toggleConditionsCard);
     }
 
-    readyCheckbox.addEventListener('change', toggleDecisionPanel);
+    readyCheckbox.addEventListener('change', function() {
+      toggleDecisionFields();
+      persistReady();
+    });
 
     toggleStatusField();
-    toggleDecisionPanel();
+    toggleDecisionFields();
 
     // --- Conditions AJAX ---
 
@@ -655,7 +713,7 @@
     // Auto-save pending condition before form submission + require at least one
     const reviewForm = decisionPanel.closest('form');
     reviewForm.addEventListener('submit', function(e) {
-      var isConditional = conditionsCard.style.display !== 'none';
+      var isConditional = !conditionsCard.classList.contains('d-none');
       if (!isConditional) return;
 
       var hasExisting = conditionsList.querySelectorAll('[data-condition-id]').length > 0;

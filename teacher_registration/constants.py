@@ -18,7 +18,7 @@ REGISTRATION_APPLICATION_STATUS_CHOICES = [
     (DRAFT, "Draft"),
     (SUBMITTED, "Submitted"),
     (UNDER_REVIEW, "Under Review"),
-    (READY_FOR_APPROVAL, "Ready for Approval"),
+    (READY_FOR_APPROVAL, "Ready for Decision Approval/Rejection"),
     (APPROVED, "Approved"),
     (REJECTED, "Rejected"),
     (EXPIRED, "Expired"),
