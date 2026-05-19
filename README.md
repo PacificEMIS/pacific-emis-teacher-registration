@@ -1,6 +1,22 @@
 # pacific-emis-teacher-registration
 A standalone but integrated module of the Pacific EMIS designed to support online registration of teachers across the region.
 
+## Development Setup
+
+This project uses [uv](https://docs.astral.sh/uv/). Python is pinned in
+`.python-version`; dependencies are declared in `pyproject.toml` and locked in
+`uv.lock`.
+
+```bash
+uv sync                                # create .venv and install deps
+uv run python manage.py migrate
+uv run python manage.py runserver
+```
+
+Configuration is read from `.env` (see existing keys for the database, EMIS API,
+email, and OAuth settings). See **System Dependencies** below for the native
+libraries WeasyPrint and the PostgreSQL driver require.
+
 ## Access Control Architecture
 
 This application uses a two-layer access control system that combines profile-based roles with group-based permissions.
@@ -63,7 +79,7 @@ Access is controlled through Django groups. Users must be assigned to at least o
 
 ## System Dependencies
 
-Beyond Python packages (listed in `requirements.txt`), this application requires system-level libraries.
+Beyond Python packages (declared in `pyproject.toml`, locked in `uv.lock`, installed via `uv sync`), this application requires system-level libraries.
 
 ### Debian / Ubuntu
 
@@ -137,7 +153,7 @@ python manage.py check_expired_registrations
 Run daily at midnight:
 
 ```
-0 0 * * * cd /path/to/project && /path/to/venv/bin/python manage.py check_expired_registrations >> /var/log/teacher-reg-expiry.log 2>&1
+0 0 * * * cd /path/to/project && uv run python manage.py check_expired_registrations >> /var/log/teacher-reg-expiry.log 2>&1
 ```
 
 **Scheduling with Task Scheduler (Windows)**:
@@ -145,6 +161,6 @@ Run daily at midnight:
 1. Open Task Scheduler and create a new task
 2. Set the trigger to run daily at the desired time
 3. Set the action to **Start a program**:
-   - **Program**: `C:\miniconda3\envs\pacific-emis-teacher-registration\python.exe`
-   - **Arguments**: `manage.py check_expired_registrations`
+   - **Program**: `uv`
+   - **Arguments**: `run python manage.py check_expired_registrations`
    - **Start in**: `C:\path\to\project`

@@ -35,10 +35,9 @@ try:
 except ImportError:
     PdfReader = PdfWriter = None
 
-try:
-    from weasyprint import HTML as WeasyHTML
-except (ImportError, OSError):
-    WeasyHTML = None
+# WeasyPrint is imported lazily inside the view that needs it: importing it at
+# module load initializes GTK at Django startup (noisy GLib-GIO warnings on
+# Windows) for a dependency only used when generating a report PDF.
 
 from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
@@ -1765,7 +1764,9 @@ def reports_index(request):
 @require_app_access
 def report_teacher_summary(request):
     """Generate a Teacher Registration Summary PDF via WeasyPrint."""
-    if WeasyHTML is None:
+    try:
+        from weasyprint import HTML as WeasyHTML
+    except (ImportError, OSError):
         messages.error(
             request,
             "PDF generation is not available. WeasyPrint requires GTK libraries. "

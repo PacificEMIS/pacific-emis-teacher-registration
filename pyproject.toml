@@ -1,0 +1,20 @@
+[project]
+name = "pacific-emis-teacher-registration"
+version = "0.1.0"
+description = "A standalone but integrated module of the Pacific EMIS for online registration of teachers across the region."
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<5.3",
+    "django-allauth[socialaccount]>=65.13,<66",
+    "psycopg[binary]>=3.2,<4",
+    "python-dotenv>=1.2,<2",
+    "requests>=2.32,<3",
+    "weasyprint>=68,<69",
+    "reportlab>=4.4,<5",
+    "pypdf>=6,<7",
+]
+
+[dependency-groups]
+dev = [
+    "djlint>=1.36,<2",
+]
