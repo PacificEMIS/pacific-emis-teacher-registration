@@ -83,6 +83,12 @@
   top: 80px;
 }
 
+/* Review Decision fields locked until "Ready for Decision Approval/Rejection" is ticked */
+.decision-fields-locked {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /*
  * Badge Color Schemes
  *
