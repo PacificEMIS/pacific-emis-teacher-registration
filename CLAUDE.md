@@ -2,13 +2,17 @@
 
 ## Python Environment
 
-This project uses a Conda environment named `pacific-emis-teacher-registration`.
+This project uses [uv](https://docs.astral.sh/uv/) for dependency and environment management. Python version is pinned in `.python-version` (3.12); dependencies are declared in `pyproject.toml` and locked in `uv.lock`.
 
-When running Django commands, use the full path to the Conda environment's Python interpreter (see `CLAUDE.local.md` for the machine-specific path).
-
-Example:
+First-time setup:
 ```
-"<path-to-env>/python.exe" manage.py check
+uv sync
+```
+
+Run Django commands through uv (it auto-uses the project `.venv`):
+```
+uv run python manage.py check
+uv run python manage.py runserver
 ```
 
 ## Database Migrations
