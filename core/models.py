@@ -313,6 +313,15 @@ class SchoolStaff(AuditModel):
         blank=True,
         help_text="Registration application status (only applicable for teaching staff)",
     )
+    registration_granted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Datetime the current registration was granted (approval/renewal). "
+            "registration_valid_until is computed from this. May be back/post-dated "
+            "by the reviewer; defaults to the moment of the approval decision."
+        ),
+    )
     registration_valid_until = models.DateTimeField(
         null=True,
         blank=True,
@@ -519,6 +528,15 @@ class SystemUser(AuditModel):
         blank=True,
         help_text="Job title or position within the organization",
     )
+    signature = models.ImageField(
+        upload_to="signatures/",
+        null=True,
+        blank=True,
+        help_text=(
+            "Signature image (PNG with transparent background recommended). "
+            "Overlaid on registration certificates when this user is the signatory."
+        ),
+    )
 
     class Meta:
         ordering = ["user__last_name", "user__first_name"]
@@ -536,6 +554,41 @@ class SystemUser(AuditModel):
         if self.organization:
             return f"{name} ({self.organization})"
         return name
+
+
+class OrgSettings(models.Model):
+    """
+    Singleton holding org-wide branding assets used on official outputs.
+
+    Access via OrgSettings.load() — never construct multiple rows.
+    """
+
+    stamp = models.ImageField(
+        upload_to="org/",
+        null=True,
+        blank=True,
+        help_text=(
+            "Organization stamp/seal overlaid on registration certificates. "
+            "PNG with a transparent background recommended."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Organization Settings"
+        verbose_name_plural = "Organization Settings"
+
+    def __str__(self):
+        return "Organization Settings"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton: always pk=1.
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
 
 
 class StaffEducationRecord(AuditModel):

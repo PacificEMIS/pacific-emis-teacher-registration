@@ -65,6 +65,34 @@ def registration_upload_path(instance, filename):
     return f"documents/{filename}"
 
 
+def compute_valid_until(granted_at, registration_status):
+    """
+    Compute the registration expiry datetime from a grant datetime and the
+    selected EMIS registration status's validity period.
+
+    Returns None if the status has no validity period configured (registration
+    does not expire).
+    """
+    if not (
+        registration_status
+        and registration_status.validity_value
+        and registration_status.validity_unit
+    ):
+        return None
+
+    unit = registration_status.validity_unit
+    value = registration_status.validity_value
+    if unit == "minutes":
+        return granted_at + timedelta(minutes=value)
+    if unit == "hours":
+        return granted_at + timedelta(hours=value)
+    if unit == "days":
+        return granted_at + timedelta(days=value)
+    if unit == "years":
+        return granted_at + timedelta(days=value * 365)
+    return None
+
+
 class TeacherRegistration(AuditModel):
     """
     Teacher registration application.
@@ -297,6 +325,17 @@ class TeacherRegistration(AuditModel):
         blank=True,
         help_text="Comments from the reviewer (visible to applicant)",
     )
+    signatory = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="signed_registrations",
+        help_text=(
+            "Official who signs the registration certificate. "
+            "Chosen at approval from the 'Registration Signatories' group."
+        ),
+    )
 
     # -------------------------------------------------------------------------
     # Checklist fields (Section 7 of official Teacher Application Form)
@@ -486,9 +525,14 @@ class TeacherRegistration(AuditModel):
             notes="Reverted to under review",
         )
 
-    def approve(self, reviewer, comments="", registration_status=None):
+    def approve(self, reviewer, comments="", registration_status=None, granted_at=None, signatory=None):
         """
         Approve the registration and create SchoolStaff profile.
+
+        granted_at: datetime the registration is granted. Defaults to now.
+        registration_valid_until is computed from this, not from "now".
+        signatory: User chosen by the reviewer to sign the certificate.
+        Stored on the registration record.
 
         This method:
         1. Validates National ID is present (required for registration number)
@@ -514,9 +558,14 @@ class TeacherRegistration(AuditModel):
                 "Only submitted, under-review, or ready-for-approval registrations can be approved"
             )
 
+        granted_at = granted_at or timezone.now()
+
         # Dispatch to renewal-specific approval if this is a renewal
         if self.registration_type == self.RENEWAL:
-            return self._approve_renewal(reviewer, comments, registration_status)
+            return self._approve_renewal(
+                reviewer, comments, registration_status,
+                granted_at=granted_at, signatory=signatory,
+            )
 
         # Validate National ID is present (required for registration number generation)
         if not self.national_id_number or not self.national_id_number.strip():
@@ -574,25 +623,16 @@ class TeacherRegistration(AuditModel):
             teacher_registration_status=registration_status,
             # Registration application status
             registration_application_status=constants.APPROVED,
+            # Registration grant datetime (drives expiry computation)
+            registration_granted_at=granted_at,
             # Audit
             created_by=reviewer,
             last_updated_by=reviewer,
         )
 
-        # Compute registration_valid_until from the selected registration status
-        if registration_status and registration_status.validity_value and registration_status.validity_unit:
-            unit = registration_status.validity_unit
-            value = registration_status.validity_value
-            now = timezone.now()
-            if unit == "minutes":
-                staff.registration_valid_until = now + timedelta(minutes=value)
-            elif unit == "hours":
-                staff.registration_valid_until = now + timedelta(hours=value)
-            elif unit == "days":
-                staff.registration_valid_until = now + timedelta(days=value)
-            elif unit == "years":
-                staff.registration_valid_until = now + timedelta(days=value * 365)
-            staff.save(update_fields=["registration_valid_until"])
+        # Compute registration_valid_until from the grant datetime
+        staff.registration_valid_until = compute_valid_until(granted_at, registration_status)
+        staff.save(update_fields=["registration_valid_until"])
 
         # Copy EducationRecords to StaffEducationRecords (preserves originals)
         for edu_record in self.education_records.all():
@@ -676,6 +716,7 @@ class TeacherRegistration(AuditModel):
         self.reviewed_at = timezone.now()
         self.reviewer_comments = comments
         self.approved_staff_profile = staff
+        self.signatory = signatory
         self.save()
 
         # Log the status change
@@ -691,7 +732,7 @@ class TeacherRegistration(AuditModel):
 
         return staff
 
-    def _approve_renewal(self, reviewer, comments, registration_status):
+    def _approve_renewal(self, reviewer, comments, registration_status, granted_at=None, signatory=None):
         """
         Approve a renewal registration and update the existing SchoolStaff profile.
 
@@ -755,23 +796,15 @@ class TeacherRegistration(AuditModel):
             staff.years_of_experience = self.years_of_experience
             staff.teacher_registration_status = registration_status
             staff.registration_application_status = constants.APPROVED
+            staff.registration_granted_at = granted_at or timezone.now()
             staff.last_updated_by = reviewer
             staff.save()
 
-            # Recalculate registration_valid_until from the selected registration status
-            if registration_status and registration_status.validity_value and registration_status.validity_unit:
-                unit = registration_status.validity_unit
-                value = registration_status.validity_value
-                now = timezone.now()
-                if unit == "minutes":
-                    staff.registration_valid_until = now + timedelta(minutes=value)
-                elif unit == "hours":
-                    staff.registration_valid_until = now + timedelta(hours=value)
-                elif unit == "days":
-                    staff.registration_valid_until = now + timedelta(days=value)
-                elif unit == "years":
-                    staff.registration_valid_until = now + timedelta(days=value * 365)
-                staff.save(update_fields=["registration_valid_until"])
+            # Recalculate registration_valid_until from the grant datetime
+            staff.registration_valid_until = compute_valid_until(
+                staff.registration_granted_at, registration_status
+            )
+            staff.save(update_fields=["registration_valid_until"])
 
             # Replace education records
             staff.education_records.all().delete()
@@ -856,6 +889,7 @@ class TeacherRegistration(AuditModel):
             self.reviewed_at = timezone.now()
             self.reviewer_comments = comments
             self.approved_staff_profile = staff
+            self.signatory = signatory
             self.save()
 
             # Log the status change

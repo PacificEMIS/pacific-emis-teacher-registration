@@ -5,6 +5,9 @@ Forms for teacher registration.
 from django import forms
 from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
+from django.utils import timezone
+
+from core.permissions import GROUP_REGISTRATION_SIGNATORIES
 
 from teacher_registration.models import (
     TeacherRegistration,
@@ -344,6 +347,22 @@ class RegistrationReviewForm(forms.Form):
         label="Registration Status",
     )
 
+    registration_granted_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date", "class": "form-control"}, format="%Y-%m-%d"),
+        label="Registration Granted Date",
+        help_text="Defaults to today. Override to back- or post-date the registration; expiry is computed from this date.",
+    )
+
+    signatory = forms.ModelChoiceField(
+        queryset=get_user_model().objects.none(),  # populated in __init__
+        required=False,  # enforced in clean() only when approving
+        empty_label="— Select signatory —",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        label="Signatory",
+        help_text="Official who signs the registration certificate.",
+    )
+
     comments = forms.CharField(
         required=False,
         widget=forms.Textarea(
@@ -358,6 +377,16 @@ class RegistrationReviewForm(forms.Form):
     def __init__(self, *args, registration=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.registration = registration
+        self.fields["registration_granted_date"].initial = timezone.localdate()
+        self.fields["signatory"].queryset = (
+            get_user_model().objects
+            .filter(is_active=True, groups__name=GROUP_REGISTRATION_SIGNATORIES)
+            .order_by("first_name", "last_name", "username")
+            .distinct()
+        )
+        self.fields["signatory"].label_from_instance = (
+            lambda u: u.get_full_name() or u.username
+        )
 
     def clean(self):
         """Require comments for rejection. Require registration status for approval."""
@@ -373,6 +402,11 @@ class RegistrationReviewForm(forms.Form):
         if action == self.ACTION_APPROVE and not cleaned_data.get("teacher_registration_status"):
             raise forms.ValidationError(
                 {"teacher_registration_status": "Please select a registration status for approval."}
+            )
+
+        if action == self.ACTION_APPROVE and not cleaned_data.get("signatory"):
+            raise forms.ValidationError(
+                {"signatory": "Please select a signatory for the registration certificate."}
             )
 
         # Conditional registration requires at least one condition

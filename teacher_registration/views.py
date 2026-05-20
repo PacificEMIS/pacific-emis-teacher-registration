@@ -25,7 +25,7 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
-from core.models import SchoolStaff, SchoolStaffAssignment
+from core.models import OrgSettings, SchoolStaff, SchoolStaffAssignment
 from integrations.models import (
     EmisSchool,
     EmisClassLevel,
@@ -948,10 +948,25 @@ def registration_review(request, pk):
             if action == RegistrationReviewForm.ACTION_APPROVE:
                 try:
                     registration_status = form.cleaned_data.get("teacher_registration_status")
+
+                    # Optional reviewer override of the grant date. Blank =>
+                    # approve() defaults to the exact approval moment (now).
+                    # An overridden date keeps the current time-of-day.
+                    granted_date = form.cleaned_data.get("registration_granted_date")
+                    granted_at = None
+                    if granted_date:
+                        granted_at = timezone.localtime().replace(
+                            year=granted_date.year,
+                            month=granted_date.month,
+                            day=granted_date.day,
+                        )
+
                     staff = registration.approve(
                         reviewer=request.user,
                         comments=comments,
                         registration_status=registration_status,
+                        granted_at=granted_at,
+                        signatory=form.cleaned_data.get("signatory"),
                     )
 
                     # Send approval email to the teacher
@@ -1951,25 +1966,46 @@ def teacher_certificate(request, pk):
     title_w = c.stringWidth(teacher_title, "Helvetica", 11)
     c.drawString(photo_center_x - title_w / 2, photo_y - 30, teacher_title)
 
+    # --- Resolve signatory (from the approving registration) and their profile ---
+    signatory = approved_reg.signatory if approved_reg else None
+    signatory_su = getattr(signatory, "system_user", None) if signatory else None
+
+    chair_name = (
+        (signatory.get_full_name() or signatory.username)
+        if signatory else "Buakura Metura Timeon"
+    )
+    chair_title = (
+        signatory_su.position_title
+        if signatory_su and signatory_su.position_title
+        else "Chair, Teacher Registration Committee"
+    )
+
     # --- Bottom-right: chair name + title ---
     c.setFont("Helvetica-Bold", 13)
-    chair_name = "Buakura Metura Timeon"
     chair_center_x = page_width * 0.735
     chair_name_w = c.stringWidth(chair_name, "Helvetica-Bold", 13)
     c.drawString(chair_center_x - chair_name_w / 2, photo_y - 16, chair_name)
     c.setFont("Helvetica", 11)
-    chair_title = "Chair, Teacher Registration Committee"
     chair_title_w = c.stringWidth(chair_title, "Helvetica", 11)
     c.drawString(chair_center_x - chair_title_w / 2, photo_y - 30, chair_title)
 
-    # --- Stamp and signature (centered between the two bottom sections) ---
-    stamp_path = str(
-        django_settings.BASE_DIR
-        / "static"
-        / "teacher_registration"
-        / "img"
-        / "stamp-placeholder.png"
-    )
+    # --- Stamp: uploaded org stamp (fall back to bundled placeholder) ---
+    org_settings = OrgSettings.load()
+    if org_settings.stamp:
+        try:
+            stamp_path = org_settings.stamp.path
+        except (ValueError, NotImplementedError):
+            stamp_path = None
+    else:
+        stamp_path = None
+    if not stamp_path:
+        stamp_path = str(
+            django_settings.BASE_DIR
+            / "static"
+            / "teacher_registration"
+            / "img"
+            / "stamp-placeholder.png"
+        )
     stamp_size = 82
     stamp_x = chair_center_x - stamp_size / 2
     stamp_y = photo_y
@@ -1977,6 +2013,22 @@ def teacher_certificate(request, pk):
         stamp_path, stamp_x, stamp_y, stamp_size, stamp_size,
         preserveAspectRatio=True, anchor="c", mask="auto",
     )
+
+    # --- Signature: signatory's uploaded image, just above the chair name ---
+    if signatory_su and signatory_su.signature:
+        try:
+            sig_path = signatory_su.signature.path
+            sig_w = 220
+            sig_h = 60
+            sig_x = chair_center_x - sig_w / 2
+            sig_y = photo_y - 6   # sits just above the chair-name baseline
+            c.drawImage(
+                sig_path, sig_x, sig_y, sig_w, sig_h,
+                preserveAspectRatio=True, anchor="c", mask="auto",
+            )
+        except (ValueError, NotImplementedError, FileNotFoundError):
+            # Missing/unreadable signature file: silently skip (per earlier UX choice).
+            pass
 
     # --- Determine extra pages before finalising the first-page overlay ---
     is_conditional = (

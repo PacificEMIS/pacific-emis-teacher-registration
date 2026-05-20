@@ -182,6 +182,8 @@ class Command(BaseCommand):
                 "integrations.view_emisschool",
                 "integrations.view_emiswarehouseyear",
             ],
+            # Registration Signatories (marker group; no Django perms attached)
+            "Registration Signatories": [],
             # Teachers
             "Teachers": [
                 "core.view_schoolstaff",
