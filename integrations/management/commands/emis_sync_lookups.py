@@ -76,7 +76,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisSchool.objects.update_or_create(
                     emis_school_no=code,
-                    defaults={"emis_school_name": name or "", "active": True},
+                    defaults={"emis_school_name": name or ""},
+                    create_defaults={"emis_school_name": name or "", "active": True},
                 )
                 counts["schools"][0 if created else 1] += 1
 
@@ -87,7 +88,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisClassLevel.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["levels"][0 if created else 1] += 1
 
@@ -98,7 +100,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisJobTitle.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["job_titles"][0 if created else 1] += 1
 
@@ -109,7 +112,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisWarehouseYear.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["years"][0 if created else 1] += 1
 
@@ -120,7 +124,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisSubject.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["subjects"][0 if created else 1] += 1
 
@@ -131,7 +136,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherQual.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["teacher_quals"][0 if created else 1] += 1
 
@@ -142,7 +148,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisMaritalStatus.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["marital_status"][0 if created else 1] += 1
 
@@ -153,7 +160,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisIsland.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["islands"][0 if created else 1] += 1
 
@@ -164,7 +172,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherStatus.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["teacher_status"][0 if created else 1] += 1
 
@@ -175,7 +184,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherRegistrationStatus.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["teacher_registration_status"][0 if created else 1] += 1
 
@@ -186,7 +196,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisEducationLevel.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["education_levels"][0 if created else 1] += 1
 
@@ -197,7 +208,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherLinkType.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["teacher_link_types"][0 if created else 1] += 1
 
@@ -208,7 +220,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisGender.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["genders"][0 if created else 1] += 1
 
@@ -219,7 +232,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherPdFocus.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["pd_focuses"][0 if created else 1] += 1
 
@@ -230,7 +244,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherPdFormat.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["pd_formats"][0 if created else 1] += 1
 
@@ -241,7 +256,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisTeacherPdType.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["pd_types"][0 if created else 1] += 1
 
@@ -252,7 +268,8 @@ class Command(BaseCommand):
                     continue
                 obj, created = EmisNationality.objects.update_or_create(
                     code=str(code),
-                    defaults={"label": label or str(code), "active": True},
+                    defaults={"label": label or str(code)},
+                    create_defaults={"label": label or str(code), "active": True},
                 )
                 counts["nationalities"][0 if created else 1] += 1
 
