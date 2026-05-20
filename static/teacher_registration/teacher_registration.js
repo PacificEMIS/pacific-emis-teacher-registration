@@ -377,14 +377,101 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.training-row').forEach(bindTrainingDurationLabel);
 
   // =========================================================================
-  // Document Upload - Spinner on submit
+  // Document Upload / Delete - AJAX so the main form's unsaved edits survive.
+  // The upload and delete forms target separate endpoints; doing a normal POST
+  // reloads the page and discards anything the user hasn't saved in the main
+  // registration form. We submit via fetch and only swap the documents sidebar.
   // =========================================================================
+  const documentsSidebar = document.getElementById('documents-sidebar');
+
+  function showInlineAlert(level, text) {
+    const messagesContainer = document.querySelector('.messages-container');
+    const alertHtml =
+      '<div class="alert alert-' + level + ' alert-dismissible fade show" role="alert">' +
+      text +
+      '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+      '</div>';
+    if (messagesContainer) {
+      messagesContainer.insertAdjacentHTML('afterbegin', alertHtml);
+    } else {
+      const main = document.querySelector('main') || document.body;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'messages-container mb-3';
+      wrapper.innerHTML = alertHtml;
+      main.insertBefore(wrapper, main.firstChild);
+    }
+  }
+
   const uploadForm = document.getElementById('document-upload-form');
-  if (uploadForm) {
-    uploadForm.addEventListener('submit', function() {
+  if (uploadForm && documentsSidebar) {
+    uploadForm.addEventListener('submit', function(e) {
+      e.preventDefault();
       const btn = document.getElementById('upload-doc-btn');
+      const originalBtnHtml = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Uploading\u2026please wait';
+
+      const formData = new FormData(uploadForm);
+      fetch(uploadForm.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+      })
+        .then(response => response.json().then(data => ({ ok: response.ok, data: data })))
+        .then(({ ok, data }) => {
+          if (ok && data.success) {
+            documentsSidebar.innerHTML = data.sidebar_html;
+            uploadForm.reset();
+            showInlineAlert('success', '<i class="bi bi-check-circle me-1"></i>' + (data.message || 'Document uploaded.'));
+          } else {
+            const errs = (data && data.errors) ? data.errors.join(' ') : (data && data.error) || 'Upload failed.';
+            showInlineAlert('danger', '<i class="bi bi-exclamation-triangle me-1"></i>' + errs);
+          }
+        })
+        .catch(err => {
+          console.error('Document upload failed:', err);
+          showInlineAlert('danger', '<i class="bi bi-exclamation-triangle me-1"></i>Upload failed. Please try again.');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = originalBtnHtml;
+        });
+    });
+  }
+
+  // Delete is delegated because the form is re-rendered on every upload/delete.
+  if (documentsSidebar) {
+    documentsSidebar.addEventListener('submit', function(e) {
+      const form = e.target.closest('.document-delete-form');
+      if (!form) return;
+      e.preventDefault();
+      if (!window.confirm('Delete this document?')) return;
+      const btn = form.querySelector('button[type="submit"]');
+      if (btn) btn.disabled = true;
+      const formData = new FormData(form);
+      fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin',
+      })
+        .then(response => response.json().then(data => ({ ok: response.ok, data: data })))
+        .then(({ ok, data }) => {
+          if (ok && data.success) {
+            documentsSidebar.innerHTML = data.sidebar_html;
+            showInlineAlert('success', '<i class="bi bi-check-circle me-1"></i>' + (data.message || 'Document deleted.'));
+          } else {
+            const msg = (data && data.error) || 'Delete failed.';
+            showInlineAlert('danger', '<i class="bi bi-exclamation-triangle me-1"></i>' + msg);
+            if (btn) btn.disabled = false;
+          }
+        })
+        .catch(err => {
+          console.error('Document delete failed:', err);
+          showInlineAlert('danger', '<i class="bi bi-exclamation-triangle me-1"></i>Delete failed. Please try again.');
+          if (btn) btn.disabled = false;
+        });
     });
   }
 

@@ -80,8 +80,6 @@ REQUIRED_DOCUMENTS = [
     ("National ID Card", ["NATIONID"]),
     ("Academic Certificate", ["ACACERT"]),
     ("Academic Transcript", ["ACATRANS", "STATERES"]),
-    ("Teaching Certificate", ["TEACHCERT", "TEACHINGQUAL"]),
-    ("Teaching Transcript", ["TEACHTRANS"]),
     ("Training/Workshop Certificates", ["TRAINCERT"]),
     ("Police Clearance", ["POLCLEAR"]),
     ("Medical Clearance", ["MEDCLEAR"]),
@@ -726,6 +724,33 @@ def registration_submit(request, pk):
 
 
 @login_required
+def _is_ajax(request):
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _render_documents_sidebar(request, registration):
+    """Render the documents sidebar partial for a registration."""
+    documents = registration.documents.all()
+    staff_documents = None
+    if registration.registration_type == TeacherRegistration.RENEWAL and registration.approved_staff_profile:
+        staff_docs_qs = RegistrationDocument.objects.filter(
+            school_staff=registration.approved_staff_profile
+        ).select_related("doc_link_type").order_by("doc_link_type_id", "-created_at")
+        seen_types = set()
+        staff_documents = []
+        for doc in staff_docs_qs:
+            if doc.doc_link_type_id not in seen_types:
+                seen_types.add(doc.doc_link_type_id)
+                staff_documents.append(doc)
+    required_docs_status = get_required_documents_status(documents, staff_documents)
+    return render(request, "teacher_registration/_documents_sidebar.html", {
+        "registration": registration,
+        "documents": documents,
+        "staff_documents": staff_documents,
+        "required_docs_status": required_docs_status,
+    }).content.decode("utf-8")
+
+
 def document_upload(request, registration_pk):
     """
     Upload a document to a registration.
@@ -740,6 +765,11 @@ def document_upload(request, registration_pk):
 
     # Check status
     if not registration.is_editable:
+        if _is_ajax(request):
+            return JsonResponse(
+                {"success": False, "error": "Documents cannot be added to this registration."},
+                status=400,
+            )
         messages.error(request, "Documents cannot be added to this registration.")
         return redirect("teacher_registration:edit", pk=registration.pk)
 
@@ -751,8 +781,17 @@ def document_upload(request, registration_pk):
             document.created_by = request.user
             document.last_updated_by = request.user
             document.save()
+            if _is_ajax(request):
+                return JsonResponse({
+                    "success": True,
+                    "message": "Document uploaded successfully.",
+                    "sidebar_html": _render_documents_sidebar(request, registration),
+                })
             messages.success(request, "Document uploaded successfully.")
         else:
+            if _is_ajax(request):
+                errors = [str(e) for errs in form.errors.values() for e in errs]
+                return JsonResponse({"success": False, "errors": errors}, status=400)
             for error in form.errors.values():
                 messages.error(request, error)
 
@@ -776,11 +815,22 @@ def document_delete(request, registration_pk, pk):
 
     # Check status
     if not registration.is_editable:
+        if _is_ajax(request):
+            return JsonResponse(
+                {"success": False, "error": "Documents cannot be removed from this registration."},
+                status=400,
+            )
         messages.error(request, "Documents cannot be removed from this registration.")
         return redirect("teacher_registration:edit", pk=registration.pk)
 
     if request.method == "POST":
         document.delete()
+        if _is_ajax(request):
+            return JsonResponse({
+                "success": True,
+                "message": "Document deleted.",
+                "sidebar_html": _render_documents_sidebar(request, registration),
+            })
         messages.success(request, "Document deleted.")
 
     # Redirect back to edit page
