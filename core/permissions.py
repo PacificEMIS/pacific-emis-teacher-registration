@@ -68,6 +68,11 @@ GROUP_TEACHERS = "Teachers"
 GROUP_SYSTEM_ADMINS = "System Admins"
 GROUP_SYSTEM_STAFF = "System Staff"
 
+# Cross-cutting marker group: users eligible to sign registration certificates.
+# Membership grants no Django permissions; it only flags a user as a valid
+# choice in the signatory dropdown on the registration review screen.
+GROUP_REGISTRATION_SIGNATORIES = "Registration Signatories"
+
 # Legacy names for backward compatibility (deprecated - remove after migration)
 GROUP_INCLUSIVE_ADMINS = GROUP_ADMINS
 GROUP_INCLUSIVE_SCHOOL_ADMINS = GROUP_SCHOOL_ADMINS

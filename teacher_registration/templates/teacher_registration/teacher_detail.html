@@ -188,6 +188,16 @@
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
             </dd>
+            <dt class="col-5">Registration Granted At</dt>
+            <dd class="col-7">
+              {% if teacher.registration_granted_at %}
+                <time class="local-datetime" datetime="{{ teacher.registration_granted_at|date:'c' }}">
+                  {{ teacher.registration_granted_at|date:"Y-m-d H:i" }} UTC
+                </time>
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
             <dt class="col-5">Valid Until</dt>
             <dd class="col-7">
               {% if teacher.registration_valid_until %}

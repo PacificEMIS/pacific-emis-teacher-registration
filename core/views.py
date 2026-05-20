@@ -39,13 +39,14 @@ except ImportError:
 # module load initializes GTK at Django startup (noisy GLib-GIO warnings on
 # Windows) for a dependency only used when generating a report PDF.
 
-from core.models import SystemUser, SchoolStaff, SchoolStaffAssignment
+from core.models import OrgSettings, SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
 from core.forms import (
     SchoolStaffAssignmentForm,
     SchoolStaffEditForm,
     AssignSchoolStaffForm,
     AssignSystemUserForm,
+    OrgSettingsForm,
     SystemUserEditForm,
 )
 from core.permissions import (
@@ -531,6 +532,7 @@ def system_user_edit(request, pk):
     if request.method == "POST":
         form = SystemUserEditForm(
             request.POST,
+            request.FILES,
             user=request.user,
             system_user=system_user,
         )
@@ -538,6 +540,13 @@ def system_user_edit(request, pk):
             # Update SystemUser fields
             system_user.organization = form.cleaned_data["organization"]
             system_user.position_title = form.cleaned_data["position_title"]
+            # signature: ClearableFileInput returns False when "clear" was ticked,
+            # an UploadedFile when a new file was chosen, or None when untouched.
+            sig = form.cleaned_data.get("signature")
+            if sig is False:
+                system_user.signature.delete(save=False)
+            elif sig:
+                system_user.signature = sig
             system_user.last_updated_by = request.user
             system_user.save()
 
@@ -545,7 +554,9 @@ def system_user_edit(request, pk):
             if can_edit_groups:
                 new_groups = form.cleaned_data["groups"]
                 # Only update system-level groups, preserve any other groups
-                system_groups = ["Admins", "System Admins", "System Staff"]
+                system_groups = [
+                    "Admins", "System Admins", "System Staff", "Registration Signatories",
+                ]
                 # Remove old system-level groups
                 system_user.user.groups.remove(
                     *system_user.user.groups.filter(name__in=system_groups)
@@ -1514,9 +1525,20 @@ def pdf_merge(request):
 @login_required
 @require_app_access
 def admin_settings(request):
-    """Admin settings page with EMIS lookup sync action."""
+    """Admin settings page with EMIS lookup sync action and org branding."""
     if not can_manage_pending_users(request.user):
         raise PermissionDenied
+
+    org_settings = OrgSettings.load()
+
+    if request.method == "POST":
+        org_form = OrgSettingsForm(request.POST, request.FILES, instance=org_settings)
+        if org_form.is_valid():
+            org_form.save()
+            messages.success(request, "Organization settings updated.")
+            return redirect("core:settings")
+    else:
+        org_form = OrgSettingsForm(instance=org_settings)
 
     # Build lookup summary with counts
     lookup_categories = []
@@ -1531,6 +1553,8 @@ def admin_settings(request):
     return render(request, "core/settings.html", {
         "active": "settings",
         "lookup_categories": lookup_categories,
+        "org_settings": org_settings,
+        "org_form": org_form,
     })
 
 

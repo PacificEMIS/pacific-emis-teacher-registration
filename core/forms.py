@@ -7,7 +7,7 @@ from django import forms
 from django.contrib.auth.models import Group
 from django.forms import ModelForm
 
-from core.models import SchoolStaff, SchoolStaffAssignment, SystemUser
+from core.models import OrgSettings, SchoolStaff, SchoolStaffAssignment, SystemUser
 from integrations.models import EmisSchool
 from core.permissions import is_admin, is_admins_group, get_user_schools, can_assign_admins_group, GROUP_SYSTEM_ADMINS, _in_group
 
@@ -101,10 +101,10 @@ class SchoolStaffEditForm(forms.Form):
 
         # Filter groups based on user permissions
         if self.can_assign_admins:
-            school_groups = ["Admins", "School Admins", "School Staff", "Teachers"]
+            school_groups = ["Admins", "School Admins", "School Staff", "Teachers", "Registration Signatories"]
         else:
             # System Admins and School Admins cannot assign the Admins group
-            school_groups = ["School Admins", "School Staff", "Teachers"]
+            school_groups = ["School Admins", "School Staff", "Teachers", "Registration Signatories"]
 
         self.fields["groups"].queryset = Group.objects.filter(
             name__in=school_groups
@@ -162,10 +162,10 @@ class AssignSchoolStaffForm(forms.Form):
         self.can_assign_admins = can_assign_admins_group(user) if user else False
 
         if self.can_assign_admins:
-            school_groups = ["Admins", "School Admins", "School Staff", "Teachers"]
+            school_groups = ["Admins", "School Admins", "School Staff", "Teachers", "Registration Signatories"]
         else:
             # System Admins cannot assign the Admins group
-            school_groups = ["School Admins", "School Staff", "Teachers"]
+            school_groups = ["School Admins", "School Staff", "Teachers", "Registration Signatories"]
 
         self.fields["groups"].queryset = Group.objects.filter(
             name__in=school_groups
@@ -230,10 +230,10 @@ class AssignSystemUserForm(forms.Form):
         self.can_assign_admins = can_assign_admins_group(user) if user else False
 
         if self.can_assign_admins:
-            system_groups = ["Admins", "System Admins", "System Staff"]
+            system_groups = ["Admins", "System Admins", "System Staff", "Registration Signatories"]
         else:
             # System Admins cannot assign the Admins group
-            system_groups = ["System Admins", "System Staff"]
+            system_groups = ["System Admins", "System Staff", "Registration Signatories"]
 
         self.fields["groups"].queryset = Group.objects.filter(
             name__in=system_groups
@@ -289,6 +289,13 @@ class SystemUserEditForm(forms.Form):
         help_text="Job title or position within the organization.",
     )
 
+    signature = forms.ImageField(
+        label="Signature",
+        required=False,
+        widget=forms.ClearableFileInput(attrs={"class": "form-control form-control-sm", "accept": "image/*"}),
+        help_text="Signature image used on registration certificates. PNG with a transparent background recommended.",
+    )
+
     groups = forms.ModelMultipleChoiceField(
         label="Groups",
         queryset=Group.objects.all().order_by("name"),
@@ -307,10 +314,10 @@ class SystemUserEditForm(forms.Form):
 
         # Filter groups based on user permissions
         if self.can_assign_admins:
-            system_groups = ["Admins", "System Admins", "System Staff"]
+            system_groups = ["Admins", "System Admins", "System Staff", "Registration Signatories"]
         else:
             # System Admins cannot assign the Admins group
-            system_groups = ["System Admins", "System Staff"]
+            system_groups = ["System Admins", "System Staff", "Registration Signatories"]
 
         self.fields["groups"].queryset = Group.objects.filter(
             name__in=system_groups
@@ -325,6 +332,25 @@ class SystemUserEditForm(forms.Form):
         if system_user and not self.is_bound:
             self.initial["organization"] = system_user.organization
             self.initial["position_title"] = system_user.position_title
+            self.initial["signature"] = system_user.signature
             # Get current groups that are in our allowed list
             current_groups = system_user.user.groups.filter(name__in=system_groups)
             self.initial["groups"] = current_groups
+
+
+# ============================================================================
+# Organization Settings
+# ============================================================================
+
+
+class OrgSettingsForm(ModelForm):
+    """Form for org-wide branding settings (currently just the stamp)."""
+
+    class Meta:
+        model = OrgSettings
+        fields = ["stamp"]
+        widgets = {
+            "stamp": forms.ClearableFileInput(
+                attrs={"class": "form-control form-control-sm", "accept": "image/*"}
+            ),
+        }

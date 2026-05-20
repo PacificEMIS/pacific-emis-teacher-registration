@@ -529,6 +529,20 @@
               {% if form.teacher_registration_status.errors %}
                 <div class="invalid-feedback d-block">{{ form.teacher_registration_status.errors.0 }}</div>
               {% endif %}
+
+              <label for="id_registration_granted_date" class="form-label mt-3">{{ form.registration_granted_date.label }}</label>
+              {{ form.registration_granted_date }}
+              <div class="form-text">{{ form.registration_granted_date.help_text }}</div>
+              {% if form.registration_granted_date.errors %}
+                <div class="invalid-feedback d-block">{{ form.registration_granted_date.errors.0 }}</div>
+              {% endif %}
+
+              <label for="id_signatory" class="form-label mt-3">{{ form.signatory.label }}</label>
+              {{ form.signatory }}
+              <div class="form-text">{{ form.signatory.help_text }}</div>
+              {% if form.signatory.errors %}
+                <div class="invalid-feedback d-block">{{ form.signatory.errors.0 }}</div>
+              {% endif %}
             </div>
 
             <div class="mb-3">

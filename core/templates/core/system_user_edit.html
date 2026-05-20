@@ -23,7 +23,7 @@
             <h2 class="h6 mb-0">Profile details</h2>
         </div>
         <div class="card-body">
-            <form method="post" class="row g-3">
+            <form method="post" enctype="multipart/form-data" class="row g-3">
                 {% csrf_token %}
                 <div class="col-12 col-md-6">
                     <label for="{{ form.organization.id_for_label }}" class="form-label form-label-sm">Organization</label>
@@ -36,6 +36,42 @@
                     {{ form.position_title }}
                     {% if form.position_title.errors %}<div class="invalid-feedback d-block">{{ form.position_title.errors|striptags }}</div>{% endif %}
                     <div class="form-text">{{ form.position_title.help_text }}</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label form-label-sm">Signature</label>
+                    {% if system_user.signature %}
+                        <div class="mb-2">
+                            <img src="{{ system_user.signature.url }}" alt="Current signature" class="signature-preview" width="240" height="80">
+                        </div>
+                    {% endif %}
+
+                    {# Draw mode (default) #}
+                    <div id="signature-draw-mode">
+                        <div class="signature-canvas-wrap">
+                            <canvas id="signature-pad" width="660" height="180" class="signature-canvas"></canvas>
+                        </div>
+                        <div class="d-flex gap-2 mt-2">
+                            <button type="button" id="signature-clear-btn" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eraser me-1"></i> Clear
+                            </button>
+                            <span class="form-text align-self-center mb-0">
+                                Sign with mouse, stylus, or finger. Drawing is saved when you click Save changes.
+                            </span>
+                        </div>
+                        <div class="mt-2">
+                            <a href="#" id="signature-mode-upload" class="small">Use uploaded image file instead</a>
+                        </div>
+                    </div>
+
+                    {# Upload mode (hidden by default) #}
+                    <div id="signature-upload-mode" class="d-none">
+                        {{ form.signature }}
+                        {% if form.signature.errors %}<div class="invalid-feedback d-block">{{ form.signature.errors|striptags }}</div>{% endif %}
+                        <div class="form-text">{{ form.signature.help_text }}</div>
+                        <div class="mt-2">
+                            <a href="#" id="signature-mode-draw" class="small">Draw a signature instead</a>
+                        </div>
+                    </div>
                 </div>
 
                 {% if can_edit_groups %}
@@ -65,3 +101,60 @@
         </div>
     </div>
 {% endblock content %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@5.0.4/dist/signature_pad.umd.min.js"></script>
+<script>
+(function () {
+  const canvas = document.getElementById('signature-pad');
+  if (!canvas || typeof SignaturePad === 'undefined') return;
+
+  const drawMode = document.getElementById('signature-draw-mode');
+  const uploadMode = document.getElementById('signature-upload-mode');
+  const fileInput = document.getElementById('{{ form.signature.id_for_label }}');
+  const clearBtn = document.getElementById('signature-clear-btn');
+  const toUploadLink = document.getElementById('signature-mode-upload');
+  const toDrawLink = document.getElementById('signature-mode-draw');
+  const form = canvas.closest('form');
+
+  // Transparent background: omit backgroundColor option (defaults to transparent).
+  const pad = new SignaturePad(canvas, {
+    penColor: '#1b3a5c',  // matches certificate dark-blue text
+    minWidth: 1.0,
+    maxWidth: 2.5,
+  });
+
+  clearBtn.addEventListener('click', function () { pad.clear(); });
+
+  // Mode toggling: drawing is the default; user can switch to uploading a file.
+  toUploadLink.addEventListener('click', function (e) {
+    e.preventDefault();
+    drawMode.classList.add('d-none');
+    uploadMode.classList.remove('d-none');
+  });
+  toDrawLink.addEventListener('click', function (e) {
+    e.preventDefault();
+    uploadMode.classList.add('d-none');
+    drawMode.classList.remove('d-none');
+    if (fileInput) fileInput.value = '';  // clear any chosen file
+  });
+
+  // On submit: if drawing mode is active and the pad isn't empty, attach the
+  // canvas image as a File on the existing file input so the server-side form
+  // sees a normal upload (no backend changes required).
+  form.addEventListener('submit', function (e) {
+    if (drawMode.classList.contains('d-none')) return;  // upload mode active
+    if (pad.isEmpty()) return;                          // nothing drawn; leave field empty
+
+    e.preventDefault();
+    canvas.toBlob(function (blob) {
+      const file = new File([blob], 'signature.png', { type: 'image/png' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileInput.files = dt.files;
+      form.submit();
+    }, 'image/png');
+  });
+})();
+</script>
+{% endblock extra_js %}

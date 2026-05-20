@@ -179,3 +179,43 @@
 .col-download {
   width: 100px;
 }
+
+/* Signature preview on system user edit page */
+.signature-preview {
+  max-height: 80px;
+  max-width: 100%;
+  background: #fafafa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+/* Organization stamp preview on settings page */
+.org-stamp-preview {
+  display: block;
+  height: 90px;       /* fixed height — auto width keeps aspect ratio */
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  background: #fafafa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+/* Signature drawing canvas on system user edit page */
+.signature-canvas-wrap {
+  display: inline-block;
+  background: #fff;
+  border: 1px dashed #adb5bd;
+  border-radius: 4px;
+  max-width: 100%;
+}
+.signature-canvas {
+  display: block;
+  width: 660px;       /* matches canvas attribute; capped responsively */
+  max-width: 100%;
+  height: auto;
+  cursor: crosshair;
+  touch-action: none; /* prevent scrolling while drawing on touch devices */
+}
