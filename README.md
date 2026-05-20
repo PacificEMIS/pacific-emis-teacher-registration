@@ -9,6 +9,7 @@ This project uses [uv](https://docs.astral.sh/uv/). Python is pinned in
 
 ```bash
 uv sync                                # create .venv and install deps
+uv run pre-commit install              # install the git hook (see Deployment below)
 uv run python manage.py migrate
 uv run python manage.py runserver
 ```
@@ -16,6 +17,20 @@ uv run python manage.py runserver
 Configuration is read from `.env` (see existing keys for the database, EMIS API,
 email, and OAuth settings). See **System Dependencies** below for the native
 libraries WeasyPrint and the PostgreSQL driver require.
+
+## Deployment: `requirements.txt`
+
+The production Ansible playbook installs dependencies with `pip install -r requirements.txt`, so a committed `requirements.txt` must stay in sync with `uv.lock`.
+
+A pre-commit hook (`.pre-commit-config.yaml`) regenerates `requirements.txt` automatically whenever `pyproject.toml` or `uv.lock` is staged. Run `uv run pre-commit install` once after cloning to activate it. If the hook updates the file, the commit aborts — `git add requirements.txt` and recommit.
+
+To regenerate manually:
+
+```bash
+uv export --format requirements-txt --no-hashes --no-emit-project --no-dev -o requirements.txt
+```
+
+Do not hand-edit `requirements.txt`; edit `pyproject.toml` and run `uv lock` (or `uv add` / `uv remove`) instead.
 
 ## Access Control Architecture
 

@@ -7,6 +7,7 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency and environmen
 First-time setup:
 ```
 uv sync
+uv run pre-commit install
 ```
 
 Run Django commands through uv (it auto-uses the project `.venv`):
@@ -14,6 +15,19 @@ Run Django commands through uv (it auto-uses the project `.venv`):
 uv run python manage.py check
 uv run python manage.py runserver
 ```
+
+## Deployment: `requirements.txt`
+
+The Ansible deployment playbook installs production dependencies via `pip install -r requirements.txt`, so a committed `requirements.txt` must stay in sync with `uv.lock`.
+
+This is automated by a pre-commit hook (`.pre-commit-config.yaml`) that regenerates `requirements.txt` whenever `pyproject.toml` or `uv.lock` is staged. If the hook modifies the file, the commit aborts — `git add requirements.txt` and recommit.
+
+To regenerate manually:
+```
+uv export --format requirements-txt --no-hashes --no-emit-project --no-dev -o requirements.txt
+```
+
+Do not hand-edit `requirements.txt`; edit `pyproject.toml` and run `uv lock` (or `uv add` / `uv remove`) instead.
 
 ## Database Migrations
 
