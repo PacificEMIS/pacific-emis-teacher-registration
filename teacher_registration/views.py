@@ -80,8 +80,6 @@ REQUIRED_DOCUMENTS = [
     ("National ID Card", ["NATIONID"]),
     ("Academic Certificate", ["ACACERT"]),
     ("Academic Transcript", ["ACATRANS", "STATERES"]),
-    ("Teaching Certificate", ["TEACHCERT", "TEACHINGQUAL"]),
-    ("Teaching Transcript", ["TEACHTRANS"]),
     ("Training/Workshop Certificates", ["TRAINCERT"]),
     ("Police Clearance", ["POLCLEAR"]),
     ("Medical Clearance", ["MEDCLEAR"]),
