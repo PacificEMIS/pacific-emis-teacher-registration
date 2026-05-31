@@ -81,4 +81,14 @@ urlpatterns = [
         views.settings_lookup_update,
         name="settings_lookup_update",
     ),
+    path(
+        "settings/condition-types/",
+        views.settings_condition_types,
+        name="settings_condition_types",
+    ),
+    path(
+        "settings/condition-types/<str:pk>/update/",
+        views.settings_condition_type_update,
+        name="settings_condition_type_update",
+    ),
 ]

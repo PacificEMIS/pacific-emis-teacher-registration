@@ -1720,6 +1720,82 @@ def settings_lookup_list(request, slug):
 
 @login_required
 @require_app_access
+def settings_condition_types(request):
+    """
+    List, create, and toggle the LookupCondition entries used when attaching
+    conditions to a conditional teacher registration.
+
+    Restricted to the Admins group (locally-managed lookup, no EMIS sync).
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    from teacher_registration.models import LookupCondition
+
+    if request.method == "POST":
+        code = (request.POST.get("code") or "").strip()
+        label = (request.POST.get("label") or "").strip()
+
+        if not code or not label:
+            messages.error(request, "Both code and label are required.")
+        elif len(code) > 64:
+            messages.error(request, "Code must be 64 characters or fewer.")
+        elif len(label) > 128:
+            messages.error(request, "Label must be 128 characters or fewer.")
+        elif LookupCondition.objects.filter(code=code).exists():
+            messages.error(request, f"A condition type with code '{code}' already exists.")
+        else:
+            LookupCondition.objects.create(code=code, label=label, active=True)
+            messages.success(request, f"Condition type '{label}' added.")
+        return redirect("core:settings_condition_types")
+
+    items = LookupCondition.objects.all()
+    return render(request, "core/settings_condition_types.html", {
+        "active": "settings",
+        "items": items,
+    })
+
+
+@login_required
+@require_app_access
+def settings_condition_type_update(request, pk):
+    """AJAX endpoint to update label or toggle active on a LookupCondition."""
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "message": "POST required"}, status=405)
+
+    from teacher_registration.models import LookupCondition
+
+    try:
+        item = LookupCondition.objects.get(pk=pk)
+    except LookupCondition.DoesNotExist:
+        return JsonResponse({"ok": False, "message": "Condition type not found"}, status=404)
+
+    update_fields = []
+
+    if "label" in request.POST:
+        label = (request.POST["label"] or "").strip()
+        if not label:
+            return JsonResponse({"ok": False, "message": "Label cannot be empty"}, status=400)
+        if len(label) > 128:
+            return JsonResponse({"ok": False, "message": "Label too long"}, status=400)
+        item.label = label
+        update_fields.append("label")
+
+    if "active" in request.POST:
+        item.active = request.POST["active"] == "true"
+        update_fields.append("active")
+
+    if update_fields:
+        item.save(update_fields=update_fields)
+
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@require_app_access
 def settings_lookup_update(request, slug, pk):
     """AJAX endpoint to update editable fields on a lookup item."""
     if not can_manage_pending_users(request.user):
