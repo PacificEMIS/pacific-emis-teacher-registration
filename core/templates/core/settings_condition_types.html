@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Condition Types — Settings{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'core:settings' %}">Settings</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Condition Types</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-12 col-lg-5">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h2 class="h5 mb-0">
+            <i class="bi bi-plus-circle me-2"></i>
+            Add Condition Type
+          </h2>
+        </div>
+        <div class="card-body">
+          <p class="text-body-secondary small">
+            Condition types are attached to conditional teacher registrations
+            (e.g. <em>complete probation</em>, <em>submit transcript</em>).
+            Code is the stable identifier; label is what reviewers see.
+          </p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label for="id_code" class="form-label form-label-sm">Code</label>
+              <input type="text" class="form-control form-control-sm" id="id_code" name="code"
+                     maxlength="64" required>
+              <div class="form-text">Short stable identifier, max 64 chars. Cannot be changed later.</div>
+            </div>
+            <div class="mb-3">
+              <label for="id_label" class="form-label form-label-sm">Label</label>
+              <input type="text" class="form-control form-control-sm" id="id_label" name="label"
+                     maxlength="128" required>
+              <div class="form-text">Human-readable name shown in reviewer UI.</div>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-plus-lg me-1"></i> Add
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-clipboard-check me-2"></i>
+            Condition Types
+          </h1>
+          <span class="badge text-bg-secondary">{{ items|length }} items</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Code</th>
+                  <th>Label</th>
+                  <th class="text-center">Active</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr data-pk="{{ item.pk }}">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <input type="text"
+                             class="form-control form-control-sm js-label"
+                             value="{{ item.label }}"
+                             maxlength="128"
+                             data-pk="{{ item.pk }}"
+                             data-original="{{ item.label }}">
+                    </td>
+                    <td class="text-center">
+                      <div class="form-check form-switch d-flex justify-content-center">
+                        <input class="form-check-input js-active-toggle"
+                               type="checkbox"
+                               role="switch"
+                               data-pk="{{ item.pk }}"
+                               {% if item.active %}checked{% endif %}>
+                      </div>
+                    </td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="3" class="text-center text-body-secondary py-4">
+                      No condition types yet. Use the form to add one.
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var csrfToken = '{{ csrf_token }}';
+
+  function postUpdate(pk, data) {
+    var formData = new FormData();
+    for (var key in data) {
+      formData.append(key, data[key]);
+    }
+    return fetch('{% url "core:settings_condition_types" %}' + encodeURIComponent(pk) + '/update/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: formData,
+    }).then(function (r) { return r.json().then(function (json) { return { ok: r.ok, json: json }; }); });
+  }
+
+  function flashRow(row, ok) {
+    var cls = ok ? 'table-success' : 'table-danger';
+    row.classList.add(cls);
+    setTimeout(function () { row.classList.remove(cls); }, 600);
+  }
+
+  document.querySelectorAll('.js-active-toggle').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var pk = this.dataset.pk;
+      var active = this.checked;
+      var row = this.closest('tr');
+      postUpdate(pk, { active: active }).then(function (res) {
+        flashRow(row, res.json.ok);
+      });
+    });
+  });
+
+  var timers = {};
+  document.querySelectorAll('.js-label').forEach(function (el) {
+    el.addEventListener('input', function () {
+      var pk = this.dataset.pk;
+      var input = this;
+      var row = input.closest('tr');
+      clearTimeout(timers[pk]);
+      timers[pk] = setTimeout(function () {
+        var label = input.value.trim();
+        if (!label) {
+          input.value = input.dataset.original;
+          flashRow(row, false);
+          return;
+        }
+        postUpdate(pk, { label: label }).then(function (res) {
+          if (res.json.ok) {
+            input.dataset.original = label;
+          }
+          flashRow(row, res.json.ok);
+        });
+      }, 500);
+    });
+  });
+})();
+</script>
+{% endblock extra_js %}

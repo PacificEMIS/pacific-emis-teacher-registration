@@ -9,7 +9,12 @@ from django.http import HttpRequest
 from django.urls import reverse
 
 from core.models import SchoolStaff, SystemUser
-from core.permissions import can_access_system_users, can_manage_pending_users, has_app_access
+from core.permissions import (
+    can_access_system_users,
+    can_manage_pending_users,
+    has_app_access,
+    is_admins_group,
+)
 
 
 def staff_context(request: HttpRequest) -> dict[str, Any]:
@@ -21,6 +26,7 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
     - has_app_access: whether user has full app access (profile + group)
     - can_access_system_users: for MOE Staff nav visibility control
     - can_manage_pending_users: for Pending Users management visibility (Admins or System Admins)
+    - is_admins_group: for Admins-only feature visibility (Condition Types management)
     - user_active_registration: the user's active registration (draft/submitted/under_review)
     - user_registration_url: URL to the user's registration edit page
     """
@@ -32,6 +38,7 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
         "has_app_access": has_app_access(user),
         "can_access_system_users": can_access_system_users(user),
         "can_manage_pending_users": can_manage_pending_users(user),
+        "is_admins_group": is_admins_group(user),
         "user_active_registration": None,
         "user_registration_url": None,
     }
