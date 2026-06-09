@@ -271,6 +271,7 @@ class TeacherRegistration(AuditModel):
             ("high_school", "High School"),
             ("certificate", "Certificate"),
             ("diploma", "Diploma"),
+            ("advanced_diploma", "Advanced Diploma"),
             ("bachelors", "Bachelor's Degree"),
             ("masters", "Master's Degree"),
             ("doctorate", "Doctorate"),
