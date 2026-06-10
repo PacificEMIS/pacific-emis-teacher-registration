@@ -1508,6 +1508,7 @@ def teacher_detail(request, pk):
             "registration_history": registration_history,
             "can_delete": can_delete,
             "passport_photo": passport_photo,
+            "can_crop_photo": can_delete,
         },
     )
 
@@ -1561,6 +1562,79 @@ def teacher_delete(request, pk):
             "teacher": teacher,
         },
     )
+
+
+@login_required
+@require_app_access
+def teacher_photo_crop(request, pk):
+    """
+    Save a manually cropped/rotated passport photo for an approved teacher.
+
+    The crop and rotation are performed in the browser; this endpoint receives
+    the finished image and stores it on the teacher's passport-photo document
+    (``cropped_file``), leaving the original upload untouched. The profile card
+    and certificate prefer ``cropped_file`` when present, which fixes photos
+    that were uploaded as a full-page PDF scan or an uncropped/rotated image.
+
+    Restricted to staff who can manage pending users (Admins / System Admins).
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return JsonResponse(
+            {"success": False, "error": "POST required."}, status=405
+        )
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF),
+        pk=pk,
+    )
+
+    photo = (
+        teacher.documents
+        .filter(doc_link_type__code__in=["PHOTO", "PORTRAIT"])
+        .order_by("-created_at")
+        .first()
+    )
+    if not photo:
+        return JsonResponse(
+            {"success": False, "error": "No passport photo document on file."},
+            status=404,
+        )
+
+    # Revert: discard the saved crop and fall back to the original upload.
+    if request.POST.get("action") == "remove":
+        if photo.cropped_file:
+            photo.cropped_file.delete(save=False)
+        photo.last_updated_by = request.user
+        photo.save()
+        return JsonResponse({"success": True, "removed": True})
+
+    upload = request.FILES.get("cropped_image")
+    if not upload:
+        return JsonResponse(
+            {"success": False, "error": "No cropped image was provided."},
+            status=400,
+        )
+
+    # Validate the upload really is an image before storing it.
+    from PIL import Image
+
+    try:
+        Image.open(upload).verify()
+    except Exception:
+        return JsonResponse(
+            {"success": False, "error": "The cropped image is not a valid image."},
+            status=400,
+        )
+    upload.seek(0)
+
+    photo.cropped_file.save(f"passport_{photo.pk}.jpg", upload, save=False)
+    photo.last_updated_by = request.user
+    photo.save()
+
+    return JsonResponse({"success": True, "image_url": photo.cropped_file.url})
 
 
 @login_required
@@ -1981,18 +2055,22 @@ def teacher_certificate(request, pk):
         .first()
     )
 
-    if photo_doc and photo_doc.file:
+    # Prefer the manually cropped/normalized photo; fall back to the original
+    # upload only when it is itself an image. A PDF (or any failure) leaves
+    # photo_drawn False so the placeholder below is used instead.
+    photo_image = photo_doc.display_image if photo_doc else None
+    photo_drawn = False
+    if photo_image:
         try:
-            photo_path = photo_doc.file.path
             c.drawImage(
-                photo_path, photo_x, photo_y, photo_w, photo_h,
+                photo_image.path, photo_x, photo_y, photo_w, photo_h,
                 preserveAspectRatio=True, anchor="c",
             )
+            photo_drawn = True
         except Exception:
-            # Fall back to placeholder on any error
-            photo_doc = None
+            photo_drawn = False
 
-    if not photo_doc or not photo_doc.file:
+    if not photo_drawn:
         placeholder_path = str(
             django_settings.BASE_DIR
             / "static"
@@ -2159,7 +2237,7 @@ def teacher_certificate(request, pk):
         # Subtitle
         cond_canvas.setFont("Helvetica", 11)
         subtitle = (
-            "Continued registration is subject to meeting the following conditions:"
+            "To achieve Full Registration, meet the conditions below:"
         )
         subtitle_w = cond_canvas.stringWidth(subtitle, "Helvetica", 11)
         cond_canvas.drawString(

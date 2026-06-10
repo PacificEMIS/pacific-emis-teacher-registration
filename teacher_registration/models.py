@@ -993,6 +993,17 @@ class RegistrationDocument(AuditModel):
         upload_to=registration_upload_path,
     )
 
+    cropped_file = models.ImageField(
+        upload_to=registration_upload_path,
+        null=True,
+        blank=True,
+        help_text=(
+            "Normalized passport photo produced by the in-app crop/rotate tool. "
+            "When present, the profile and certificate display this instead of the "
+            "original upload (which may be a PDF or an uncropped scan)."
+        ),
+    )
+
     original_filename = models.CharField(
         max_length=255,
         help_text="Original filename as uploaded",
@@ -1062,6 +1073,30 @@ class RegistrationDocument(AuditModel):
     def owner(self):
         """Return the current owner (registration or staff profile)."""
         return self.registration or self.school_staff
+
+    IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "bmp"}
+
+    @property
+    def original_is_image(self):
+        """True when the original upload is itself a browser-displayable image."""
+        name = (self.original_filename or self.file.name or "").lower()
+        ext = name.rsplit(".", 1)[-1] if "." in name else ""
+        return ext in self.IMAGE_EXTENSIONS
+
+    @property
+    def display_image(self):
+        """
+        Best image to render for this document.
+
+        Prefers the normalized crop; otherwise falls back to the original upload
+        only when it is itself an image. Returns ``None`` for non-image originals
+        (e.g. a PDF) with no crop yet, so callers can show a placeholder.
+        """
+        if self.cropped_file:
+            return self.cropped_file
+        if self.original_is_image:
+            return self.file
+        return None
 
 
 class RegistrationChangeLog(models.Model):

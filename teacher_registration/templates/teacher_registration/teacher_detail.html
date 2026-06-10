@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Teacher — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
 
-{% block extra_css %}
+{% block extra_head %}
   {% load static %}
-  <link href="{% static 'teacher_registration/teacher_registration.css' %}" rel="stylesheet">
-{% endblock extra_css %}
+  {% if can_crop_photo and passport_photo %}
+    <link href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" rel="stylesheet">
+  {% endif %}
+{% endblock extra_head %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
@@ -57,15 +59,34 @@
           <div class="d-flex gap-3">
             {# Passport photo #}
             <div class="flex-shrink-0">
-              {% if passport_photo and passport_photo.file %}
-                <img src="{{ passport_photo.file.url }}"
-                     alt="Passport photo"
-                     class="passport-photo">
-              {% else %}
-                <img src="{% static 'teacher_registration/img/profile-photo-placeholder.png' %}"
-                     alt="No photo"
-                     class="passport-photo">
-              {% endif %}
+              {% with photo_img=passport_photo.display_image %}
+                <div class="passport-photo-wrap{% if can_crop_photo and passport_photo %} passport-photo-editable{% endif %}"
+                     {% if can_crop_photo and passport_photo %}
+                       role="button" tabindex="0"
+                       data-crop-trigger
+                       data-crop-url="{% url 'teacher_registration:teacher_photo_crop' teacher.pk %}"
+                       data-source-url="{{ passport_photo.file.url }}"
+                       data-source-is-pdf="{% if passport_photo.original_is_image %}false{% else %}true{% endif %}"
+                       title="Click to crop or rotate this photo"
+                     {% endif %}>
+                  {% if photo_img %}
+                    <img id="passportPhotoImg" src="{{ photo_img.url }}"
+                         alt="Passport photo" class="passport-photo">
+                  {% else %}
+                    <img id="passportPhotoImg"
+                         src="{% static 'teacher_registration/img/profile-photo-placeholder.png' %}"
+                         alt="No usable photo" class="passport-photo">
+                  {% endif %}
+                  {% if can_crop_photo and passport_photo %}
+                    <span class="passport-photo-edit-badge"><i class="bi bi-crop"></i></span>
+                  {% endif %}
+                </div>
+                {% if can_crop_photo and passport_photo and not photo_img %}
+                  <p class="small text-danger mb-0 mt-1 passport-photo-hint">
+                    Uploaded file isn't a usable photo. Click to crop.
+                  </p>
+                {% endif %}
+              {% endwith %}
             </div>
             {# Profile details #}
             <div class="flex-grow-1">
@@ -672,6 +693,69 @@
       </div>
     </div>
   </div>
+
+  {% if can_crop_photo and passport_photo %}
+    {# Passport photo crop/rotate modal #}
+    {% csrf_token %}
+    <div class="modal fade" id="cropPhotoModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="h6 modal-title mb-0">Adjust passport photo</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="crop-toolbar btn-toolbar justify-content-center gap-2 mb-2">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Rotate 90 degrees">
+                <button type="button" class="btn btn-outline-secondary" data-crop-rotate="-90" title="Rotate left 90&#176;">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-crop-rotate="90" title="Rotate right 90&#176;">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Fine rotate">
+                <button type="button" class="btn btn-outline-secondary" data-crop-rotate="-1" title="Rotate left 1&#176;">&#8722;1&#176;</button>
+                <button type="button" class="btn btn-outline-secondary" data-crop-rotate="1" title="Rotate right 1&#176;">+1&#176;</button>
+              </div>
+              <div class="btn-group btn-group-sm" role="group" aria-label="Zoom">
+                <button type="button" class="btn btn-outline-secondary" data-crop-zoom="0.1" title="Zoom in">
+                  <i class="bi bi-zoom-in"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-crop-zoom="-0.1" title="Zoom out">
+                  <i class="bi bi-zoom-out"></i>
+                </button>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-crop-reset title="Reset">
+                <i class="bi bi-aspect-ratio"></i>
+              </button>
+            </div>
+            <div class="crop-stage">
+              <div id="cropLoading" class="crop-loading d-none">
+                <div class="spinner-border" role="status"></div>
+                <p class="small mb-0 mt-2">Loading document&#8230;</p>
+              </div>
+              <img id="cropImage" alt="Photo to crop">
+            </div>
+            <p class="small text-body-secondary mt-2 mb-0">
+              Drag the box over the face and resize it with the corner handles
+              (kept to passport ratio). Rotate if the scan is sideways, then Save.
+            </p>
+            <div id="cropError" class="alert alert-danger mt-3 mb-0 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            {% if passport_photo.cropped_file %}
+              <button type="button" class="btn btn-outline-danger me-auto" id="cropRemoveBtn">
+                Revert to original
+              </button>
+            {% endif %}
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="cropSaveBtn">Save photo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 {% endblock content %}
 
 {% block extra_js %}
@@ -770,5 +854,222 @@
     }
   });
 </script>
+
+{% if can_crop_photo and passport_photo %}
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    var trigger = document.querySelector('[data-crop-trigger]');
+    var modalEl = document.getElementById('cropPhotoModal');
+    if (!trigger || !modalEl || typeof Cropper === 'undefined') return;
+
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    }
+
+    var modal = new bootstrap.Modal(modalEl);
+    var cropImage = document.getElementById('cropImage');
+    var loading = document.getElementById('cropLoading');
+    var errorBox = document.getElementById('cropError');
+    var saveBtn = document.getElementById('cropSaveBtn');
+    var cropper = null;
+    // Cropper measures the image's rendered box, which is only correct once the
+    // modal has finished animating open AND the image has loaded. Track both and
+    // initialise when they have both happened, otherwise the cropper renders at
+    // the wrong size (oversized / duplicated-looking page, buttons pushed off).
+    var modalShown = false;
+    var imageLoaded = false;
+
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.remove('d-none');
+    }
+    function clearError() {
+      errorBox.textContent = '';
+      errorBox.classList.add('d-none');
+    }
+    function setLoading(on) {
+      loading.classList.toggle('d-none', !on);
+    }
+    function destroyCropper() {
+      if (cropper) { cropper.destroy(); cropper = null; }
+    }
+    function maybeInitCropper() {
+      if (!modalShown || !imageLoaded || cropper) return;
+      cropper = new Cropper(cropImage, {
+        aspectRatio: 35 / 45,
+        viewMode: 1,
+        autoCropArea: 0.6,
+        background: false,
+        movable: true,
+        zoomable: true,
+        responsive: true,
+      });
+    }
+    function loadImageSrc(src) {
+      clearError();
+      setLoading(true);
+      imageLoaded = false;
+      cropImage.onload = function () {
+        setLoading(false);
+        imageLoaded = true;
+        maybeInitCropper();
+      };
+      cropImage.onerror = function () {
+        setLoading(false);
+        showError('Could not load this image for cropping.');
+      };
+      cropImage.src = src;
+    }
+    function renderPdf(url) {
+      setLoading(true);
+      pdfjsLib.getDocument(url).promise
+        .then(function (pdf) { return pdf.getPage(1); })
+        .then(function (page) {
+          var viewport = page.getViewport({ scale: 2 });
+          var canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          return page.render({
+            canvasContext: canvas.getContext('2d'),
+            viewport: viewport,
+          }).promise.then(function () {
+            loadImageSrc(canvas.toDataURL('image/png'));
+          });
+        })
+        .catch(function () {
+          setLoading(false);
+          showError('Could not render this document for cropping. Open the original file and upload a cropped photo instead.');
+        });
+    }
+
+    function openModal() {
+      clearError();
+      destroyCropper();
+      modalShown = false;
+      imageLoaded = false;
+      cropImage.removeAttribute('src');
+      modal.show();
+      var src = trigger.getAttribute('data-source-url');
+      var isPdf = trigger.getAttribute('data-source-is-pdf') === 'true';
+      if (isPdf) {
+        if (!window.pdfjsLib) {
+          showError('PDF support failed to load. Please try again.');
+          return;
+        }
+        renderPdf(src);
+      } else {
+        loadImageSrc(src);
+      }
+    }
+
+    trigger.addEventListener('click', openModal);
+    trigger.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(); }
+    });
+
+    modalEl.querySelectorAll('[data-crop-rotate]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (cropper) cropper.rotate(parseInt(btn.getAttribute('data-crop-rotate'), 10));
+      });
+    });
+    modalEl.querySelectorAll('[data-crop-zoom]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (cropper) cropper.zoom(parseFloat(btn.getAttribute('data-crop-zoom')));
+      });
+    });
+    var resetBtn = modalEl.querySelector('[data-crop-reset]');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () { if (cropper) cropper.reset(); });
+    }
+
+    modalEl.addEventListener('shown.bs.modal', function () {
+      modalShown = true;
+      maybeInitCropper();
+    });
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      modalShown = false;
+      destroyCropper();
+    });
+
+    saveBtn.addEventListener('click', function () {
+      if (!cropper) return;
+      clearError();
+      var canvas = cropper.getCroppedCanvas({
+        width: 420,
+        height: 540,
+        imageSmoothingQuality: 'high',
+      });
+      if (!canvas) { showError('Nothing to save yet.'); return; }
+      var originalHTML = saveBtn.innerHTML;
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving…';
+      canvas.toBlob(function (blob) {
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        fd.append('cropped_image', blob, 'passport.jpg');
+        fetch(trigger.getAttribute('data-crop-url'), {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd,
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.success) {
+              modal.hide();
+              window.location.reload();
+              return;
+            }
+            showError(data.error || 'Could not save the photo.');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHTML;
+          })
+          .catch(function () {
+            showError('Could not save the photo. Please try again.');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalHTML;
+          });
+      }, 'image/jpeg', 0.9);
+    });
+
+    var removeBtn = document.getElementById('cropRemoveBtn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function () {
+        if (!window.confirm('Discard the cropped photo and revert to the original upload?')) return;
+        clearError();
+        var originalHTML = removeBtn.innerHTML;
+        removeBtn.disabled = true;
+        removeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Reverting…';
+        var fd = new FormData();
+        fd.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        fd.append('action', 'remove');
+        fetch(trigger.getAttribute('data-crop-url'), {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd,
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.success) {
+              modal.hide();
+              window.location.reload();
+              return;
+            }
+            showError(data.error || 'Could not revert the photo.');
+            removeBtn.disabled = false;
+            removeBtn.innerHTML = originalHTML;
+          })
+          .catch(function () {
+            showError('Could not revert the photo. Please try again.');
+            removeBtn.disabled = false;
+            removeBtn.innerHTML = originalHTML;
+          });
+      });
+    }
+  });
+</script>
+{% endif %}
 {% endblock extra_js %}
 

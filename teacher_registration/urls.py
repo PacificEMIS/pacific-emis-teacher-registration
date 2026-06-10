@@ -49,6 +49,11 @@ urlpatterns = [
     path("teachers/<int:pk>/", views.teacher_detail, name="teacher_detail"),
     path("teachers/<int:pk>/delete/", views.teacher_delete, name="teacher_delete"),
     path(
+        "teachers/<int:pk>/photo/crop/",
+        views.teacher_photo_crop,
+        name="teacher_photo_crop",
+    ),
+    path(
         "teachers/<int:pk>/resend-renewal-notification/",
         views.teacher_resend_renewal_notification,
         name="teacher_resend_renewal_notification",
