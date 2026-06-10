@@ -180,6 +180,74 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
+.passport-photo-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.passport-photo-editable {
+  cursor: pointer;
+}
+
+.passport-photo-editable:hover .passport-photo,
+.passport-photo-editable:focus-visible .passport-photo {
+  outline: 2px solid #1565c0;
+  outline-offset: 2px;
+}
+
+.passport-photo-edit-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(21, 101, 192, 0.92);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
+
+.passport-photo-hint {
+  max-width: 3.5cm;
+}
+
+/* --- Passport photo crop modal --- */
+.crop-stage {
+  position: relative;
+  height: 55vh;
+  max-height: 460px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f4f4f4;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Bound the source image so Cropper builds a viewport that fits the stage
+   (otherwise a full-page PDF render overflows the modal). */
+#cropImage {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.crop-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 /* --- Checklist table styles --- */
 .checklist-col-check {
   width: 70px;
