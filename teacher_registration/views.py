@@ -2032,13 +2032,24 @@ def teacher_certificate(request, pk):
     name_width = c.stringWidth(full_name, "GreatVibes", 32)
     c.drawString((page_width - name_width) / 2, page_height * 0.545, full_name)
 
+    # --- Registration Number value (label "Registration Number:" is baked into
+    # the template image, one row above "Registration Type:") ---
+    if teacher.teacher_registration_number:
+        c.setFont("Helvetica", 13)
+        c.setFillColor(dark_blue)
+        c.drawString(
+            page_width * 0.40,
+            page_height * 0.417,
+            teacher.teacher_registration_number,
+        )
+
     # --- Registration Type value ---
     c.setFont("Helvetica", 13)
     c.setFillColor(dark_blue)
-    c.drawString(page_width * 0.40, page_height * 0.391, reg_type)
+    c.drawString(page_width * 0.40, page_height * 0.389, reg_type)
 
     # --- Registration Validity value ---
-    c.drawString(page_width * 0.40, page_height * 0.363, validity_text)
+    c.drawString(page_width * 0.40, page_height * 0.362, validity_text)
 
     # --- Passport photo (bottom-left, replacing "Kaua Tito") ---
     # Passport photo size (approx 35mm x 45mm = ~99 x 128 points)
