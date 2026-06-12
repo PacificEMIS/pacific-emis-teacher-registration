@@ -69,6 +69,11 @@ urlpatterns = [
         name="teacher_edit_granted_at",
     ),
     path(
+        "teachers/<int:pk>/edit/<slug:section>/",
+        views.teacher_edit_section,
+        name="teacher_edit_section",
+    ),
+    path(
         "teachers/<int:pk>/renew-on-behalf/",
         views.teacher_renew_on_behalf,
         name="teacher_renew_on_behalf",

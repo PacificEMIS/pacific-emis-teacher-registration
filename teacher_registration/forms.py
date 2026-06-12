@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
 from django.utils import timezone
 
+from core.models import SchoolStaff
 from core.permissions import GROUP_REGISTRATION_SIGNATORIES
 
 from teacher_registration.models import (
@@ -770,3 +771,34 @@ ClaimedDutyFormSet = inlineformset_factory(
     min_num=0,
     validate_min=False,
 )
+
+
+# =============================================================================
+# Teacher Profile Section Edit Forms (post-approval admin edits)
+# =============================================================================
+#
+# Approved teachers become SchoolStaff records, copied from their registration.
+# These ModelForms let admins correct individual sections of that profile after
+# approval, one card at a time. Each section is a small ModelForm over a subset
+# of SchoolStaff fields; the generic ``teacher_edit_section`` view renders and
+# saves any of them. To add another editable card later, add a form here and a
+# registry entry in ``views.PROFILE_SECTION_FORMS`` — no new view/URL needed.
+
+
+class ProfessionalInfoForm(forms.ModelForm):
+    """Edit the Professional Information section of a teacher's profile."""
+
+    class Meta:
+        model = SchoolStaff
+        fields = [
+            "highest_qualification",
+            "years_of_experience",
+            "teacher_payroll_number",
+        ]
+        widgets = {
+            "highest_qualification": forms.Select(attrs={"class": "form-select"}),
+            "years_of_experience": forms.NumberInput(
+                attrs={"class": "form-control", "min": "0"}
+            ),
+            "teacher_payroll_number": forms.TextInput(attrs={"class": "form-control"}),
+        }

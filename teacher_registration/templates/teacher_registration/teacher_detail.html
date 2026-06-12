@@ -284,8 +284,14 @@
 
       <!-- Professional Information -->
       <div class="card shadow-sm flex-fill">
-        <div class="card-header">
+        <div class="card-header d-flex align-items-center justify-content-between">
           <h2 class="h6 mb-0">Professional Information</h2>
+          {% if can_delete %}
+            <a href="{% url 'teacher_registration:teacher_edit_section' teacher.pk 'professional' %}"
+               class="btn btn-sm btn-outline-secondary py-0">
+              <i class="bi bi-pencil me-1"></i> Edit
+            </a>
+          {% endif %}
         </div>
         <div class="card-body small">
           <dl class="row mb-0">
@@ -305,6 +311,14 @@
             <dd class="col-7">
               {% if teacher.years_of_experience is not None %}
                 {{ teacher.years_of_experience }} years
+              {% else %}
+                <span class="text-body-secondary">Not set</span>
+              {% endif %}
+            </dd>
+            <dt class="col-5">Payroll Number</dt>
+            <dd class="col-7">
+              {% if teacher.teacher_payroll_number %}
+                {{ teacher.teacher_payroll_number }}
               {% else %}
                 <span class="text-body-secondary">Not set</span>
               {% endif %}
