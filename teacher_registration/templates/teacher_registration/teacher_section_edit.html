@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ section_label }} — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
+
+{% block content %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-0">Edit {{ section_label }}</h1>
+      <div class="small text-body-secondary">
+        {{ teacher.user.get_full_name|default:teacher.user.username }}
+        {% if teacher.teacher_registration_number %}· {{ teacher.teacher_registration_number }}{% endif %}
+      </div>
+    </div>
+    <a href="{% url 'teacher_registration:teacher_detail' teacher.pk %}"
+       class="btn btn-sm btn-outline-secondary">← Back to profile</a>
+  </div>
+
+  <div class="row">
+    <div class="col-12 col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h2 class="h6 mb-0">{{ section_label }}</h2>
+        </div>
+        <div class="card-body">
+          <form method="post" novalidate>
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+            {% for field in form %}
+              <div class="mb-3">
+                <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                  <div class="form-text">{{ field.help_text }}</div>
+                {% endif %}
+                {% for error in field.errors %}
+                  <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2 me-1"></i> Save changes
+              </button>
+              <a href="{% url 'teacher_registration:teacher_detail' teacher.pk %}"
+                 class="btn btn-outline-secondary">Cancel</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

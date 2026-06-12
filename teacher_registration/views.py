@@ -18,7 +18,7 @@ from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -64,6 +64,7 @@ from teacher_registration.forms import (
     TrainingRecordFormSet,
     ClaimedSchoolAppointmentFormSet,
     ClaimedDutyFormSet,
+    ProfessionalInfoForm,
 )
 from integrations.models import EmisTeacherPdType
 
@@ -1864,6 +1865,92 @@ def teacher_edit_granted_at(request, pk):
         return JsonResponse({"ok": True, "message": msg})
     messages.success(request, msg)
     return redirect("teacher_registration:teacher_detail", pk=pk)
+
+
+# Editable sections of an approved teacher's profile. Each entry maps a URL
+# section key to a label and a ModelForm over a subset of SchoolStaff fields.
+# Add a new editable card by adding a form (forms.py) and an entry here.
+PROFILE_SECTION_FORMS = {
+    "professional": {
+        "label": "Professional Information",
+        "form": ProfessionalInfoForm,
+    },
+}
+
+
+def _log_profile_section_change(teacher, section_label, changes, user):
+    """Record post-approval profile edits in the registration audit trail."""
+    registration = teacher.registration_history.order_by("-reviewed_at").first()
+    if not registration:
+        return
+    actor = user.get_full_name() or user.username
+    for field_name, (old_value, new_value) in changes.items():
+        RegistrationChangeLog.log_change(
+            registration=registration,
+            field_name=field_name,
+            old_value="" if old_value is None else old_value,
+            new_value="" if new_value is None else new_value,
+            changed_by=user,
+            notes=f"{section_label} edited by {actor} after approval.",
+        )
+
+
+@login_required
+@require_app_access
+def teacher_edit_section(request, pk, section):
+    """
+    Edit a single section of an approved teacher's profile (SchoolStaff).
+
+    Generic over ``PROFILE_SECTION_FORMS`` so new editable cards only need a
+    ModelForm plus a registry entry. Admin-only; changes are recorded in the
+    audit trail (RegistrationChangeLog).
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    config = PROFILE_SECTION_FORMS.get(section)
+    if not config:
+        raise Http404("Unknown profile section.")
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user"),
+        pk=pk,
+    )
+
+    form_class = config["form"]
+
+    if request.method == "POST":
+        form = form_class(request.POST, instance=teacher)
+        if form.is_valid():
+            if form.has_changed():
+                changes = {
+                    name: (form.initial.get(name), form.cleaned_data.get(name))
+                    for name in form.changed_data
+                }
+                teacher = form.save(commit=False)
+                teacher.last_updated_by = request.user
+                teacher.save()
+                _log_profile_section_change(
+                    teacher, config["label"], changes, request.user
+                )
+                messages.success(request, f"{config['label']} updated.")
+            else:
+                messages.info(request, "No changes were made.")
+            return redirect("teacher_registration:teacher_detail", pk=pk)
+    else:
+        form = form_class(instance=teacher)
+
+    return render(
+        request,
+        "teacher_registration/teacher_section_edit.html",
+        {
+            "active": "teachers",
+            "teacher": teacher,
+            "form": form,
+            "section_label": config["label"],
+        },
+    )
 
 
 @login_required
