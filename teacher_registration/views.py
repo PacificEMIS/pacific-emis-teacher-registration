@@ -22,6 +22,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.cache import never_cache
 
 from core.decorators import require_app_access
@@ -50,6 +51,7 @@ from teacher_registration.models import (
     TrainingRecord,
     ClaimedSchoolAppointment,
     ClaimedDuty,
+    compute_valid_until,
 )
 from teacher_registration.forms import (
     TeacherRegistrationForm,
@@ -1775,6 +1777,97 @@ def teacher_force_expiry(request, pk):
 
 @login_required
 @require_app_access
+def teacher_edit_granted_at(request, pk):
+    """
+    Adjust the registration grant date of an approved teacher.
+
+    By design the grant date is captured at approval and not otherwise
+    editable, but reviewers occasionally need to correct it after the fact.
+    Changing it recomputes ``registration_valid_until`` from the registration
+    status's validity period and records the change in the audit trail.
+
+    Admin-only (Admins / System Admins / superusers).
+    """
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+    def fail(message):
+        if is_ajax:
+            return JsonResponse({"ok": False, "message": message})
+        messages.error(request, message)
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method != "POST":
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    teacher = get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user", "teacher_registration_status"),
+        pk=pk,
+    )
+
+    if teacher.registration_application_status != constants.APPROVED:
+        return fail("The granted date can only be adjusted for approved registrations.")
+
+    new_date = parse_date((request.POST.get("registration_granted_date") or "").strip())
+    if not new_date:
+        return fail("Please provide a valid granted date.")
+
+    # Preserve the existing time-of-day (in local time) and only change the
+    # calendar date, mirroring how the grant date is set at approval.
+    base = (
+        timezone.localtime(teacher.registration_granted_at)
+        if teacher.registration_granted_at
+        else timezone.localtime()
+    )
+    new_granted_at = base.replace(
+        year=new_date.year, month=new_date.month, day=new_date.day
+    )
+
+    old_granted_at = teacher.registration_granted_at
+    old_valid_until = teacher.registration_valid_until
+
+    teacher.registration_granted_at = new_granted_at
+    teacher.registration_valid_until = compute_valid_until(
+        new_granted_at, teacher.teacher_registration_status
+    )
+    teacher.save(update_fields=[
+        "registration_granted_at",
+        "registration_valid_until",
+        "last_updated_at",
+    ])
+
+    def fmt(dt):
+        return timezone.localtime(dt).strftime("%Y-%m-%d %H:%M") if dt else "Not set"
+
+    # Audit trail entry against the most recent registration record
+    registration = teacher.registration_history.order_by("-reviewed_at").first()
+    if registration:
+        actor = request.user.get_full_name() or request.user.username
+        RegistrationChangeLog.log_change(
+            registration=registration,
+            field_name="registration_granted_at",
+            old_value=fmt(old_granted_at),
+            new_value=fmt(new_granted_at),
+            changed_by=request.user,
+            notes=(
+                f"Registration granted date adjusted by {actor}. "
+                f"Valid Until recomputed: {fmt(old_valid_until)} -> "
+                f"{fmt(teacher.registration_valid_until)}."
+            ),
+        )
+
+    msg = "Registration granted date updated and validity recomputed."
+    if is_ajax:
+        return JsonResponse({"ok": True, "message": msg})
+    messages.success(request, msg)
+    return redirect("teacher_registration:teacher_detail", pk=pk)
+
+
+@login_required
+@require_app_access
 def teacher_renew_on_behalf(request, pk):
     """Start a renewal registration on behalf of an expired teacher."""
     if not can_manage_pending_users(request.user):
@@ -1985,14 +2078,21 @@ def teacher_certificate(request, pk):
     if teacher.teacher_registration_status:
         reg_type = teacher.teacher_registration_status.label
 
-    # Registration validity: approval date → valid until
+    # Registration validity: granted date → valid until. Anchor on
+    # registration_granted_at (the same date validity_until is computed from)
+    # so an adjusted grant date is reflected here. Fall back to the approval
+    # decision date, then the record creation date.
     approved_reg = (
         teacher.registration_history
         .filter(status=constants.APPROVED)
         .order_by("-reviewed_at")
         .first()
     )
-    from_date = approved_reg.reviewed_at if approved_reg else teacher.created_at
+    from_date = (
+        teacher.registration_granted_at
+        or (approved_reg.reviewed_at if approved_reg else None)
+        or teacher.created_at
+    )
     until_date = teacher.registration_valid_until
 
     validity_text = ""

@@ -64,6 +64,11 @@ urlpatterns = [
         name="teacher_force_expiry",
     ),
     path(
+        "teachers/<int:pk>/edit-granted-at/",
+        views.teacher_edit_granted_at,
+        name="teacher_edit_granted_at",
+    ),
+    path(
         "teachers/<int:pk>/renew-on-behalf/",
         views.teacher_renew_on_behalf,
         name="teacher_renew_on_behalf",

@@ -237,6 +237,10 @@
             </a>
             {% if can_delete %}
               {% csrf_token %}
+              <button id="edit-granted-at-btn" type="button" class="btn btn-sm btn-outline-secondary mt-2"
+                      data-bs-toggle="modal" data-bs-target="#editGrantedAtModal">
+                <i class="bi bi-calendar-event me-1"></i> Adjust Granted Date
+              </button>
               <button id="force-expiry-btn" type="button" class="btn btn-sm btn-outline-danger mt-2"
                       data-url="{% url 'teacher_registration:teacher_force_expiry' teacher.pk %}">
                 <i class="bi bi-x-octagon me-1"></i> Force Expiry
@@ -694,6 +698,39 @@
     </div>
   </div>
 
+  {% if can_delete and teacher.registration_application_status == 'approved' %}
+    {# Adjust registration granted date modal (admin only) #}
+    {% csrf_token %}
+    <div class="modal fade" id="editGrantedAtModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2 class="h6 modal-title mb-0">Adjust registration granted date</h2>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="small text-body-secondary">
+              Changing the granted date recomputes <strong>Valid Until</strong> from the
+              registration status's validity period. This change is recorded in the audit trail.
+            </p>
+            <label for="granted-at-input" class="form-label small">Registration granted date</label>
+            <input type="date" id="granted-at-input" class="form-control"
+                   value="{{ teacher.registration_granted_at|date:'Y-m-d' }}">
+            <div class="invalid-feedback">Please choose a date.</div>
+            <div id="granted-at-error" class="text-danger small mt-2 d-none"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" id="save-granted-at-btn" class="btn btn-primary"
+                    data-url="{% url 'teacher_registration:teacher_edit_granted_at' teacher.pk %}">
+              <i class="bi bi-check2 me-1"></i> Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
   {% if can_crop_photo and passport_photo %}
     {# Passport photo crop/rotate modal #}
     {% csrf_token %}
@@ -849,6 +886,53 @@
               expiryBtn.classList.add('btn-outline-danger');
               expiryBtn.disabled = false;
             }, 3000);
+          });
+      });
+    }
+
+    // --- Adjust Registration Granted Date ---
+    var saveGrantedBtn = document.getElementById('save-granted-at-btn');
+    if (saveGrantedBtn) {
+      saveGrantedBtn.addEventListener('click', function () {
+        var input = document.getElementById('granted-at-input');
+        var errBox = document.getElementById('granted-at-error');
+        errBox.classList.add('d-none');
+        if (!input.value) {
+          input.classList.add('is-invalid');
+          return;
+        }
+        input.classList.remove('is-invalid');
+
+        var originalHTML = saveGrantedBtn.innerHTML;
+        saveGrantedBtn.disabled = true;
+        saveGrantedBtn.innerHTML =
+          '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Saving…';
+
+        fetch(saveGrantedBtn.dataset.url, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ registration_granted_date: input.value }).toString(),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok) {
+              location.reload();
+            } else {
+              saveGrantedBtn.disabled = false;
+              saveGrantedBtn.innerHTML = originalHTML;
+              errBox.textContent = data.message || 'Failed to update the granted date.';
+              errBox.classList.remove('d-none');
+            }
+          })
+          .catch(function () {
+            saveGrantedBtn.disabled = false;
+            saveGrantedBtn.innerHTML = originalHTML;
+            errBox.textContent = 'Failed to update the granted date.';
+            errBox.classList.remove('d-none');
           });
       });
     }
