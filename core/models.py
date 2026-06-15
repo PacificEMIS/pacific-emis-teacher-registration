@@ -38,6 +38,7 @@ from integrations.models import (
     EmisTeacherPdFormat,
     EmisNationality,
     EmisTeacherRegistrationStatus,
+    EmisTeacherStatus,
 )
 from core import constants as core_constants
 from teacher_registration import constants as reg_constants
@@ -427,6 +428,17 @@ class SchoolStaffAssignment(AuditModel):
         blank=True,
         related_name="staff_assignments",
         help_text="Education level (Primary/JSS/SSS) for this assignment",
+    )
+
+    # Mirrors ClaimedSchoolAppointment.employment_status so the registration
+    # appointment's employment status is preserved on approval rather than lost.
+    employment_status = models.ForeignKey(
+        EmisTeacherStatus,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="staff_assignments",
+        help_text="Employment status (e.g. permanent/temporary) for this assignment",
     )
 
     start_date = models.DateField(

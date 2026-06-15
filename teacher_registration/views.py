@@ -25,8 +25,17 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.views.decorators.cache import never_cache
 
+from django.db import transaction
+
 from core.decorators import require_app_access
-from core.models import OrgSettings, SchoolStaff, SchoolStaffAssignment
+from core.models import (
+    OrgSettings,
+    SchoolStaff,
+    SchoolStaffAssignment,
+    StaffEducationRecord,
+    StaffTrainingRecord,
+    StaffTeachingDuty,
+)
 from integrations.models import (
     EmisSchool,
     EmisClassLevel,
@@ -65,6 +74,9 @@ from teacher_registration.forms import (
     ClaimedSchoolAppointmentFormSet,
     ClaimedDutyFormSet,
     ProfessionalInfoForm,
+    StaffEducationRecordForm,
+    StaffTrainingRecordForm,
+    StaffAssignmentForm,
 )
 from integrations.models import EmisTeacherPdType
 
@@ -1479,13 +1491,15 @@ def teacher_detail(request, pk):
         pk=pk,
     )
 
-    # Get active assignments with teaching duties
-    active_assignments = teacher.active_assignments.select_related(
+    # Get all assignments (active and ended) with teaching duties. Per-row
+    # status badges distinguish active vs. inactive; showing all lets admins
+    # review and edit ended assignments too.
+    assignments = teacher.assignments.select_related(
         "school", "job_title"
     ).prefetch_related(
         "teaching_duties__year_level",
         "teaching_duties__subject",
-    )
+    ).order_by("-start_date")
 
     # Get registration history (if this teacher was created via registration)
     registration_history = teacher.registration_history.all()
@@ -1507,7 +1521,7 @@ def teacher_detail(request, pk):
         {
             "active": "teachers",
             "teacher": teacher,
-            "active_assignments": active_assignments,
+            "assignments": assignments,
             "registration_history": registration_history,
             "can_delete": can_delete,
             "passport_photo": passport_photo,
@@ -1943,12 +1957,324 @@ def teacher_edit_section(request, pk, section):
 
     return render(
         request,
-        "teacher_registration/teacher_section_edit.html",
+        "teacher_registration/teacher_form_page.html",
         {
             "active": "teachers",
             "teacher": teacher,
             "form": form,
-            "section_label": config["label"],
+            "form_title": f"Edit {config['label']}",
+            "submit_label": "Save changes",
+        },
+    )
+
+
+# Editable child records on an approved teacher's profile. Education, training
+# and assignments hang directly off SchoolStaff. The generic CRUD views below
+# are driven by this registry: to expose another simple record type, add a form
+# (forms.py) and an entry here. See forms.py for why education/training reuse the
+# registration forms while assignments use a bespoke form.
+#
+# Assignments are kept in the registry for delete + audit, but their add/edit is
+# handled by the dedicated ``teacher_assignment_edit`` view because it also
+# manages nested teaching duties on the same page (the generic add/edit view
+# redirects there). Duties have no standalone CRUD — they are edited inline on
+# the assignment form via the grouped year-level → multi-subject UI, sharing
+# ``_sync_grouped_duties`` with the registration flow (manage_claimed_duties).
+STAFF_RECORD_TYPES = {
+    "education": {
+        "label": "Education Record",
+        "model": StaffEducationRecord,
+        "form": StaffEducationRecordForm,
+        "fk_field": "school_staff",
+        "related_name": "education_records",
+    },
+    "training": {
+        "label": "Training Record",
+        "model": StaffTrainingRecord,
+        "form": StaffTrainingRecordForm,
+        "fk_field": "school_staff",
+        "related_name": "training_records",
+    },
+    "assignment": {
+        "label": "School Assignment",
+        "model": SchoolStaffAssignment,
+        "form": StaffAssignmentForm,
+        "fk_field": "school_staff",
+        "related_name": "assignments",
+    },
+}
+
+
+def _get_teacher_or_404(pk):
+    return get_object_or_404(
+        SchoolStaff.objects.filter(staff_type=SchoolStaff.TEACHING_STAFF)
+        .select_related("user"),
+        pk=pk,
+    )
+
+
+def _staff_record_summary(config, record):
+    """Human-readable one-liner for audit logs and the delete confirmation."""
+    model = config["model"]
+    if model is StaffEducationRecord:
+        return f"{record.institution_name} — {record.qualification}".strip(" —")
+    if model is StaffTrainingRecord:
+        return f"{record.title} — {record.provider_institution}".strip(" —")
+    if model is SchoolStaffAssignment:
+        return f"{record.school} — {record.job_title}".strip(" —")
+    return config["label"]
+
+
+def _log_staff_record_change(teacher, config, verb, summary, user):
+    """Record a post-approval child-record add/edit/delete in the audit trail."""
+    registration = teacher.registration_history.order_by("-reviewed_at").first()
+    if not registration:
+        return
+    actor = user.get_full_name() or user.username
+    action = {"add": "Added", "edit": "Edited", "delete": "Removed"}[verb]
+    RegistrationChangeLog.log_change(
+        registration=registration,
+        field_name=config["related_name"],
+        old_value="" if verb == "add" else summary,
+        new_value="" if verb == "delete" else summary,
+        changed_by=user,
+        notes=f"{action} {config['label'].lower()} ({summary}) by {actor} after approval.",
+    )
+
+
+def _sync_grouped_duties(parent, duty_model, fk_field, post, user):
+    """
+    Create/keep/delete (year_level, subject) duty rows for ``parent`` from
+    grouped POST data using keys ``duties[i][year_level]`` and
+    ``duties[i][subjects][]``.
+
+    Shared by the registration appointment duties modal
+    (``manage_claimed_duties``, ClaimedDuty) and the staff assignment edit form
+    (``teacher_assignment_edit``, StaffTeachingDuty) so both expand the
+    year-level → multi-subject grouping identically.
+    """
+    existing = list(duty_model.objects.filter(**{fk_field: parent}))
+    existing_ids = {d.pk for d in existing}
+    keep = set()
+
+    indices = sorted({
+        int(m.group(1))
+        for key in post
+        if (m := re.match(r"duties\[(\d+)\]\[year_level\]", key))
+    })
+    for i in indices:
+        year_level_id = post.get(f"duties[{i}][year_level]")
+        subject_ids = post.getlist(f"duties[{i}][subjects][]")
+        if not (year_level_id and subject_ids):
+            continue
+        try:
+            year_level = EmisClassLevel.objects.get(pk=year_level_id, active=True)
+        except EmisClassLevel.DoesNotExist:
+            continue
+        for subject in EmisSubject.objects.filter(pk__in=subject_ids, active=True):
+            match = next(
+                (d for d in existing
+                 if d.year_level_id == year_level.pk and d.subject_id == subject.pk),
+                None,
+            )
+            if match:
+                keep.add(match.pk)
+            else:
+                obj = duty_model.objects.create(
+                    year_level=year_level,
+                    subject=subject,
+                    created_by=user,
+                    last_updated_by=user,
+                    **{fk_field: parent},
+                )
+                keep.add(obj.pk)
+
+    duty_model.objects.filter(pk__in=existing_ids - keep).delete()
+    return len(keep)
+
+
+@login_required
+@require_app_access
+def teacher_record_edit(request, pk, rtype, record_pk=None):
+    """
+    Add (record_pk=None) or edit a single child record on a teacher's profile.
+
+    Generic over ``STAFF_RECORD_TYPES`` for the simple staff-owned records
+    (education, training). Assignments are redirected to their dedicated view
+    (which also manages duties). Admin-only; every lookup is scoped to the
+    teacher; changes are recorded in the audit trail.
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    config = STAFF_RECORD_TYPES.get(rtype)
+    if not config:
+        raise Http404("Unknown record type.")
+
+    if rtype == "assignment":
+        # Assignments (with their duties) are edited on a dedicated page.
+        if record_pk:
+            return redirect(
+                "teacher_registration:teacher_assignment_edit",
+                pk=pk, assignment_pk=record_pk,
+            )
+        return redirect("teacher_registration:teacher_assignment_add", pk=pk)
+
+    teacher = _get_teacher_or_404(pk)
+    child_qs = getattr(teacher, config["related_name"])
+
+    if record_pk:
+        instance = get_object_or_404(child_qs, pk=record_pk)
+        verb = "edit"
+    else:
+        instance = config["model"]()
+        setattr(instance, config["fk_field"], teacher)
+        verb = "add"
+
+    form_class = config["form"]
+
+    if request.method == "POST":
+        form = form_class(request.POST, instance=instance)
+        if form.is_valid():
+            with transaction.atomic():
+                obj = form.save(commit=False)
+                setattr(obj, config["fk_field"], teacher)
+                if not obj.pk:
+                    obj.created_by = request.user
+                obj.last_updated_by = request.user
+                obj.save()
+                _log_staff_record_change(
+                    teacher, config, verb, _staff_record_summary(config, obj),
+                    request.user,
+                )
+            messages.success(
+                request,
+                f"{config['label']} {'updated' if verb == 'edit' else 'added'}.",
+            )
+            return redirect("teacher_registration:teacher_detail", pk=pk)
+    else:
+        form = form_class(instance=instance)
+
+    title_verb = "Edit" if verb == "edit" else "Add"
+    return render(
+        request,
+        "teacher_registration/teacher_form_page.html",
+        {
+            "active": "teachers",
+            "teacher": teacher,
+            "form": form,
+            "form_title": f"{title_verb} {config['label']}",
+            "submit_label": "Save changes" if verb == "edit" else f"Add {config['label']}",
+        },
+    )
+
+
+@login_required
+@require_app_access
+def teacher_record_delete(request, pk, rtype, record_pk):
+    """Delete a single child record on a teacher's profile (admin-only)."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    config = STAFF_RECORD_TYPES.get(rtype)
+    if not config:
+        raise Http404("Unknown record type.")
+
+    teacher = _get_teacher_or_404(pk)
+    record = get_object_or_404(getattr(teacher, config["related_name"]), pk=record_pk)
+    summary = _staff_record_summary(config, record)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            record.delete()
+            _log_staff_record_change(teacher, config, "delete", summary, request.user)
+        messages.success(request, f"{config['label']} removed.")
+        return redirect("teacher_registration:teacher_detail", pk=pk)
+
+    return render(
+        request,
+        "teacher_registration/teacher_record_delete.html",
+        {
+            "active": "teachers",
+            "teacher": teacher,
+            "record_label": config["label"],
+            "record_summary": summary,
+        },
+    )
+
+
+@login_required
+@require_app_access
+def teacher_assignment_edit(request, pk, assignment_pk=None):
+    """
+    Add or edit a school assignment AND its teaching duties on one page.
+
+    Unlike the registration flow (which manages duties in a separate AJAX modal
+    via ``manage_claimed_duties``), the assignment and its duties save together
+    here, so a new assignment can get duties in a single step. The grouped
+    year-level → multi-subject duty UI is the same as registration's; the save
+    path shares ``_sync_grouped_duties``. Admin-only; scoped to the teacher;
+    audit-logged.
+    """
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    teacher = _get_teacher_or_404(pk)
+    config = STAFF_RECORD_TYPES["assignment"]
+
+    if assignment_pk:
+        assignment = get_object_or_404(teacher.assignments, pk=assignment_pk)
+        verb = "edit"
+    else:
+        assignment = SchoolStaffAssignment(school_staff=teacher)
+        verb = "add"
+
+    if request.method == "POST":
+        form = StaffAssignmentForm(request.POST, instance=assignment)
+        if form.is_valid():
+            with transaction.atomic():
+                obj = form.save(commit=False)
+                obj.school_staff = teacher
+                if not obj.pk:
+                    obj.created_by = request.user
+                obj.last_updated_by = request.user
+                obj.save()
+                _sync_grouped_duties(
+                    obj, StaffTeachingDuty, "assignment", request.POST, request.user
+                )
+                _log_staff_record_change(
+                    teacher, config, verb, _staff_record_summary(config, obj),
+                    request.user,
+                )
+            messages.success(
+                request,
+                f"School Assignment {'updated' if verb == 'edit' else 'added'}.",
+            )
+            return redirect("teacher_registration:teacher_detail", pk=pk)
+    else:
+        form = StaffAssignmentForm(instance=assignment)
+
+    # Existing duties grouped by year level for the grouped multi-select UI
+    grouped = defaultdict(list)
+    if assignment.pk:
+        for duty in assignment.teaching_duties.select_related("year_level", "subject"):
+            grouped[duty.year_level].append(duty.subject)
+    grouped_duties = [
+        {"year_level": yl, "subjects": subs} for yl, subs in grouped.items()
+    ]
+
+    return render(
+        request,
+        "teacher_registration/teacher_assignment_form.html",
+        {
+            "active": "teachers",
+            "teacher": teacher,
+            "form": form,
+            "form_title": f"{'Edit' if verb == 'edit' else 'Add'} School Assignment",
+            "submit_label": "Save changes" if verb == "edit" else "Add School Assignment",
+            "grouped_duties": grouped_duties,
+            "year_levels": EmisClassLevel.objects.filter(active=True).order_by("label"),
+            "subjects": EmisSubject.objects.filter(active=True).order_by("label"),
         },
     )
 
@@ -2074,6 +2400,7 @@ def teacher_renew_on_behalf(request, pk):
             current_school=assignment.school,
             employment_position=assignment.job_title,
             teacher_level_type=assignment.teacher_level_type,
+            employment_status=assignment.employment_status,
             start_date=assignment.start_date,
             end_date=assignment.end_date,
             created_by=request.user,
@@ -2672,10 +2999,12 @@ def registration_renew(request):
             current_school=assignment.school,
             employment_position=assignment.job_title,
             teacher_level_type=assignment.teacher_level_type,
+            employment_status=assignment.employment_status,
             start_date=assignment.start_date,
             end_date=assignment.end_date,
-            # Optional fields left blank: current_island_station, years_of_experience,
-            # employment_status, class_type (not stored on SchoolStaffAssignment)
+            # Registration-only fields left blank (no equivalent on
+            # SchoolStaffAssignment): current_island_station, years_of_experience,
+            # class_type
             created_by=user,
             last_updated_by=user,
         )
@@ -2766,69 +3095,13 @@ def manage_claimed_duties(request, appointment_id):
         return redirect("teacher_registration:edit", pk=registration.pk)
 
     if request.method == "POST":
-        # Parse grouped duty data from POST
-        # Format: duties[0][year_level], duties[0][subjects][], duties[1][year_level], etc.
+        # Expand the grouped year-level → multi-subject form into individual
+        # ClaimedDuty rows. Shared with the staff assignment edit form.
         try:
-            # Get all existing duties to track what needs deletion
-            existing_duties = list(appointment.claimed_duties.all())
-            existing_duty_ids = {duty.pk for duty in existing_duties}
-            duties_to_keep = set()
+            _sync_grouped_duties(
+                appointment, ClaimedDuty, "appointment", request.POST, request.user
+            )
 
-            # Parse the grouped duties from the form
-            # Discover all duty indices from POST keys (handles gaps)
-            duty_indices = sorted({
-                int(m.group(1))
-                for key in request.POST
-                if (m := re.match(r"duties\[(\d+)\]\[year_level\]", key))
-            })
-
-            grouped_duties = []
-            for i in duty_indices:
-                year_level_id = request.POST.get(f"duties[{i}][year_level]")
-                subject_ids = request.POST.getlist(f"duties[{i}][subjects][]")
-
-                if year_level_id and subject_ids:
-                    try:
-                        year_level = EmisClassLevel.objects.get(pk=year_level_id, active=True)
-                        subjects = EmisSubject.objects.filter(pk__in=subject_ids, active=True)
-
-                        if subjects.exists():
-                            grouped_duties.append({
-                                "year_level": year_level,
-                                "subjects": list(subjects),
-                            })
-                    except EmisClassLevel.DoesNotExist:
-                        pass
-
-            # Expand grouped duties into individual ClaimedDuty records
-            for group in grouped_duties:
-                year_level = group["year_level"]
-                for subject in group["subjects"]:
-                    # Check if this duty already exists
-                    existing_duty = next(
-                        (d for d in existing_duties if d.year_level_id == year_level.pk and d.subject_id == subject.pk),
-                        None
-                    )
-
-                    if existing_duty:
-                        # Keep existing duty
-                        duties_to_keep.add(existing_duty.pk)
-                    else:
-                        # Create new duty
-                        new_duty = ClaimedDuty.objects.create(
-                            appointment=appointment,
-                            year_level=year_level,
-                            subject=subject,
-                            created_by=request.user,
-                            last_updated_by=request.user,
-                        )
-                        duties_to_keep.add(new_duty.pk)
-
-            # Delete duties that are no longer selected
-            duties_to_delete = existing_duty_ids - duties_to_keep
-            ClaimedDuty.objects.filter(pk__in=duties_to_delete).delete()
-
-            # Get updated duties list for response
             duties = appointment.claimed_duties.select_related("year_level", "subject").all()
             duties_html = render(request, "teacher_registration/_duty_list.html", {
                 "duties": duties,

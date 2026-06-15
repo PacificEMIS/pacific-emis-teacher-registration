@@ -682,6 +682,7 @@ class TeacherRegistration(AuditModel):
                 school=appointment.current_school,
                 job_title=appointment.employment_position,
                 teacher_level_type=appointment.teacher_level_type,
+                employment_status=appointment.employment_status,
                 start_date=appointment.start_date,
                 # end_date is left null (currently active)
                 created_by=reviewer,
@@ -856,6 +857,7 @@ class TeacherRegistration(AuditModel):
                     school=appointment.current_school,
                     job_title=appointment.employment_position,
                     teacher_level_type=appointment.teacher_level_type,
+                    employment_status=appointment.employment_status,
                     start_date=appointment.start_date,
                     created_by=reviewer,
                     last_updated_by=reviewer,

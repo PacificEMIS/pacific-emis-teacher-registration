@@ -73,6 +73,35 @@ urlpatterns = [
         views.teacher_edit_section,
         name="teacher_edit_section",
     ),
+    # Child-record CRUD (education / training) hanging off SchoolStaff.
+    # Assignment add/edit have dedicated routes below (they also manage duties);
+    # assignment delete still uses the generic delete route with rtype=assignment.
+    path(
+        "teachers/<int:pk>/records/<str:rtype>/add/",
+        views.teacher_record_edit,
+        name="teacher_record_add",
+    ),
+    path(
+        "teachers/<int:pk>/records/<str:rtype>/<int:record_pk>/edit/",
+        views.teacher_record_edit,
+        name="teacher_record_edit",
+    ),
+    path(
+        "teachers/<int:pk>/records/<str:rtype>/<int:record_pk>/delete/",
+        views.teacher_record_delete,
+        name="teacher_record_delete",
+    ),
+    # School assignment add/edit (includes its teaching duties on one page)
+    path(
+        "teachers/<int:pk>/assignments/add/",
+        views.teacher_assignment_edit,
+        name="teacher_assignment_add",
+    ),
+    path(
+        "teachers/<int:pk>/assignments/<int:assignment_pk>/edit/",
+        views.teacher_assignment_edit,
+        name="teacher_assignment_edit",
+    ),
     path(
         "teachers/<int:pk>/renew-on-behalf/",
         views.teacher_renew_on_behalf,
