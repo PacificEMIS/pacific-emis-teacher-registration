@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Edit {{ section_label }} — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
+{% block title %}{{ form_title }} — {{ teacher.user.get_full_name|default:teacher.user.username }}{% endblock title %}
 
 {% block content %}
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div>
-      <h1 class="h4 mb-0">Edit {{ section_label }}</h1>
+      <h1 class="h4 mb-0">{{ form_title }}</h1>
       <div class="small text-body-secondary">
         {{ teacher.user.get_full_name|default:teacher.user.username }}
         {% if teacher.teacher_registration_number %}· {{ teacher.teacher_registration_number }}{% endif %}
@@ -18,7 +18,7 @@
     <div class="col-12 col-lg-6">
       <div class="card shadow-sm">
         <div class="card-header">
-          <h2 class="h6 mb-0">{{ section_label }}</h2>
+          <h2 class="h6 mb-0">{{ form_title }}</h2>
         </div>
         <div class="card-body">
           <form method="post" novalidate>
@@ -40,7 +40,7 @@
             {% endfor %}
             <div class="d-flex gap-2">
               <button type="submit" class="btn btn-primary">
-                <i class="bi bi-check2 me-1"></i> Save changes
+                <i class="bi bi-check2 me-1"></i> {{ submit_label|default:"Save changes" }}
               </button>
               <a href="{% url 'teacher_registration:teacher_detail' teacher.pk %}"
                  class="btn btn-outline-secondary">Cancel</a>

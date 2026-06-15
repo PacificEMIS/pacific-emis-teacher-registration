@@ -7,7 +7,12 @@ from django.contrib.auth import get_user_model
 from django.forms import inlineformset_factory
 from django.utils import timezone
 
-from core.models import SchoolStaff
+from core.models import (
+    SchoolStaff,
+    SchoolStaffAssignment,
+    StaffEducationRecord,
+    StaffTrainingRecord,
+)
 from core.permissions import GROUP_REGISTRATION_SIGNATORIES
 
 from teacher_registration.models import (
@@ -802,3 +807,88 @@ class ProfessionalInfoForm(forms.ModelForm):
             ),
             "teacher_payroll_number": forms.TextInput(attrs={"class": "form-control"}),
         }
+
+
+# -----------------------------------------------------------------------------
+# Staff record forms (post-approval admin CRUD of education / training /
+# assignments / duties on a SchoolStaff profile)
+# -----------------------------------------------------------------------------
+#
+# Approved teachers store these as staff-side records (core.models) that are
+# field-for-field mirrors of the registration-side child models. Rather than
+# duplicate the field list / widgets / active-only queryset filtering, the
+# education and training forms SUBCLASS their registration counterparts and only
+# retarget Meta.model. Keep the parent forms (EducationRecordForm,
+# TrainingRecordForm) as the single source of truth for those field definitions.
+#
+# Teaching duties have no ModelForm here: like the registration flow, they are
+# edited via the grouped year-level → multi-subject UI and synced from raw POST
+# data (see views._sync_grouped_duties), not a per-row ModelForm.
+#
+# School appointments are the exception: SchoolStaffAssignment stores only a
+# subset of ClaimedSchoolAppointment's fields. The registration-only fields
+# current_island_station, years_of_experience and class_type have no home on the
+# staff side (see TeacherRegistration.approve()), so reusing
+# ClaimedSchoolAppointmentForm is not possible. StaffAssignmentForm below is a
+# deliberate, documented divergence covering only the persisted fields.
+
+
+class StaffEducationRecordForm(EducationRecordForm):
+    """Edit a StaffEducationRecord. Mirrors EducationRecordForm (same fields)."""
+
+    class Meta(EducationRecordForm.Meta):
+        model = StaffEducationRecord
+
+
+class StaffTrainingRecordForm(TrainingRecordForm):
+    """Edit a StaffTrainingRecord. Mirrors TrainingRecordForm (same fields)."""
+
+    class Meta(TrainingRecordForm.Meta):
+        model = StaffTrainingRecord
+
+
+class StaffAssignmentForm(forms.ModelForm):
+    """
+    Edit a SchoolStaffAssignment.
+
+    Bespoke (not subclassing ClaimedSchoolAppointmentForm) because the staff
+    model persists only a subset of the registration appointment's fields. The
+    registration-only fields (current_island_station, years_of_experience,
+    class_type) are intentionally absent here.
+    """
+
+    class Meta:
+        model = SchoolStaffAssignment
+        fields = [
+            "school",
+            "job_title",
+            "teacher_level_type",
+            "employment_status",
+            "start_date",
+            "end_date",
+        ]
+        widgets = {
+            "school": forms.Select(attrs={"class": "form-select"}),
+            "job_title": forms.Select(attrs={"class": "form-select"}),
+            "teacher_level_type": forms.Select(attrs={"class": "form-select"}),
+            "employment_status": forms.Select(attrs={"class": "form-select"}),
+            "start_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+            "end_date": forms.DateInput(attrs={"type": "date", "class": "form-control"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Filter FK querysets to active records only (mirrors
+        # ClaimedSchoolAppointmentForm for the fields they share).
+        self.fields["school"].queryset = EmisSchool.objects.filter(
+            active=True
+        ).order_by("emis_school_name")
+        self.fields["job_title"].queryset = EmisJobTitle.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["teacher_level_type"].queryset = EmisEducationLevel.objects.filter(
+            active=True
+        ).order_by("label")
+        self.fields["employment_status"].queryset = EmisTeacherStatus.objects.filter(
+            active=True
+        ).order_by("label")
