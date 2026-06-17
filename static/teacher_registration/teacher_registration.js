@@ -61,10 +61,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectedOption = levelSelect.options[levelSelect.selectedIndex];
     const selectedText = selectedOption?.text?.toLowerCase() || '';
 
-    // Show class_type for Primary, show duties for JSS/SSS
+    // Primary: class_type + duties (class levels only).
+    // JSS/SSS: duties only (class levels + subjects).
     if (selectedText.includes('primary')) {
       classTypeField?.style.setProperty('display', 'block');
-      dutiesSection?.style.setProperty('display', 'none');
+      dutiesSection?.style.setProperty('display', 'block');
     } else if (selectedText.includes('jss') || selectedText.includes('sss') || selectedText.includes('secondary')) {
       classTypeField?.style.setProperty('display', 'none');
       dutiesSection?.style.setProperty('display', 'block');
@@ -640,8 +641,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const ylValue = yearLevelSelect ? yearLevelSelect.value : '';
       const selectedSubjects = subjectsSelect ? Array.from(subjectsSelect.selectedOptions) : [];
 
-      // Skip cards with no year level or no subjects selected
-      if (!ylValue || selectedSubjects.length === 0) return;
+      // Always require a year level. Subjects only apply to JSS/SSS (a
+      // subjects select is present); skip such cards when none are picked.
+      // Primary cards have no subjects select and submit the level alone.
+      if (!ylValue) return;
+      if (subjectsSelect && selectedSubjects.length === 0) return;
 
       formData.append(`duties[${dataIndex}][year_level]`, ylValue);
       selectedSubjects.forEach(option => {

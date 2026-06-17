@@ -858,10 +858,13 @@ class StaffTeachingDuty(AuditModel):
     from ClaimedDuty. The original ClaimedDuty is preserved as an audit
     trail of what was claimed at application time.
 
+    JSS/SSS teachers record a (year_level, subject) pair per duty. Primary
+    teachers claim class levels only, so ``subject`` is left null for them.
+
     Attributes:
         assignment: School assignment this duty belongs to
         year_level: Class/year level being taught
-        subject: Subject being taught
+        subject: Subject being taught (null for primary teachers)
     """
 
     assignment = models.ForeignKey(
@@ -881,8 +884,11 @@ class StaffTeachingDuty(AuditModel):
     subject = models.ForeignKey(
         EmisSubject,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="staff_teaching_duties",
         verbose_name="Subject taught",
+        help_text="Subject taught (JSS/SSS only; blank for primary teachers)",
     )
 
     class Meta:
@@ -894,7 +900,17 @@ class StaffTeachingDuty(AuditModel):
                 fields=["assignment", "year_level", "subject"],
                 name="uq_staff_teaching_duty",
             ),
+            # Primary teachers have one subject-less duty per year level;
+            # NULLs are distinct in Postgres so the constraint above does not
+            # cover them.
+            models.UniqueConstraint(
+                fields=["assignment", "year_level"],
+                condition=models.Q(subject__isnull=True),
+                name="uq_staff_teaching_duty_no_subject",
+            ),
         ]
 
     def __str__(self):
-        return f"{self.year_level} - {self.subject}"
+        if self.subject_id:
+            return f"{self.year_level} - {self.subject}"
+        return str(self.year_level)

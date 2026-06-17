@@ -11,8 +11,8 @@ Expects context:
       <div class="list-group-item px-0 py-1">
         <small>
           <i class="bi bi-check-circle text-success me-1"></i>
-          <strong>{{ group.grouper.label }}</strong> -
-          {% for duty in group.list %}{{ duty.subject.label }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          <strong>{{ group.grouper.label }}</strong>{% if group.list.0.subject %} -
+          {% for duty in group.list %}{{ duty.subject.label }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
         </small>
       </div>
     {% endfor %}
