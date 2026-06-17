@@ -1899,13 +1899,24 @@ def report_teacher_summary(request):
     )
     reg_status_data = []
     max_reg_count = max((r["count"] for r in reg_status_qs), default=1)
-    status_colors = {
-        "Full": "#4a148c",
-        "Conditional": "#7b1fa2",
-        "Provisional": "#ab47bc",
-        "Limited": "#ce93d8",
-        "Expired": "#757575",
-    }
+
+    def _reg_status_color(label):
+        # Mirror EmisTeacherRegistrationStatus.badge_class substring matching so the
+        # real EMIS labels (e.g. "Limited authority to teach") resolve to a color
+        # instead of falling back to gray.
+        label_lower = (label or "").lower()
+        if "full" in label_lower and "condition" in label_lower:
+            return "#7b1fa2"  # bg-reg-conditional
+        elif "full" in label_lower:
+            return "#4a148c"  # bg-reg-full
+        elif "provisional" in label_lower:
+            return "#ab47bc"  # bg-reg-provisional
+        elif "limited" in label_lower:
+            return "#ce93d8"  # bg-reg-limited
+        elif "expired" in label_lower:
+            return "#757575"  # bg-reg-expired
+        return "#6c757d"
+
     for row in reg_status_qs:
         label = row["teacher_registration_status__label"]
         count = row["count"]
@@ -1914,7 +1925,7 @@ def report_teacher_summary(request):
                 "label": label,
                 "count": count,
                 "pct": round(count / max_reg_count * 100) if max_reg_count else 0,
-                "color": status_colors.get(label, "#6c757d"),
+                "color": _reg_status_color(label),
             }
         )
 

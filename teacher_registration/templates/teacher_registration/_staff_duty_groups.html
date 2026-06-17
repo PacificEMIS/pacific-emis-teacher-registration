@@ -4,8 +4,10 @@ Grouped teaching-duty editor embedded in the staff school-assignment form.
 Mirrors the registration duty UI (_duty_formset.html / manage_claimed_duties)
 but WITHOUT its own <form> — it is part of the assignment edit form and posts
 duties[i][year_level] / duties[i][subjects][] alongside the assignment fields.
-Saved by views._sync_grouped_duties. Add/remove of class-level groups is driven
-by static/teacher_registration/staff_assignment_duties.js.
+Saved by views._sync_grouped_duties. Add/remove of class-level groups and the
+primary-vs-JSS/SSS subjects toggle are driven by
+static/teacher_registration/staff_assignment_duties.js: the subjects column is
+shown for JSS/SSS and hidden for primary based on the teacher level select.
 
 Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
 {% endcomment %}
@@ -13,7 +15,7 @@ Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
   <button type="button" class="btn btn-sm btn-outline-primary add-duty-group flex-shrink-0">
     <i class="bi bi-plus-circle me-1"></i> Add Class Level
   </button>
-  <span class="text-muted small">Add <strong>all</strong> the class levels taught and select for each <strong>all</strong> the subjects.</span>
+  <span class="text-muted small">Add <strong>all</strong> the class levels taught<span class="duty-subjects-hint"> and select for each <strong>all</strong> the subjects</span>.</span>
 </div>
 
 <div id="duty-groups" class="duty-groups-container">
@@ -28,7 +30,7 @@ Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
             </button>
           </div>
           <div class="row g-2">
-            <div class="col-md-5">
+            <div class="col-md-5 duty-year-col">
               <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
               <select name="duties[{{ forloop.counter0 }}][year_level]" class="form-select" required>
                 <option value="">-- Select Year Level --</option>
@@ -37,7 +39,7 @@ Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
                 {% endfor %}
               </select>
             </div>
-            <div class="col-md-7">
+            <div class="col-md-7 duty-subjects-col">
               <label class="form-label small">Subjects <span class="text-danger">*</span></label>
               <select name="duties[{{ forloop.counter0 }}][subjects][]" class="form-select" multiple size="6" required>
                 {% for subj in subjects %}
@@ -67,7 +69,7 @@ Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
           </button>
         </div>
         <div class="row g-2">
-          <div class="col-md-5">
+          <div class="col-md-5 duty-year-col">
             <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
             <select name="duties[__INDEX__][year_level]" class="form-select" required>
               <option value="">-- Select Year Level --</option>
@@ -76,7 +78,7 @@ Context: grouped_duties (list of {year_level, subjects}), year_levels, subjects.
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-7">
+          <div class="col-md-7 duty-subjects-col">
             <label class="form-label small">Subjects <span class="text-danger">*</span></label>
             <select name="duties[__INDEX__][subjects][]" class="form-select" multiple size="6" required>
               {% for subj in subjects %}

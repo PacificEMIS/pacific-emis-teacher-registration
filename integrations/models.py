@@ -245,6 +245,17 @@ class EmisEducationLevel(models.Model):
         verbose_name = "Education Level"
         verbose_name_plural = "Education Levels"
 
+    @property
+    def is_primary(self):
+        """
+        Whether this level is a primary level.
+
+        Mirrors the label-based check used in the teacher-registration
+        JavaScript so that "primary" teachers (who claim class levels without
+        subjects) are detected consistently on the server and the client.
+        """
+        return "primary" in self.label.lower()
+
     def __str__(self):
         return self.label
 

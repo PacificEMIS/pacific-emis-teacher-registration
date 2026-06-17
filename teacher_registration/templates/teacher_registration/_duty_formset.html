@@ -5,6 +5,7 @@ Expects context:
 - grouped_duties: List of {year_level, subjects} dicts
 - year_levels: QuerySet of EmisClassLevel
 - subjects: QuerySet of EmisSubject
+- show_subjects: bool — JSS/SSS pick subjects, primary teachers class levels only
 {% endcomment %}
 
 <form id="duty-form-{{ appointment.pk }}" method="post" action="{% url 'teacher_registration:manage_claimed_duties' appointment.pk %}">
@@ -14,7 +15,11 @@ Expects context:
     <button type="button" class="btn btn-sm btn-outline-primary add-duty-group flex-shrink-0" data-appointment="{{ appointment.pk }}">
       <i class="bi bi-plus-circle me-1"></i> Add Class Level
     </button>
-    <span class="text-muted small">Add <strong>all</strong> the class levels you teach and select for each <strong>all</strong> the subjects.</span>
+    {% if show_subjects %}
+      <span class="text-muted small">Add <strong>all</strong> the class levels you teach and select for each <strong>all</strong> the subjects.</span>
+    {% else %}
+      <span class="text-muted small">Add <strong>all</strong> the class levels you teach.</span>
+    {% endif %}
   </div>
 
   <div id="duty-groups-{{ appointment.pk }}" class="duty-groups-container">
@@ -29,7 +34,7 @@ Expects context:
               </button>
             </div>
             <div class="row g-2">
-              <div class="col-md-5">
+              <div class="col-md-{% if show_subjects %}5{% else %}12{% endif %}">
                 <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
                 <select name="duties[{{ forloop.counter0 }}][year_level]" class="form-select year-level-select" required>
                   <option value="">-- Select Year Level --</option>
@@ -38,15 +43,17 @@ Expects context:
                   {% endfor %}
                 </select>
               </div>
-              <div class="col-md-7">
-                <label class="form-label small">Subjects <span class="text-danger">*</span></label>
-                <select name="duties[{{ forloop.counter0 }}][subjects][]" class="form-select subjects-select" multiple size="6" required>
-                  {% for subj in subjects %}
-                    <option value="{{ subj.pk }}" {% if subj in group.subjects %}selected{% endif %}>{{ subj.label }}</option>
-                  {% endfor %}
-                </select>
-                <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
-              </div>
+              {% if show_subjects %}
+                <div class="col-md-7">
+                  <label class="form-label small">Subjects <span class="text-danger">*</span></label>
+                  <select name="duties[{{ forloop.counter0 }}][subjects][]" class="form-select subjects-select" multiple size="6" required>
+                    {% for subj in subjects %}
+                      <option value="{{ subj.pk }}" {% if subj in group.subjects %}selected{% endif %}>{{ subj.label }}</option>
+                    {% endfor %}
+                  </select>
+                  <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
+                </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -69,7 +76,7 @@ Expects context:
           </button>
         </div>
         <div class="row g-2">
-          <div class="col-md-5">
+          <div class="col-md-{% if show_subjects %}5{% else %}12{% endif %}">
             <label class="form-label small">Year/Class Level <span class="text-danger">*</span></label>
             <select name="duties[__INDEX__][year_level]" class="form-select year-level-select" required>
               <option value="">-- Select Year Level --</option>
@@ -78,15 +85,17 @@ Expects context:
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-7">
-            <label class="form-label small">Subjects <span class="text-danger">*</span></label>
-            <select name="duties[__INDEX__][subjects][]" class="form-select subjects-select" multiple size="6" required>
-              {% for subj in subjects %}
-                <option value="{{ subj.pk }}">{{ subj.label }}</option>
-              {% endfor %}
-            </select>
-            <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
-          </div>
+          {% if show_subjects %}
+            <div class="col-md-7">
+              <label class="form-label small">Subjects <span class="text-danger">*</span></label>
+              <select name="duties[__INDEX__][subjects][]" class="form-select subjects-select" multiple size="6" required>
+                {% for subj in subjects %}
+                  <option value="{{ subj.pk }}">{{ subj.label }}</option>
+                {% endfor %}
+              </select>
+              <small class="text-muted">Hold Ctrl (Cmd on Mac) to select multiple</small>
+            </div>
+          {% endif %}
         </div>
       </div>
     </div>

@@ -1569,13 +1569,14 @@ class ClaimedDuty(AuditModel):
     """
     Claimed teaching duty for JSS/SSS teachers.
 
-    Captures specific subject/year level teaching assignments within
-    a ClaimedSchoolAppointment. Only applicable for JSS/SSS teachers.
+    Captures specific year level (and, for JSS/SSS teachers, subject)
+    teaching assignments within a ClaimedSchoolAppointment. Primary teachers
+    claim class levels only, so ``subject`` is left null for them.
 
     Attributes:
         appointment: Parent appointment this duty belongs to
         year_level: Class/year level being taught
-        subject: Subject being taught
+        subject: Subject being taught (null for primary teachers)
     """
 
     appointment = models.ForeignKey(
@@ -1595,8 +1596,11 @@ class ClaimedDuty(AuditModel):
     subject = models.ForeignKey(
         EmisSubject,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="claimed_duties",
         verbose_name="Subject taught",
+        help_text="Subject taught (JSS/SSS only; blank for primary teachers)",
     )
 
     class Meta:
@@ -1605,7 +1609,9 @@ class ClaimedDuty(AuditModel):
         verbose_name_plural = "Claimed Duties"
 
     def __str__(self):
-        return f"{self.year_level} - {self.subject}"
+        if self.subject_id:
+            return f"{self.year_level} - {self.subject}"
+        return str(self.year_level)
 
 
 class LookupCondition(models.Model):

@@ -2044,9 +2044,12 @@ def _log_staff_record_change(teacher, config, verb, summary, user):
 
 def _sync_grouped_duties(parent, duty_model, fk_field, post, user):
     """
-    Create/keep/delete (year_level, subject) duty rows for ``parent`` from
-    grouped POST data using keys ``duties[i][year_level]`` and
-    ``duties[i][subjects][]``.
+    Create/keep/delete duty rows for ``parent`` from grouped POST data using
+    keys ``duties[i][year_level]`` and ``duties[i][subjects][]``.
+
+    A group with one or more subjects (JSS/SSS) expands into one duty per
+    subject. A group with a year level but no subjects (primary teachers)
+    creates a single subject-less duty for that level.
 
     Shared by the registration appointment duties modal
     (``manage_claimed_duties``, ClaimedDuty) and the staff assignment edit form
@@ -2064,17 +2067,23 @@ def _sync_grouped_duties(parent, duty_model, fk_field, post, user):
     })
     for i in indices:
         year_level_id = post.get(f"duties[{i}][year_level]")
-        subject_ids = post.getlist(f"duties[{i}][subjects][]")
-        if not (year_level_id and subject_ids):
+        if not year_level_id:
             continue
         try:
             year_level = EmisClassLevel.objects.get(pk=year_level_id, active=True)
         except EmisClassLevel.DoesNotExist:
             continue
-        for subject in EmisSubject.objects.filter(pk__in=subject_ids, active=True):
+        subject_ids = post.getlist(f"duties[{i}][subjects][]")
+        if subject_ids:
+            subjects = list(EmisSubject.objects.filter(pk__in=subject_ids, active=True))
+        else:
+            # Primary teachers claim class levels only (no subject).
+            subjects = [None]
+        for subject in subjects:
+            subject_pk = subject.pk if subject else None
             match = next(
                 (d for d in existing
-                 if d.year_level_id == year_level.pk and d.subject_id == subject.pk),
+                 if d.year_level_id == year_level.pk and d.subject_id == subject_pk),
                 None,
             )
             if match:
@@ -3138,6 +3147,10 @@ def manage_claimed_duties(request, appointment_id):
     year_levels = EmisClassLevel.objects.filter(active=True).order_by("label")
     subjects = EmisSubject.objects.filter(active=True).order_by("label")
 
+    # Primary teachers claim class levels only; JSS/SSS also pick subjects.
+    level = appointment.teacher_level_type
+    show_subjects = not (level and level.is_primary)
+
     return render(
         request,
         "teacher_registration/_duty_formset.html",
@@ -3146,5 +3159,6 @@ def manage_claimed_duties(request, appointment_id):
             "grouped_duties": grouped_duties,
             "year_levels": year_levels,
             "subjects": subjects,
+            "show_subjects": show_subjects,
         },
     )
