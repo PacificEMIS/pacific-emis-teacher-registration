@@ -1,5 +1,6 @@
 {# djlint:off H021 #}
 {% extends "emails/base_email.html" %}
+{% load dates %}
 {% block subject %}
   {{ emis_context }} {{ app_name }}: Your registration has expired
 {% endblock subject %}
@@ -51,7 +52,7 @@
           {% if staff.registration_valid_until %}
             <tr>
               <td style="padding:4px 0; color:#6c757d;">Expired on:</td>
-              <td style="padding:4px 0;">{{ staff.registration_valid_until|date:"N j, Y" }}</td>
+              <td style="padding:4px 0;">{{ staff.registration_valid_until|app_date }}</td>
             </tr>
           {% endif %}
         </table>

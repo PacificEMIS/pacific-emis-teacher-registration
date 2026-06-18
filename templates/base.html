@@ -252,12 +252,21 @@
       document.querySelectorAll('time.local-datetime, time.local-date').forEach(function(el) {
         var dt = new Date(el.getAttribute('datetime'));
         if (!isNaN(dt)) {
+          var pad = function(n) { return String(n).padStart(2, '0'); };
           var formatted = dt.getFullYear()
-            + '-' + String(dt.getMonth() + 1).padStart(2, '0')
-            + '-' + String(dt.getDate()).padStart(2, '0');
+            + '-' + pad(dt.getMonth() + 1)
+            + '-' + pad(dt.getDate());
           if (el.classList.contains('local-datetime')) {
-            formatted += ' ' + String(dt.getHours()).padStart(2, '0')
-              + ':' + String(dt.getMinutes()).padStart(2, '0');
+            formatted += ' ' + pad(dt.getHours()) + ':' + pad(dt.getMinutes());
+            // Keep an explicit timezone label so a converted local time is never
+            // mistaken for UTC (or shown with no zone at all).
+            var tz = '';
+            try {
+              var parts = new Intl.DateTimeFormat(undefined, { timeZoneName: 'short' }).formatToParts(dt);
+              var tzPart = parts.find(function(p) { return p.type === 'timeZoneName'; });
+              if (tzPart) { tz = tzPart.value; }
+            } catch (e) { /* leave tz empty if unsupported */ }
+            if (tz) { formatted += ' ' + tz; }
           }
           el.textContent = formatted;
         }

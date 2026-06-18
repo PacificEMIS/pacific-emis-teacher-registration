@@ -1,4 +1,4 @@
-{{ emis_context }} {{ app_name }}: Your registration has expired
+{% load dates %}{{ emis_context }} {{ app_name }}: Your registration has expired
 ================================================================================
 
 Hello {{ user.first_name|default:user.username }},
@@ -10,7 +10,7 @@ Registration Status
 -------------------
 Status: Expired
 {% if previous_status_label %}Previous status: {{ previous_status_label }}{% endif %}
-{% if staff.registration_valid_until %}Expired on: {{ staff.registration_valid_until|date:"N j, Y" }}{% endif %}
+{% if staff.registration_valid_until %}Expired on: {{ staff.registration_valid_until|app_date }}{% endif %}
 
 To continue teaching, you must renew your registration. Please log in and
 start the renewal process as soon as possible.

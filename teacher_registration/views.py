@@ -50,6 +50,7 @@ from core.emails import (
     send_teacher_registration_expired_email,
 )
 from core.permissions import can_manage_pending_users
+from core.dateformat import app_date
 from teacher_registration import constants
 from teacher_registration.models import (
     TeacherRegistration,
@@ -2520,13 +2521,11 @@ def teacher_certificate(request, pk):
 
     validity_text = ""
     if is_expired and until_date:
-        validity_text = f"Expired on {until_date.strftime('%d %B %Y')}"
+        validity_text = f"Expired on {app_date(until_date)}"
     elif from_date and until_date:
-        validity_text = (
-            f"{from_date.strftime('%d %B %Y')} until {until_date.strftime('%d %B %Y')}"
-        )
+        validity_text = f"{app_date(from_date)} until {app_date(until_date)}"
     elif until_date:
-        validity_text = f"Until {until_date.strftime('%d %B %Y')}"
+        validity_text = f"Until {app_date(until_date)}"
 
     # Load the PDF template
     template_path = (
@@ -2811,9 +2810,7 @@ def teacher_certificate(request, pk):
         ]
 
         for cond in conditions:
-            deadline_str = (
-                cond.deadline.strftime("%d %B %Y") if cond.deadline else "\u2014"
-            )
+            deadline_str = app_date(cond.deadline) or "\u2014"
             table_data.append([
                 Paragraph(cond.condition.label, notes_style),
                 Paragraph(cond.notes or "\u2014", notes_style),

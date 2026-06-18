@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dates %}
 {% block title %}My Registration{% endblock title %}
 
 {% block extra_css %}
@@ -66,7 +67,7 @@
                 You will be notified when it is processed.
               {% else %}
                 Your registration expires on
-                <strong><time class="local-datetime" datetime="{{ staff.registration_valid_until|date:'c' }}">{{ staff.registration_valid_until|date:"N j, Y" }}</time></strong>.
+                <strong>{{ staff.registration_valid_until|app_date }}</strong>.
                 You can renew now to avoid interruption.
                 <div class="mt-2">
                   <a href="{% url 'teacher_registration:registration_renew' %}" class="btn btn-outline-primary">
