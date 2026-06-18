@@ -68,9 +68,11 @@
   display: none;
 }
 
-/* Fixed width for timestamp columns in tables */
+/* Fixed width for timestamp columns in tables.
+   Wide enough to keep "YYYY-MM-DD HH:MM TZ" on a single line. */
 .timestamp-column {
-  width: 140px;
+  width: 200px;
+  white-space: nowrap;
 }
 
 /* Preserve line breaks in address fields */

@@ -78,6 +78,17 @@ The `badge_class` property on `EmisTeacherRegistrationStatus` maps status labels
 
 Always create CSS classes in these files and reference them in templates.
 
+## Date Formatting
+
+House style ("profile B"): ISO `YYYY-MM-DD` for dates in tables, detail lists, and
+form inputs; spelled-month `18 Jun 2026` for prose, emails, PDFs, and certificates.
+Datetimes are stored UTC and shown ISO with an explicit timezone label.
+
+The prose style is centralized in `core/dateformat.py` (`PROSE_DATE_FORMAT`) — change
+it there to update every prose date at once. Use it via the `app_date` template filter
+(`{% load dates %}` then `{{ value|app_date }}`) or the `app_date()` Python function in
+views/emails. ISO dates stay as plain `{{ value|date:"Y-m-d" }}` and are not centralized.
+
 ## Django Template Comments
 
 **IMPORTANT**: `{# ... #}` is for **single-line** comments only. For multi-line blocks use `{% comment %}...{% endcomment %}`:

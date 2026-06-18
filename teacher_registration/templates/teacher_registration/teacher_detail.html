@@ -361,10 +361,10 @@
                         {% endif %}
                         <div class="small text-body-secondary">{{ doc.original_filename|truncatechars:50 }}</div>
                         {% if doc.doc_date %}
-                          <div class="small text-body-secondary">Doc date: {{ doc.doc_date }}</div>
+                          <div class="small text-body-secondary">Doc date: {{ doc.doc_date|date:"Y-m-d" }}</div>
                         {% endif %}
                       </td>
-                      <td>{{ doc.created_at|date:"N j, Y" }}</td>
+                      <td>{{ doc.created_at|date:"Y-m-d" }}</td>
                       <td class="text-end">
                         <a href="{{ doc.file.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
                           <i class="bi bi-eye me-1"></i>View
@@ -806,9 +806,11 @@
   {% endif %}
 
   {% if can_delete %}
-    {# Shared delete-confirmation modal. Progressive enhancement: the delete
-       buttons remain real links to the confirmation page, intercepted by JS to
-       open this modal instead. The form posts to the same delete URL. #}
+    {% comment "Shared delete-confirmation modal" %}
+      Progressive enhancement: the delete buttons remain real links to the
+      confirmation page, intercepted by JS to open this modal instead. The
+      form posts to the same delete URL.
+    {% endcomment %}
     <div class="modal fade" id="deleteRecordModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border border-danger border-3">
