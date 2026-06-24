@@ -2452,6 +2452,59 @@ def teacher_renew_on_behalf(request, pk):
     return redirect("teacher_registration:edit", pk=registration.pk)
 
 
+# ---------------------------------------------------------------------------
+# Limited Authority certificate page — design note
+#
+# (This note is written so it can be pasted straight into an email explaining
+# the choice to the Ministry.)
+#
+# Unlike the "Conditions for Registration" page, which is built per-teacher from
+# the conditions a reviewer enters, the Limited Authority page is identical for
+# every limited-authority holder, so it is STATIC. We chose to reproduce the
+# relevant clauses of the Regulation VERBATIM rather than paraphrase them into
+# friendly bullet points. The reasoning: the certificate is a legal document the
+# teacher presents to schools and employers, so its usefulness as a "reminder"
+# depends on it matching the Regulation exactly. A paraphrase risks dropping a
+# qualifier and producing a certificate that contradicts its own source — which
+# is precisely the kind of dispute this page exists to prevent. Because the page
+# is static, the care of quoting exactly is paid only once and never maintained.
+#
+# We deliberately do NOT reproduce the whole of clause 4. Sub-clauses (a), (b)
+# and (e) concern the Director General's power to grant authority and what an
+# applicant must submit — process, not reminders to the holder. We include only
+# the clauses that bind the holder: (c) the two-year term, (d) renewal, and
+# (f) the school/subject restriction.
+#
+# SOURCE: the clauses below were transcribed from the Regulation. Clause (f) was
+# partially obscured in the source screenshot and has been reconciled against the
+# official document. The citation string still needs the Regulation's exact
+# title/number confirmed (the enabling law is the Education Act 2013; limited
+# authority is dealt with under s.48 of the Act).
+# ---------------------------------------------------------------------------
+LIMITED_AUTHORITY_CLAUSES = [
+    ("c", "The period of limited authority shall be up to 2 years."),
+    (
+        "d",
+        "Those holding Limited Authority to teach may apply for a new Limited "
+        "Authority to teach, and the Director General of Education, in "
+        "consultation with the TRC, may grant a new Limited Authority to teach "
+        "for another 2 years.",
+    ),
+    (
+        "f",
+        "Applicants with limited authority to teach can only teach in a "
+        "particular school and in the specified subject and level. They cannot "
+        "use this authority to teach elsewhere. A change in school and island "
+        "will require a new limited authority to teach.",
+    ),
+]
+
+LIMITED_AUTHORITY_CITATION = (
+    "Extract from the Teacher Registration Regulation (made under the "
+    "Education Act 2013), clause 4 — Limited Authority to teach."
+)
+
+
 @login_required
 @require_app_access
 def teacher_certificate(request, pk):
@@ -2699,11 +2752,23 @@ def teacher_certificate(request, pk):
     conditions = list(teacher.conditions.all()) if is_conditional else []
     has_conditions_page = is_conditional and bool(conditions)
 
+    # Limited authority gets a static second page reproducing the Regulation's
+    # binding clauses verbatim (see LIMITED_AUTHORITY_CLAUSES design note above).
+    is_limited = (
+        teacher.teacher_registration_status is not None
+        and teacher.teacher_registration_status.badge_class == "bg-reg-limited"
+    )
+    has_limited_page = is_limited
+
     is_full_reg = (
         teacher.teacher_registration_status is not None
         and teacher.teacher_registration_status.badge_class == "bg-reg-full"
     )
-    total_pages = 1 + (1 if has_conditions_page else 0)
+    total_pages = (
+        1
+        + (1 if has_conditions_page else 0)
+        + (1 if has_limited_page else 0)
+    )
 
     # --- Page footer (bottom-right, for non-Full Registration) ---
     if not is_full_reg:
@@ -2864,6 +2929,110 @@ def teacher_certificate(request, pk):
         cond_reader = PdfReader(cond_buf)
         page2_template.merge_page(cond_reader.pages[0])
         writer.add_page(page2_template)
+
+    # --- Limited Authority page (static, for limited-authority registration) ---
+    # Reuses the same page-2 background as the conditions page. Conditional and
+    # limited authority are mutually exclusive statuses, so this is always the
+    # final page when present.
+    if has_limited_page:
+        la_template_path = (
+            django_settings.BASE_DIR
+            / "static"
+            / "teacher_registration"
+            / "template"
+            / "certificate-page2-template.pdf"
+        )
+        la_reader = PdfReader(str(la_template_path))
+        la_template = la_reader.pages[0]
+
+        la_buf = BytesIO()
+        la_canvas = canvas.Canvas(la_buf, pagesize=(page_width, page_height))
+
+        # Title
+        la_canvas.setFont("Helvetica-Bold", 20)
+        la_canvas.setFillColor(dark_blue)
+        la_title = "Conditions of Limited Authority to Teach"
+        la_title_w = la_canvas.stringWidth(la_title, "Helvetica-Bold", 20)
+        la_canvas.drawString(
+            (page_width - la_title_w) / 2, page_height - 160, la_title
+        )
+
+        # Subtitle / intro
+        la_canvas.setFont("Helvetica", 11)
+        la_subtitle = "This authority is granted subject to the following conditions:"
+        la_subtitle_w = la_canvas.stringWidth(la_subtitle, "Helvetica", 11)
+        la_canvas.drawString(
+            (page_width - la_subtitle_w) / 2, page_height - 190, la_subtitle
+        )
+
+        # Teacher identification
+        la_canvas.setFont("Helvetica", 10)
+        la_id_text = f"{full_name}  —  {reg_type}"
+        la_id_w = la_canvas.stringWidth(la_id_text, "Helvetica", 10)
+        la_canvas.drawString(
+            (page_width - la_id_w) / 2, page_height - 210, la_id_text
+        )
+
+        # Verbatim clauses, rendered as a lettered list ([letter] | wrapped text)
+        clause_style = ParagraphStyle(
+            "LAClause",
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            textColor=HexColor("#333333"),
+        )
+        letter_style = ParagraphStyle(
+            "LALetter",
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=14,
+            textColor=HexColor("#333333"),
+        )
+
+        la_left_margin = 60
+        la_usable_width = page_width - 120
+        la_table_data = [
+            [
+                Paragraph(f"({letter})", letter_style),
+                Paragraph(text, clause_style),
+            ]
+            for letter, text in LIMITED_AUTHORITY_CLAUSES
+        ]
+        la_col_widths = [la_usable_width * 0.07, la_usable_width * 0.93]
+
+        la_table = Table(la_table_data, colWidths=la_col_widths)
+        la_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+
+        la_table_top_y = page_height - 245
+        _, la_th = la_table.wrapOn(la_canvas, la_usable_width, la_table_top_y)
+        la_table.drawOn(la_canvas, la_left_margin, la_table_top_y - la_th)
+
+        # Source citation
+        la_canvas.setFont("Helvetica-Oblique", 8)
+        la_canvas.setFillColor(HexColor("#666666"))
+        la_canvas.drawString(
+            la_left_margin, la_table_top_y - la_th - 28, LIMITED_AUTHORITY_CITATION
+        )
+
+        # Page footer
+        la_canvas.setFont("Helvetica", 8)
+        la_canvas.setFillColor(HexColor("#2B2B2B"))
+        la_pg_text = f"Page {total_pages} of {total_pages}"
+        la_pg_w = la_canvas.stringWidth(la_pg_text, "Helvetica", 8)
+        la_canvas.drawString(page_width - la_pg_w - 50, 60, la_pg_text)
+
+        la_canvas.save()
+        la_buf.seek(0)
+
+        la_overlay_reader = PdfReader(la_buf)
+        la_template.merge_page(la_overlay_reader.pages[0])
+        writer.add_page(la_template)
 
     output_buf = BytesIO()
     writer.write(output_buf)
