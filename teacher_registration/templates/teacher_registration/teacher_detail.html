@@ -231,21 +231,29 @@
             </dd>
           </dl>
           {% if teacher.registration_application_status == 'approved' %}
-            <a href="{% url 'teacher_registration:teacher_certificate' teacher.pk %}"
-               target="_blank" class="btn btn-sm btn-outline-primary mt-2">
-              <i class="bi bi-file-earmark-pdf me-1"></i> View Certificate
-            </a>
-            {% if can_delete %}
-              {% csrf_token %}
-              <button id="edit-granted-at-btn" type="button" class="btn btn-sm btn-outline-secondary mt-2"
-                      data-bs-toggle="modal" data-bs-target="#editGrantedAtModal">
-                <i class="bi bi-calendar-event me-1"></i> Adjust Granted Date
-              </button>
-              <button id="force-expiry-btn" type="button" class="btn btn-sm btn-outline-danger mt-2"
-                      data-url="{% url 'teacher_registration:teacher_force_expiry' teacher.pk %}">
-                <i class="bi bi-x-octagon me-1"></i> Force Expiry
-              </button>
-            {% endif %}
+            <div class="d-flex flex-wrap align-items-end gap-2 mt-2">
+              <form method="get" action="{% url 'teacher_registration:teacher_certificate' teacher.pk %}"
+                    target="_blank" class="mb-0">
+                <div class="form-check mb-1">
+                  <input class="form-check-input" type="checkbox" name="signed_for" value="1" id="signed-for-approved">
+                  <label class="form-check-label small" for="signed-for-approved">Signed &ldquo;For&rdquo; (acting signatory)</label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-file-earmark-pdf me-1"></i> View Certificate
+                </button>
+              </form>
+              {% if can_delete %}
+                {% csrf_token %}
+                <button id="edit-granted-at-btn" type="button" class="btn btn-sm btn-outline-secondary"
+                        data-bs-toggle="modal" data-bs-target="#editGrantedAtModal">
+                  <i class="bi bi-calendar-event me-1"></i> Adjust Granted Date
+                </button>
+                <button id="force-expiry-btn" type="button" class="btn btn-sm btn-outline-danger"
+                        data-url="{% url 'teacher_registration:teacher_force_expiry' teacher.pk %}">
+                  <i class="bi bi-x-octagon me-1"></i> Force Expiry
+                </button>
+              {% endif %}
+            </div>
           {% endif %}
           {% if teacher.conditions.exists %}
             <hr>
@@ -261,23 +269,30 @@
             </ul>
           {% endif %}
           {% if teacher.registration_application_status == 'expired' %}
-            <a href="{% url 'teacher_registration:teacher_certificate' teacher.pk %}"
-               target="_blank" class="btn btn-sm btn-outline-primary mt-2">
-              <i class="bi bi-file-earmark-pdf me-1"></i> View Certificate
-            </a>
-          {% endif %}
-          {% if teacher.registration_application_status == 'expired' and can_delete %}
-            {% csrf_token %}
-            <form method="post" action="{% url 'teacher_registration:teacher_renew_on_behalf' teacher.pk %}" class="d-inline">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-sm btn-outline-success mt-2">
-                <i class="bi bi-arrow-repeat me-1"></i> Renew on Behalf
-              </button>
-            </form>
-            <button id="resend-renewal-btn" type="button" class="btn btn-sm btn-outline-warning mt-2"
-                    data-url="{% url 'teacher_registration:teacher_resend_renewal_notification' teacher.pk %}">
-              <i class="bi bi-envelope-arrow-up me-1"></i> Resend Renewal Notification
-            </button>
+            <div class="d-flex flex-wrap align-items-end gap-2 mt-2">
+              <form method="get" action="{% url 'teacher_registration:teacher_certificate' teacher.pk %}"
+                    target="_blank" class="mb-0">
+                <div class="form-check mb-1">
+                  <input class="form-check-input" type="checkbox" name="signed_for" value="1" id="signed-for-expired">
+                  <label class="form-check-label small" for="signed-for-expired">Signed &ldquo;For&rdquo; (acting signatory)</label>
+                </div>
+                <button type="submit" class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-file-earmark-pdf me-1"></i> View Certificate
+                </button>
+              </form>
+              {% if can_delete %}
+                <form method="post" action="{% url 'teacher_registration:teacher_renew_on_behalf' teacher.pk %}" class="mb-0">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-arrow-repeat me-1"></i> Renew on Behalf
+                  </button>
+                </form>
+                <button id="resend-renewal-btn" type="button" class="btn btn-sm btn-outline-warning"
+                        data-url="{% url 'teacher_registration:teacher_resend_renewal_notification' teacher.pk %}">
+                  <i class="bi bi-envelope-arrow-up me-1"></i> Resend Renewal Notification
+                </button>
+              {% endif %}
+            </div>
           {% endif %}
         </div>
       </div>
