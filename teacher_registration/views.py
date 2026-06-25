@@ -2693,6 +2693,11 @@ def teacher_certificate(request, pk):
         if signatory_su and signatory_su.position_title
         else "Chair, Teacher Registration Committee"
     )
+    # Print-time "acting signatory" toggle: prefix the title with "For" when the
+    # certificate is requested with ?signed_for=1 (checkbox next to View
+    # Certificate). Not persisted — it's a per-print decision by whoever signs.
+    if request.GET.get("signed_for") == "1":
+        chair_title = f"For {chair_title}"
 
     # --- Bottom-right: chair name + title ---
     c.setFont("Helvetica-Bold", 13)
