@@ -33,6 +33,14 @@ Do not hand-edit `requirements.txt`; edit `pyproject.toml` and run `uv lock` (or
 
 Migrations are never run automatically by agents. Inform the user when migrations are needed and let them run the commands (see README, Development Setup).
 
+## Testing
+
+Run tests with `uv run pytest` (see README, Testing). Tests live in each app's
+`tests/` package and use `pacemis_teacher_registration/settings_test.py`. Test
+PRs are purely additive: never change application code in the same commit as
+new tests. If a test exposes a bug, report it and fix it in a separate commit.
+Keep PostgreSQL as the test engine; do not switch tests to SQLite.
+
 ## Project Structure
 
 - Django 5.x project

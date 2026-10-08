@@ -18,6 +18,31 @@ Configuration is read from `.env` (see existing keys for the database, EMIS API,
 email, and OAuth settings). See **System Dependencies** below for the native
 libraries WeasyPrint and the PostgreSQL driver require.
 
+## Testing
+
+Tests use [pytest](https://docs.pytest.org/) with pytest-django and run against
+PostgreSQL, the same engine as production. Django creates a throwaway
+`test_<PG_NAME>` database for each run and drops it afterwards, so the role in
+`.env` needs the `CREATEDB` privilege (one-time, as a superuser):
+
+```sql
+ALTER ROLE pacemis_teacher_registration CREATEDB;
+```
+
+```bash
+uv run pytest                                  # whole suite
+uv run pytest core/tests/test_smoke.py         # one file
+uv run pytest --cov --cov-report=term-missing  # with coverage
+```
+
+Tests load `pacemis_teacher_registration/settings_test.py`, which reads `.env`
+and then overrides email, uploads, the EMIS API and password hashing so no test
+can reach the outside world. Tests live in each app's `tests/` package. CI
+(`.github/workflows/ci.yml`) runs the suite on every pull request together with
+Django system checks, a migration drift check and a `requirements.txt` sync
+check. The plan and phases are in
+[docs/plans/comprehensive-test-suite.md](docs/plans/comprehensive-test-suite.md).
+
 ## Deployment: `requirements.txt`
 
 The production Ansible playbook installs dependencies with `pip install -r requirements.txt`, so a committed `requirements.txt` must stay in sync with `uv.lock`.
