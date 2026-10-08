@@ -35,6 +35,12 @@ uv run pytest core/tests/test_smoke.py         # one file
 uv run pytest --cov --cov-report=term-missing  # with coverage
 ```
 
+Tests needing WeasyPrint's native libraries carry the `pdf` marker and skip when
+those are missing; `uv run pytest -m "not pdf"` leaves them out entirely. Known
+bugs are pinned with strict `xfail` markers and listed in the plan document; once
+a bug is fixed its test starts passing and the marker must be removed. Coverage
+has a floor (`fail_under` in `pyproject.toml`) that the run enforces.
+
 Tests load `pacemis_teacher_registration/settings_test.py`, which reads `.env`
 and then overrides email, uploads, the EMIS API and password hashing so no test
 can reach the outside world. Tests live in each app's `tests/` package. CI

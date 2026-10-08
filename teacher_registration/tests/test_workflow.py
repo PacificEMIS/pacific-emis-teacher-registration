@@ -267,10 +267,10 @@ class TestApproveInitial:
         assert staff.registration_valid_until is None
 
     def test_education_records_are_copied_and_originals_kept(self, reviewer, full_registration):
-        originals = list(full_registration.education_records.order_by("pk"))
+        originals = list(full_registration.education_records.order_by("institution_name"))
         staff = full_registration.approve(reviewer)
 
-        copies = list(staff.education_records.order_by("pk"))
+        copies = list(staff.education_records.order_by("institution_name"))
         assert len(copies) == len(originals) == 2
         for original, copy in zip(originals, copies):
             for field in (

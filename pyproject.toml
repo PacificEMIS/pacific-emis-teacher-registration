@@ -42,3 +42,6 @@ omit = ["*/migrations/*", "*/tests/*"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
+# Ratchet: measured 93% when the suite was completed (Oct 2026). Raise this
+# as coverage grows; never lower it without a reason in the commit message.
+fail_under = 90
