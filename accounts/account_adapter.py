@@ -43,10 +43,12 @@ class EmailAsUsernameSocialAdapter(DefaultSocialAccountAdapter):
             user.email = email
 
         # Preserve names already set (e.g. by staff during on-behalf registration)
-        # Only populate from Google if the user doesn't already have them
+        # Only populate from Google if the user doesn't already have them.
+        # Google omits family_name for accounts with a single name, so the
+        # provider passes last_name=None; coerce to "" since the column is NOT NULL.
         if not user.first_name:
-            user.first_name = data.get("first_name", "")
+            user.first_name = data.get("first_name") or ""
         if not user.last_name:
-            user.last_name = data.get("last_name", "")
+            user.last_name = data.get("last_name") or ""
 
         return user
