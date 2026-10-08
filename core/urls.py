@@ -65,6 +65,7 @@ urlpatterns = [
         name="pdf_split_download_all",
     ),
     path("utilities/merge-pdf/", views.pdf_merge, name="pdf_merge"),
+    path("utilities/test-email/", views.test_email, name="test_email"),
     # Reports
     path("reports/", views.reports_index, name="reports"),
     path(

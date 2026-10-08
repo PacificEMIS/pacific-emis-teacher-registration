@@ -148,6 +148,12 @@
                         <i class="bi bi-file-earmark-plus me-2"></i> Merge PDF
                       </a>
                     </li>
+                    <li>
+                      <a class="nav-link d-flex align-items-center text-light {% if active == 'test_email' %}active{% endif %}"
+                         href="{% url 'core:test_email' %}">
+                        <i class="bi bi-envelope-check me-2"></i> Test Email
+                      </a>
+                    </li>
                   {% endif %}
                 {% endif %}
               </ul>
