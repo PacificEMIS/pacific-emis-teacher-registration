@@ -8,6 +8,7 @@ This module provides views for managing:
 - Utilities: PDF split and merge tools for admin staff
 """
 import json
+import logging
 import re
 import shutil
 import uuid
@@ -41,12 +42,14 @@ except ImportError:
 
 from core.models import OrgSettings, SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
+from core.emails import send_test_email
 from core.forms import (
     SchoolStaffAssignmentForm,
     SchoolStaffEditForm,
     AssignSchoolStaffForm,
     AssignSystemUserForm,
     OrgSettingsForm,
+    TestEmailForm,
     SystemUserEditForm,
 )
 from core.permissions import (
@@ -91,6 +94,7 @@ from integrations.models import (
 )
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -1515,6 +1519,51 @@ def pdf_merge(request):
             return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
 
     return render(request, "core/pdf_merge.html", {"active": "pdf_merge"})
+
+
+@login_required
+@require_app_access
+def test_email(request):
+    """Send a test email so admins can confirm the server can deliver mail."""
+    if not can_manage_pending_users(request.user):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        form = TestEmailForm(request.POST)
+        if form.is_valid():
+            recipient = form.cleaned_data["recipient"]
+            try:
+                send_test_email(recipient=recipient, sent_by=request.user)
+            except Exception as e:
+                logger.exception("test_email: sending to %s failed", recipient)
+                messages.error(
+                    request,
+                    f"Sending the test email to {recipient} failed: {type(e).__name__}: {e}",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Test email sent to {recipient}. Check that mailbox (including spam) to confirm delivery.",
+                )
+                return redirect("core:test_email")
+    else:
+        form = TestEmailForm(initial={"recipient": request.user.email})
+
+    email_config = {
+        "host": settings.EMAIL_HOST,
+        "port": settings.EMAIL_PORT,
+        "user": settings.EMAIL_HOST_USER,
+        "use_tls": settings.EMAIL_USE_TLS,
+        "use_ssl": settings.EMAIL_USE_SSL,
+        "from_email": settings.DEFAULT_FROM_EMAIL,
+        "backend": settings.EMAIL_BACKEND,
+    }
+
+    return render(
+        request,
+        "core/test_email.html",
+        {"active": "test_email", "form": form, "email_config": email_config},
+    )
 
 
 # ============================================================================
