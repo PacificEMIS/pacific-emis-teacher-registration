@@ -77,6 +77,12 @@ Each phase is a small, independently reviewable PR.
 
 ## Known findings to fix separately
 
+- `teacher_registration/views.py`: the `@login_required` intended for
+  `document_upload()` sits on the `_is_ajax()` helper defined just above it.
+  Anonymous requests still get a 403 from the owner check, so nothing leaks,
+  but they should get a login redirect, and `_is_ajax()` would return a
+  redirect response instead of a bool if it were ever called for an anonymous
+  request. Tracked by a strict `xfail` in `core/tests/test_access_matrix.py`.
 - `teacher_registration/utils.py`: `validate_registration_number()` can never
   return True. It requires 12 characters and a 4-character hash, but
   `TR` + `YY` + `-` + 4 + `-` + 1 is 11 characters. Separately,
