@@ -77,6 +77,14 @@ Each phase is a small, independently reviewable PR.
 
 ## Known findings to fix separately
 
+- `teacher_registration/utils.py`: `validate_registration_number()` can never
+  return True. It requires 12 characters and a 4-character hash, but
+  `TR` + `YY` + `-` + 4 + `-` + 1 is 11 characters. Separately,
+  `generate_teacher_registration_number()` emits a 6 or 7 character hash
+  (base36 of a 32-bit value), not the 4 the docstring example `TR26-A7K9-C`
+  shows. The validator is not called anywhere yet, so the bug is latent.
+  Tracked by strict `xfail` markers in
+  `teacher_registration/tests/test_utils.py`; remove them when fixed.
 - `teacher_registration/models.py` (lines 1061 and 1697) uses
   `CheckConstraint(check=...)`, which
   Django 5.1 deprecated in favour of `condition=`. Removed in Django 6.0.
