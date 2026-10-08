@@ -1,8 +1,9 @@
 """Unit tests for small core model helpers."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
+from django.utils import timezone
 
 from core.models import OrgSettings
 from core.tests.factories import SchoolStaffAssignmentFactory, SchoolStaffFactory
@@ -33,18 +34,18 @@ class TestSchoolStaffAssignment:
         assert SchoolStaffAssignmentFactory(end_date=None).is_active is True
 
     def test_is_inactive_with_any_end_date(self):
-        future = date.today() + timedelta(days=30)
+        future = timezone.now().date() + timedelta(days=30)
         assert SchoolStaffAssignmentFactory(end_date=future).is_active is False
 
     def test_active_assignments_includes_open_and_not_yet_ended(self):
         staff = SchoolStaffFactory()
         open_assignment = SchoolStaffAssignmentFactory(school_staff=staff, end_date=None)
         future = SchoolStaffAssignmentFactory(
-            school_staff=staff, end_date=date.today() + timedelta(days=1)
+            school_staff=staff, end_date=timezone.now().date() + timedelta(days=1)
         )
-        today = SchoolStaffAssignmentFactory(school_staff=staff, end_date=date.today())
+        today = SchoolStaffAssignmentFactory(school_staff=staff, end_date=timezone.now().date())
         SchoolStaffAssignmentFactory(
-            school_staff=staff, end_date=date.today() - timedelta(days=1)
+            school_staff=staff, end_date=timezone.now().date() - timedelta(days=1)
         )
 
         assert set(staff.active_assignments) == {open_assignment, future, today}
