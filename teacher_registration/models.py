@@ -1059,7 +1059,7 @@ class RegistrationDocument(AuditModel):
         verbose_name_plural = "Registration Documents"
         constraints = [
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(registration__isnull=False, school_staff__isnull=True)
                     | models.Q(registration__isnull=True, school_staff__isnull=False)
                 ),
@@ -1695,7 +1695,7 @@ class RegistrationCondition(AuditModel):
         verbose_name_plural = "Registration Conditions"
         constraints = [
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(registration__isnull=False, school_staff__isnull=True)
                     | models.Q(registration__isnull=True, school_staff__isnull=False)
                 ),

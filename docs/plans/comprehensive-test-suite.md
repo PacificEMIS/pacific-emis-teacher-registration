@@ -103,6 +103,3 @@ Each phase is a small, independently reviewable PR.
   shows. The validator is not called anywhere yet, so the bug is latent.
   Tracked by strict `xfail` markers in
   `teacher_registration/tests/test_utils.py`; remove them when fixed.
-- `teacher_registration/models.py` (lines 1061 and 1697) uses
-  `CheckConstraint(check=...)`, which
-  Django 5.1 deprecated in favour of `condition=`. Removed in Django 6.0.
