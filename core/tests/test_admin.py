@@ -68,14 +68,7 @@ def registered_models():
     )
 
 
-BROKEN_ADMIN_FORMS = {
-    "teacher_registration.TeacherRegistration": (
-        "Known bug: TeacherRegistrationAdmin fieldsets still list address_line_1, "
-        "city, province and the business_* equivalents, which were removed from the "
-        "model. The add and change pages raise FieldError (HTTP 500). Fix in a "
-        "separate commit; this xfail then XPASSes (strict) and must be removed."
-    ),
-}
+BROKEN_ADMIN_FORMS = {}
 
 
 def model_params():

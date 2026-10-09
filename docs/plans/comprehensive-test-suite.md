@@ -83,11 +83,6 @@ Each phase is a small, independently reviewable PR.
 
 ## Known findings to fix separately
 
-- `teacher_registration/admin.py`: `TeacherRegistrationAdmin` fieldsets still
-  list `address_line_1`, `address_line_2`, `city`, `province` and the
-  `business_*` equivalents, which were removed from the model. The admin add
-  and change pages for registrations raise `FieldError` (HTTP 500). Tracked
-  by strict `xfail` markers in `core/tests/test_admin.py`.
 - `core/management/commands/seed_groups.py` lists `core.add_teacher`,
   `core.change_teacher`, `core.delete_teacher` and `core.view_teacher`, but
   there is no `core.Teacher` model, so every run warns "Permission not

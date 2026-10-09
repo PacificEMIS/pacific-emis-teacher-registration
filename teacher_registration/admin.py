@@ -220,19 +220,8 @@ class TeacherRegistrationAdmin(admin.ModelAdmin):
         }),
         ("Residential Address", {
             "fields": (
-                "address_line_1",
-                "address_line_2",
-                ("city", "province"),
                 "nearby_school",
             )
-        }),
-        ("Business Address", {
-            "fields": (
-                "business_address_line_1",
-                "business_address_line_2",
-                ("business_city", "business_province"),
-            ),
-            "classes": ("collapse",),
         }),
         ("Professional Information", {
             "fields": (
