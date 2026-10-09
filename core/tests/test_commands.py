@@ -30,25 +30,9 @@ class TestSeedGroups:
         assert admins.permissions.filter(content_type__app_label="account", codename="add_emailaddress").exists()
         assert "Groups seeded successfully" in output
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: seed_groups still lists core.add_teacher, core.change_teacher, "
-            "core.delete_teacher and core.view_teacher, but there is no core.Teacher "
-            "model, so every run warns 'Permission not found'. Remove the stale entries "
-            "in a separate commit; this xfail then XPASSes (strict) and must be removed."
-        ),
-    )
     def test_every_configured_permission_exists(self):
         output = seed()
         assert "Permission not found" not in output
-
-    def test_only_the_known_stale_permissions_are_missing(self):
-        """Guards against new stale entries while the known ones await cleanup."""
-        import re
-
-        missing = set(re.findall(r"Permission not found: ([a-z_]+\.[a-z_]+)", seed()))
-        assert missing <= {"core.add_teacher", "core.change_teacher", "core.delete_teacher", "core.view_teacher"}
 
     def test_is_idempotent(self):
         seed()

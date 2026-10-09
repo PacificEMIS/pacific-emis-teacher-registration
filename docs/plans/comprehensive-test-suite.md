@@ -83,10 +83,6 @@ Each phase is a small, independently reviewable PR.
 
 ## Known findings to fix separately
 
-- `core/management/commands/seed_groups.py` lists `core.add_teacher`,
-  `core.change_teacher`, `core.delete_teacher` and `core.view_teacher`, but
-  there is no `core.Teacher` model, so every run warns "Permission not
-  found". Tracked by a strict `xfail` in `core/tests/test_commands.py`.
 - `teacher_registration/views.py`: `registration_renew()` and
   `teacher_renew_on_behalf()` copy `SchoolStaffAssignment.teacher_level_type`
   (nullable) into `ClaimedSchoolAppointment.teacher_level_type` (NOT NULL).
