@@ -57,18 +57,6 @@ class TestCalculateCheckDigit:
             assert calculate_check_digit(mutated) != original, mutated
 
 
-VALIDATE_MISMATCH = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Known bug: validate_registration_number() can never return True. It "
-        "requires 12 characters AND a 4-character hash, but TR+YY+-+HASH4+-+C is "
-        "11 characters. Separately, generate_teacher_registration_number() emits "
-        "a 6 or 7 character hash (base36 of a 32-bit value), not 4. Fix in a "
-        "separate commit; these markers then XPASS (strict) and must be removed."
-    ),
-)
-
-
 class TestGenerateTeacherRegistrationNumber:
     def test_format(self):
         """TR{YY}-{HASH}-{CHECK}: hash is base36 of a 32-bit value, so 4 to 7 characters."""
@@ -113,7 +101,6 @@ class TestGenerateTeacherRegistrationNumber:
         second = generate_teacher_registration_number("A123456", DOB, 2026)
         assert first != second
 
-    @VALIDATE_MISMATCH
     def test_generated_number_validates(self):
         number = generate_teacher_registration_number("A123456", DOB, 2026)
         assert validate_registration_number(number)
@@ -134,23 +121,33 @@ class TestGenerateTeacherRegistrationNumber:
 
 
 class TestValidateRegistrationNumber:
-    """Exercises validate_registration_number() against the 12-character format
-    it currently expects, independently of what generate() produces."""
+    """validate_registration_number() accepts TR{YY}-{HASH}-{CHECK} with a hash of
+    4 to 7 base36 characters, which covers everything generate() produces."""
 
     @pytest.fixture
     def valid(self):
-        """The docstring's own example shape, with a correct check digit (11 chars)."""
+        """The shortest accepted shape, with a correct check digit."""
         return "TR26-A7K9-" + calculate_check_digit("26A7K9")
 
-    @VALIDATE_MISMATCH
+    @pytest.mark.parametrize("hash_part", ["A7K9", "EFAM2A", "1483E95"])
+    def test_accepts_hash_lengths_the_generator_produces(self, hash_part):
+        number = f"TR26-{hash_part}-" + calculate_check_digit("26" + hash_part)
+        assert validate_registration_number(number) is True
+
+    @pytest.mark.parametrize("hash_part", ["A7K", "12345678", "A7K!", "A7-9"])
+    def test_rejects_hash_of_wrong_length_or_alphabet(self, hash_part):
+        number = f"TR26-{hash_part}-" + calculate_check_digit("26" + hash_part)
+        assert validate_registration_number(number) is False
+
+    def test_rejects_non_numeric_year(self):
+        assert validate_registration_number("TRAB-A7K9-" + calculate_check_digit("ABA7K9")) is False
+
     def test_accepts_well_formed_number(self, valid):
         assert validate_registration_number(valid) is True
 
-    @VALIDATE_MISMATCH
     def test_accepts_lowercase_check_digit(self, valid):
         assert validate_registration_number(valid[:-1] + valid[-1].lower()) is True
 
-    @VALIDATE_MISMATCH
     def test_accepts_generated_number(self):
         number = generate_teacher_registration_number("A123456", DOB, 2026)
         assert validate_registration_number(number) is True

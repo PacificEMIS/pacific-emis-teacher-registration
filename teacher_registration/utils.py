@@ -68,17 +68,19 @@ def generate_teacher_registration_number(national_id, date_of_birth, approval_ye
     Generate deterministic teacher registration number.
 
     Format: TR{YY}-{HASH}-{CHECK}
-    Example: TR26-A7K9-C
+    Example: TR26-EFAM2A-Z
 
     Components:
     - TR: Teacher Registration prefix
     - YY: Year of approval (2-digit)
-    - HASH: Base36-encoded SHA256 hash of (National ID + DOB + SECRET_KEY)
+    - HASH: Base36 encoding of the first 32 bits of the SHA256 hash of
+      (National ID + DOB + SECRET_KEY); 6 or 7 characters in practice,
+      padded to a minimum of 4
     - CHECK: Check digit for error detection
 
     Properties:
     - Deterministic: Same National ID + DOB + Year → Same number (unless SECRET_KEY changes)
-    - Unique: Hash-based, ~1.6M combinations per year
+    - Unique: Hash-based, ~4.3 billion combinations per year
     - One-time generation: Created on approval, stored permanently in database
     - Stable: Based on verified National ID document
     - Uses Django SECRET_KEY as salt (simpler, already secret and unique per installation)
@@ -135,7 +137,7 @@ def generate_teacher_registration_number(national_id, date_of_birth, approval_ye
     # Calculate check digit on year + hash
     check_digit = calculate_check_digit(f"{year_short}{hash_b36}")
 
-    # Format: TR26-A7K9-C
+    # Format: TR26-EFAM2A-Z
     registration_number = f"TR{year_short}-{hash_b36}-{check_digit}"
 
     return registration_number
@@ -145,18 +147,17 @@ def validate_registration_number(registration_number):
     """
     Validate a teacher registration number format and check digit.
 
+    Accepts the shape produced by generate_teacher_registration_number():
+    TR{YY}-{HASH}-{CHECK}, where HASH is 4 to 7 base36 characters
+    (e.g. "TR26-EFAM2A-Z" or "TR26-1483E95-Y").
+
     Args:
-        registration_number: Registration number to validate (e.g., "TR26-A7K9-C")
+        registration_number: Registration number to validate
 
     Returns:
         bool: True if valid, False otherwise
     """
     if not registration_number:
-        return False
-
-    # Expected format: TR{YY}-{HASH}-{CHECK}
-    # Example: TR26-A7K9-C (length: 12)
-    if len(registration_number) != 12:
         return False
 
     if not registration_number.startswith('TR'):
@@ -168,8 +169,13 @@ def validate_registration_number(registration_number):
 
     year_part, hash_part, check_part = parts
 
-    # Validate lengths
-    if len(year_part) != 2 or len(hash_part) != 4 or len(check_part) != 1:
+    # Validate shape: 2-digit year, 4 to 7 base36 characters, 1 check character
+    alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    if len(year_part) != 2 or not year_part.isdigit():
+        return False
+    if not 4 <= len(hash_part) <= 7 or any(c not in alphabet for c in hash_part.upper()):
+        return False
+    if len(check_part) != 1:
         return False
 
     # Validate check digit
