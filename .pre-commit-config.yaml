@@ -1,3 +1,5 @@
+default_install_hook_types: [pre-commit, pre-push]
+
 repos:
   - repo: local
     hooks:
@@ -8,3 +10,26 @@ repos:
         files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false
         stages: [pre-commit]
+
+      # Local quality gate, run once per push (see README, Testing).
+      - id: django-check
+        name: Django system checks
+        entry: uv run python manage.py check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: migration-drift
+        name: No model changes without a migration
+        entry: uv run python manage.py makemigrations --check --dry-run
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: pytest
+        name: Test suite with coverage floor
+        entry: uv run pytest --cov
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

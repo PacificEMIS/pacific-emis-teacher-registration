@@ -43,15 +43,16 @@ bundled into a test PR.
   fails until the marker is removed, so the list cannot go stale.
 - `core/tests/test_access_matrix.py` fails when a URL is added without a row
   in the matrix, so every new view gets an access-control expectation.
-- CI runs on every PR: system checks, migration drift check, requirements.txt
-  sync check, and the test suite with coverage.
+- A pre-push hook in `.pre-commit-config.yaml` runs the local gate before every
+  push: system checks, migration drift check, and the test suite with coverage.
+  There is deliberately no hosted CI; the project stays vendor-neutral.
 
 ## Phases
 
 Each phase is a small, independently reviewable PR.
 
 0. **Harness** (done): dev deps, pytest config, test settings, root
-   `conftest.py`, empty `tests/` packages, smoke tests, GitHub Actions.
+   `conftest.py`, empty `tests/` packages, smoke tests, pre-push hook.
 1. **Pure unit tests** (done): registration number generation and check digit,
    `compute_valid_until`, `core/dateformat`, template filters, upload path,
    badge class, and the full permissions matrix (every predicate against every

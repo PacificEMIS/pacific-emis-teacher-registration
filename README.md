@@ -43,10 +43,20 @@ has a floor (`fail_under` in `pyproject.toml`) that the run enforces.
 
 Tests load `pacemis_teacher_registration/settings_test.py`, which reads `.env`
 and then overrides email, uploads, the EMIS API and password hashing so no test
-can reach the outside world. Tests live in each app's `tests/` package. CI
-(`.github/workflows/ci.yml`) runs the suite on every pull request together with
-Django system checks, a migration drift check and a `requirements.txt` sync
-check. The plan and phases are in
+can reach the outside world. Tests live in each app's `tests/` package.
+
+A pre-push hook (`.pre-commit-config.yaml`, installed by `uv run pre-commit
+install`) runs the quality gate once before every `git push`: Django system
+checks, a migration drift check, and the full suite with the coverage floor.
+A failing gate aborts the push. Run the three commands by hand at any time:
+
+```bash
+uv run python manage.py check
+uv run python manage.py makemigrations --check --dry-run
+uv run pytest --cov
+```
+
+The plan and phases are in
 [docs/plans/comprehensive-test-suite.md](docs/plans/comprehensive-test-suite.md).
 
 ## Deployment: `requirements.txt`

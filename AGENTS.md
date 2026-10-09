@@ -39,7 +39,10 @@ Run tests with `uv run pytest` (see README, Testing). Tests live in each app's
 `tests/` package and use `pacemis_teacher_registration/settings_test.py`. Test
 PRs are purely additive: never change application code in the same commit as
 new tests. If a test exposes a bug, report it and fix it in a separate commit.
-Keep PostgreSQL as the test engine; do not switch tests to SQLite.
+Keep PostgreSQL as the test engine; do not switch tests to SQLite. Before
+proposing a wrap-up commit, run the same gate the pre-push hook runs (see README,
+Testing) and report the result. Do not add hosted CI configuration; the gate is
+local by design.
 
 ## Project Structure
 
