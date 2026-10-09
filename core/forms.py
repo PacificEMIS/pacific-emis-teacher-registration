@@ -8,17 +8,18 @@ from django.contrib.auth.models import Group
 from django.forms import ModelForm
 
 from core.models import OrgSettings, SchoolStaff, SchoolStaffAssignment, SystemUser
-from integrations.models import EmisSchool
+from integrations.models import EmisEducationLevel, EmisSchool
 from core.permissions import is_admin, is_admins_group, get_user_schools, can_assign_admins_group, GROUP_SYSTEM_ADMINS, _in_group
 
 
 class SchoolStaffAssignmentForm(ModelForm):
     class Meta:
         model = SchoolStaffAssignment
-        fields = ["school", "job_title", "start_date", "end_date"]
+        fields = ["school", "job_title", "teacher_level_type", "start_date", "end_date"]
         widgets = {
             "school": forms.Select(attrs={"class": "form-select form-select-sm"}),
             "job_title": forms.Select(attrs={"class": "form-select form-select-sm"}),
+            "teacher_level_type": forms.Select(attrs={"class": "form-select form-select-sm"}),
             "start_date": forms.DateInput(
                 attrs={"type": "date", "class": "form-control form-control-sm"}
             ),
@@ -35,6 +36,9 @@ class SchoolStaffAssignmentForm(ModelForm):
             user: The user creating/editing the membership (for permission filtering)
         """
         super().__init__(*args, **kwargs)
+
+        level_field = cast(forms.ModelChoiceField, self.fields["teacher_level_type"])
+        level_field.queryset = EmisEducationLevel.objects.filter(active=True).order_by("label")
 
         # Get the school field as ModelChoiceField for type checking
         school_field = cast(forms.ModelChoiceField, self.fields["school"])

@@ -17,5 +17,31 @@ dependencies = [
 [dependency-groups]
 dev = [
     "djlint>=1.36,<2",
+    "factory-boy>=3.3,<4",
     "pre-commit>=4,<5",
+    "pytest>=8,<9",
+    "pytest-cov>=6,<7",
+    "pytest-django>=4.9,<5",
+    "requests-mock>=1.12,<2",
+    "time-machine>=2.15,<3",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "pacemis_teacher_registration.settings_test"
+python_files = ["test_*.py"]
+testpaths = ["accounts", "core", "integrations", "teacher_registration"]
+addopts = "--strict-markers"
+markers = [
+    "pdf: renders a PDF with WeasyPrint; skipped when the native GTK/Pango libraries are missing",
+]
+
+[tool.coverage.run]
+source = ["accounts", "core", "integrations", "teacher_registration"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# Ratchet: measured 93% when the suite was completed (Oct 2026). Raise this
+# as coverage grows; never lower it without a reason in the commit message.
+fail_under = 90

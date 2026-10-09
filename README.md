@@ -18,6 +18,47 @@ Configuration is read from `.env` (see existing keys for the database, EMIS API,
 email, and OAuth settings). See **System Dependencies** below for the native
 libraries WeasyPrint and the PostgreSQL driver require.
 
+## Testing
+
+Tests use [pytest](https://docs.pytest.org/) with pytest-django and run against
+PostgreSQL, the same engine as production. Django creates a throwaway
+`test_<PG_NAME>` database for each run and drops it afterwards, so the role in
+`.env` needs the `CREATEDB` privilege (one-time, as a superuser):
+
+```sql
+ALTER ROLE pacemis_teacher_registration CREATEDB;
+```
+
+```bash
+uv run pytest                                  # whole suite
+uv run pytest core/tests/test_smoke.py         # one file
+uv run pytest --cov --cov-report=term-missing  # with coverage
+```
+
+Tests needing WeasyPrint's native libraries carry the `pdf` marker and skip when
+those are missing; `uv run pytest -m "not pdf"` leaves them out entirely. Known
+bugs are pinned with strict `xfail` markers and listed in the plan document; once
+a bug is fixed its test starts passing and the marker must be removed. Coverage
+has a floor (`fail_under` in `pyproject.toml`) that the run enforces.
+
+Tests load `pacemis_teacher_registration/settings_test.py`, which reads `.env`
+and then overrides email, uploads, the EMIS API and password hashing so no test
+can reach the outside world. Tests live in each app's `tests/` package.
+
+A pre-push hook (`.pre-commit-config.yaml`, installed by `uv run pre-commit
+install`) runs the quality gate once before every `git push`: Django system
+checks, a migration drift check, and the full suite with the coverage floor.
+A failing gate aborts the push. Run the three commands by hand at any time:
+
+```bash
+uv run python manage.py check
+uv run python manage.py makemigrations --check --dry-run
+uv run pytest --cov
+```
+
+The plan and phases are in
+[docs/plans/comprehensive-test-suite.md](docs/plans/comprehensive-test-suite.md).
+
 ## Deployment: `requirements.txt`
 
 The production Ansible playbook installs dependencies with `pip install -r requirements.txt`, so a committed `requirements.txt` must stay in sync with `uv.lock`.
