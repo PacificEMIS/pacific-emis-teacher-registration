@@ -4,7 +4,7 @@ import factory
 from django.contrib.auth.models import Group, User
 
 from core.models import SchoolStaff, SchoolStaffAssignment, SystemUser
-from integrations.tests.factories import EmisJobTitleFactory, EmisSchoolFactory
+from integrations.tests.factories import EmisEducationLevelFactory, EmisJobTitleFactory, EmisSchoolFactory
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -49,6 +49,7 @@ class SchoolStaffAssignmentFactory(factory.django.DjangoModelFactory):
     school_staff = factory.SubFactory(SchoolStaffFactory)
     school = factory.SubFactory(EmisSchoolFactory)
     job_title = factory.SubFactory(EmisJobTitleFactory)
+    teacher_level_type = factory.SubFactory(EmisEducationLevelFactory)
     start_date = None
     end_date = None
 

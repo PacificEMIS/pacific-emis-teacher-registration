@@ -423,10 +423,9 @@ class SchoolStaffAssignment(AuditModel):
 
     teacher_level_type = models.ForeignKey(
         EmisEducationLevel,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name="staff_assignments",
+        verbose_name="Education level",
         help_text="Education level (Primary/JSS/SSS) for this assignment",
     )
 

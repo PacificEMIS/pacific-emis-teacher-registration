@@ -83,9 +83,8 @@ Each phase is a small, independently reviewable PR.
 
 ## Known findings to fix separately
 
-- `teacher_registration/views.py`: `registration_renew()` and
-  `teacher_renew_on_behalf()` copy `SchoolStaffAssignment.teacher_level_type`
-  (nullable) into `ClaimedSchoolAppointment.teacher_level_type` (NOT NULL).
-  A teacher whose assignment was added through the staff membership form in
-  `core`, which has no level-type field, gets a 500 instead of a renewal.
-  Tracked by a strict `xfail` in `teacher_registration/tests/test_flows.py`.
+None open. The six findings surfaced while building the suite were each fixed
+in their own commit on the same branch (admin fieldsets, stale seed_groups
+permissions, CheckConstraint argument, document_upload login decorator,
+registration number validator, required education level on staff
+assignments).

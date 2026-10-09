@@ -26,6 +26,7 @@ from core.tests.factories import (
 )
 from integrations.models import EmisSchool, EmisTeacherRegistrationStatus
 from integrations.tests.factories import (
+    EmisEducationLevelFactory,
     EmisJobTitleFactory,
     EmisSchoolFactory,
     EmisTeacherRegistrationStatusFactory,
@@ -297,29 +298,47 @@ class TestStaffAdministration:
         return SchoolStaffFactory()
 
     def test_add_membership_from_detail_page(self, admins_client, admins_user, staff):
+        school, job, level = EmisSchoolFactory(), EmisJobTitleFactory(), EmisEducationLevelFactory()
+        response = admins_client.post(
+            url("staff_detail", pk=staff.pk),
+            {"school": school.pk, "job_title": job.pk, "teacher_level_type": level.pk, "start_date": "2026-01-01"},
+        )
+        assert response["Location"] == url("staff_detail", pk=staff.pk)
+        membership = staff.assignments.get()
+        assert membership.school == school
+        assert membership.teacher_level_type == level
+        assert membership.created_by == admins_user
+
+    def test_membership_requires_education_level(self, admins_client, staff):
+        """Every assignment carries a level, so renewals can always copy it."""
         school, job = EmisSchoolFactory(), EmisJobTitleFactory()
         response = admins_client.post(
             url("staff_detail", pk=staff.pk),
             {"school": school.pk, "job_title": job.pk, "start_date": "2026-01-01"},
         )
-        assert response["Location"] == url("staff_detail", pk=staff.pk)
-        membership = staff.assignments.get()
-        assert membership.school == school
-        assert membership.created_by == admins_user
+        assert response.status_code == 200
+        assert "teacher_level_type" in response.context["membership_form"].errors
+        assert not staff.assignments.exists()
 
     def test_school_admin_can_only_add_membership_for_own_school(self, client, staff):
         own, other = EmisSchoolFactory(), EmisSchoolFactory()
         admin = school_staff_user(p.GROUP_SCHOOL_ADMINS, schools=[own])
         SchoolStaffAssignmentFactory(school_staff=staff, school=own)
         client.force_login(admin)
-        job = EmisJobTitleFactory()
+        job, level = EmisJobTitleFactory(), EmisEducationLevelFactory()
 
-        response = client.post(url("staff_detail", pk=staff.pk), {"school": other.pk, "job_title": job.pk})
+        response = client.post(
+            url("staff_detail", pk=staff.pk),
+            {"school": other.pk, "job_title": job.pk, "teacher_level_type": level.pk},
+        )
         assert response.status_code == 200
         assert "school" in response.context["membership_form"].errors
         assert staff.assignments.count() == 1
 
-        client.post(url("staff_detail", pk=staff.pk), {"school": own.pk, "job_title": job.pk, "start_date": "2026-02-02"})
+        client.post(
+            url("staff_detail", pk=staff.pk),
+            {"school": own.pk, "job_title": job.pk, "teacher_level_type": level.pk, "start_date": "2026-02-02"},
+        )
         assert staff.assignments.count() == 2
 
     def test_membership_edit_and_delete(self, admins_client, staff):
@@ -327,7 +346,12 @@ class TestStaffAdministration:
         new_school = EmisSchoolFactory()
         admins_client.post(
             url("staff_membership_edit", staff_id=staff.pk, pk=membership.pk),
-            {"school": new_school.pk, "job_title": membership.job_title.pk, "end_date": "2026-12-31"},
+            {
+                "school": new_school.pk,
+                "job_title": membership.job_title.pk,
+                "teacher_level_type": membership.teacher_level_type.pk,
+                "end_date": "2026-12-31",
+            },
         )
         membership.refresh_from_db()
         assert membership.school == new_school

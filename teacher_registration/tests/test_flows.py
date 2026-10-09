@@ -724,26 +724,6 @@ class TestRenewal:
         StaffTeachingDuty.objects.create(assignment=assignment, year_level=EmisClassLevelFactory())
         return teacher
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known bug: registration_renew() and teacher_renew_on_behalf() copy "
-            "SchoolStaffAssignment.teacher_level_type (nullable) into "
-            "ClaimedSchoolAppointment.teacher_level_type (NOT NULL). A teacher whose "
-            "assignment was added through the staff membership form, which has no "
-            "level-type field, gets a 500 instead of a renewal. Fix in a separate commit."
-        ),
-    )
-    def test_renewal_survives_assignment_without_level_type(self, client, full_status):
-        teacher = approved_teacher(status=full_status)
-        teacher.registration_application_status = constants.EXPIRED
-        teacher.save()
-        SchoolStaffAssignmentFactory(school_staff=teacher, teacher_level_type=None)
-        client.force_login(teacher.user)
-        response = client.get(url("registration_renew"))
-        assert response.status_code == 302
-        assert TeacherRegistration.objects.filter(user=teacher.user).exists()
-
     def test_not_eligible_when_far_from_expiry(self, client):
         teacher = approved_teacher(valid_until=timezone.now() + timedelta(days=365))
         client.force_login(teacher.user)
@@ -953,10 +933,10 @@ class TestTeacherAdminActions:
         assert response.status_code == 404
 
     def test_assignment_add_with_duties_then_edit(self, admin_client, teacher):
-        school, job = EmisSchoolFactory(), EmisJobTitleFactory()
+        school, job, level = EmisSchoolFactory(), EmisJobTitleFactory(), EmisEducationLevelFactory()
         year, subject = EmisClassLevelFactory(), EmisSubjectFactory()
         admin_client.post(url("teacher_assignment_add", pk=teacher.pk), {
-            "school": school.pk, "job_title": job.pk, "start_date": "2026-01-10",
+            "school": school.pk, "job_title": job.pk, "teacher_level_type": level.pk, "start_date": "2026-01-10",
             "duties[0][year_level]": year.pk, "duties[0][subjects][]": [subject.pk],
         })
         assignment = teacher.assignments.get()
@@ -965,7 +945,7 @@ class TestTeacherAdminActions:
 
         other_year = EmisClassLevelFactory()
         admin_client.post(url("teacher_assignment_edit", pk=teacher.pk, assignment_pk=assignment.pk), {
-            "school": school.pk, "job_title": job.pk, "start_date": "2026-01-10",
+            "school": school.pk, "job_title": job.pk, "teacher_level_type": level.pk, "start_date": "2026-01-10",
             "duties[0][year_level]": other_year.pk,
         })
         duty = assignment.teaching_duties.get()

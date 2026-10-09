@@ -22,7 +22,7 @@ from core.tests.factories import (
     school_staff_user,
     system_user,
 )
-from integrations.tests.factories import EmisJobTitleFactory, EmisSchoolFactory
+from integrations.tests.factories import EmisEducationLevelFactory, EmisJobTitleFactory, EmisSchoolFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -59,12 +59,29 @@ class TestSchoolStaffAssignmentForm:
         assert not SchoolStaffAssignmentForm(user=AnonymousUser()).fields["school"].queryset.exists()
 
     def test_valid_submission(self):
-        school, job = EmisSchoolFactory(), EmisJobTitleFactory()
+        school, job, level = EmisSchoolFactory(), EmisJobTitleFactory(), EmisEducationLevelFactory()
         form = SchoolStaffAssignmentForm(
-            {"school": school.pk, "job_title": job.pk, "start_date": "2026-01-01", "end_date": ""},
+            {
+                "school": school.pk,
+                "job_title": job.pk,
+                "teacher_level_type": level.pk,
+                "start_date": "2026-01-01",
+                "end_date": "",
+            },
             user=UserFactory(is_superuser=True),
         )
         assert form.is_valid(), form.errors
+
+    def test_education_level_is_required_and_limited_to_active(self):
+        active = EmisEducationLevelFactory(active=True)
+        EmisEducationLevelFactory(active=False)
+        form = SchoolStaffAssignmentForm(user=UserFactory(is_superuser=True))
+        assert list(form.fields["teacher_level_type"].queryset) == [active]
+        form = SchoolStaffAssignmentForm(
+            {"school": EmisSchoolFactory().pk, "job_title": EmisJobTitleFactory().pk},
+            user=UserFactory(is_superuser=True),
+        )
+        assert "teacher_level_type" in form.errors
 
 
 class TestSchoolStaffEditForm:

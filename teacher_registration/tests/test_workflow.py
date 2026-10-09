@@ -397,6 +397,7 @@ def existing_staff(full_status):
         school_staff=staff,
         school=ClaimedSchoolAppointmentFactory.current_school.get_factory()(),
         job_title=ClaimedSchoolAppointmentFactory.employment_position.get_factory()(),
+        teacher_level_type=ClaimedSchoolAppointmentFactory.teacher_level_type.get_factory()(),
     )
     StaffTeachingDuty.objects.create(
         assignment=old_assignment, year_level=ClaimedDutyFactory.year_level.get_factory()()

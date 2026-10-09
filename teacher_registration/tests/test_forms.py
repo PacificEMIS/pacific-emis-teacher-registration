@@ -384,9 +384,11 @@ class TestStaffForms:
     def test_staff_assignment_form(self):
         assert StaffAssignmentForm.Meta.model is SchoolStaffAssignment
         assert "current_island_station" not in StaffAssignmentForm.Meta.fields
-        school, job = EmisSchoolFactory(), EmisJobTitleFactory()
+        school, job, level = EmisSchoolFactory(), EmisJobTitleFactory(), EmisEducationLevelFactory()
         EmisSchoolFactory(active=False)
-        form = StaffAssignmentForm({"school": school.pk, "job_title": job.pk, "start_date": "2026-01-01"})
+        form = StaffAssignmentForm(
+            {"school": school.pk, "job_title": job.pk, "teacher_level_type": level.pk, "start_date": "2026-01-01"}
+        )
         assert form.is_valid(), form.errors
         assert list(StaffAssignmentForm().fields["school"].queryset) == [school]
-        assert {"school", "job_title"} <= set(StaffAssignmentForm({}).errors)
+        assert {"school", "job_title", "teacher_level_type"} <= set(StaffAssignmentForm({}).errors)
