@@ -739,7 +739,6 @@ def registration_submit(request, pk):
     )
 
 
-@login_required
 def _is_ajax(request):
     return request.headers.get("x-requested-with") == "XMLHttpRequest"
 
@@ -767,6 +766,7 @@ def _render_documents_sidebar(request, registration):
     }).content.decode("utf-8")
 
 
+@login_required
 def document_upload(request, registration_pk):
     """
     Upload a document to a registration.

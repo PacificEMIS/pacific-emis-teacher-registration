@@ -274,22 +274,7 @@ MATRIX = [
     ("teacher_registration:create", None, login_only(302)),
     ("teacher_registration:edit", lambda w: {"pk": w.draft.pk}, owner_or_manager(200, 200)),
     ("teacher_registration:submit", lambda w: {"pk": w.draft.pk}, owner_or_manager(200, 403)),
-    (
-        "teacher_registration:document_upload",
-        lambda w: {"registration_pk": w.draft.pk},
-        owner_or_manager(
-            302, 302,
-            anonymous=KnownBug(
-                correct=LOGIN,
-                actual=403,
-                reason=(
-                    "The @login_required meant for document_upload() is on the "
-                    "_is_ajax() helper just above it, so anonymous users get a 403 "
-                    "from the owner check instead of a login redirect."
-                ),
-            ),
-        ),
-    ),
+    ("teacher_registration:document_upload", lambda w: {"registration_pk": w.draft.pk}, owner_or_manager(302, 302)),
     (
         "teacher_registration:document_delete",
         lambda w: {"registration_pk": w.draft.pk, "pk": w.document.pk},
