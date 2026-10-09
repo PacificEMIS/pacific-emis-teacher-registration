@@ -30,6 +30,7 @@ from integrations.tests.factories import (
 from teacher_registration import constants
 from teacher_registration.models import (
     ClaimedDuty,
+    ClaimedSchoolAppointment,
     RegistrationChangeLog,
     RegistrationCondition,
     RegistrationDocument,
@@ -723,6 +724,17 @@ class TestRenewal:
         )
         StaffTeachingDuty.objects.create(assignment=assignment, year_level=EmisClassLevelFactory())
         return teacher
+
+    def test_renewal_draft_is_not_left_behind_when_copying_fails(self, client, expired_teacher, monkeypatch):
+        """The prefill runs in one transaction, so a failure leaves no partial draft."""
+        def boom(*args, **kwargs):
+            raise RuntimeError("copy failed")
+
+        monkeypatch.setattr(ClaimedSchoolAppointment.objects, "create", boom)
+        client.force_login(expired_teacher.user)
+        with pytest.raises(RuntimeError):
+            client.get(url("registration_renew"))
+        assert not TeacherRegistration.objects.filter(user=expired_teacher.user).exists()
 
     def test_not_eligible_when_far_from_expiry(self, client):
         teacher = approved_teacher(valid_until=timezone.now() + timedelta(days=365))

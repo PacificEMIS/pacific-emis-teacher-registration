@@ -2333,98 +2333,99 @@ def teacher_renew_on_behalf(request, pk):
         return redirect("teacher_registration:review", pk=existing_renewal.pk)
 
     # Create RENEWAL registration pre-filled from SchoolStaff
-    registration = TeacherRegistration.objects.create(
-        user=teacher_user,
-        registration_type=TeacherRegistration.RENEWAL,
-        teacher_category=TeacherRegistration.CURRENT_TEACHER,
-        status=constants.DRAFT,
-        approved_staff_profile=staff,
-        # Personal information
-        title=staff.title,
-        date_of_birth=staff.date_of_birth,
-        gender=staff.gender,
-        marital_status=staff.marital_status,
-        nationality=staff.nationality,
-        national_id_number=staff.national_id_number,
-        home_island=staff.home_island,
-        # Contact information
-        phone_number=staff.phone_number,
-        phone_home=staff.phone_home,
-        # Residential address
-        residential_address=staff.residential_address,
-        nearby_school=staff.nearby_school,
-        # Business address
-        business_address=staff.business_address,
-        # Professional information
-        teacher_payroll_number=staff.teacher_payroll_number,
-        highest_qualification=staff.highest_qualification,
-        years_of_experience=staff.years_of_experience,
-        # Audit
-        created_by=request.user,
-        last_updated_by=request.user,
-    )
-
-    # Copy education records from StaffEducationRecord → EducationRecord
-    for edu in staff.education_records.all():
-        EducationRecord.objects.create(
-            registration=registration,
-            institution_name=edu.institution_name,
-            qualification=edu.qualification,
-            program_name=edu.program_name,
-            major=edu.major,
-            major2=edu.major2,
-            minor=edu.minor,
-            minor2=edu.minor2,
-            completion_year=edu.completion_year,
-            duration=edu.duration,
-            duration_unit=edu.duration_unit,
-            completed=edu.completed,
-            percentage_progress=edu.percentage_progress,
-            comment=edu.comment,
+    with transaction.atomic():
+        registration = TeacherRegistration.objects.create(
+            user=teacher_user,
+            registration_type=TeacherRegistration.RENEWAL,
+            teacher_category=TeacherRegistration.CURRENT_TEACHER,
+            status=constants.DRAFT,
+            approved_staff_profile=staff,
+            # Personal information
+            title=staff.title,
+            date_of_birth=staff.date_of_birth,
+            gender=staff.gender,
+            marital_status=staff.marital_status,
+            nationality=staff.nationality,
+            national_id_number=staff.national_id_number,
+            home_island=staff.home_island,
+            # Contact information
+            phone_number=staff.phone_number,
+            phone_home=staff.phone_home,
+            # Residential address
+            residential_address=staff.residential_address,
+            nearby_school=staff.nearby_school,
+            # Business address
+            business_address=staff.business_address,
+            # Professional information
+            teacher_payroll_number=staff.teacher_payroll_number,
+            highest_qualification=staff.highest_qualification,
+            years_of_experience=staff.years_of_experience,
+            # Audit
             created_by=request.user,
             last_updated_by=request.user,
         )
 
-    # Copy training records from StaffTrainingRecord → TrainingRecord
-    for training in staff.training_records.all():
-        TrainingRecord.objects.create(
-            registration=registration,
-            provider_institution=training.provider_institution,
-            title=training.title,
-            focus=training.focus,
-            general_focus_area=training.general_focus_area,
-            format=training.format,
-            completion_year=training.completion_year,
-            duration=training.duration,
-            duration_unit=training.duration_unit,
-            effective_date=training.effective_date,
-            expiration_date=training.expiration_date,
-            created_by=request.user,
-            last_updated_by=request.user,
-        )
-
-    # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
-    for assignment in staff.assignments.all():
-        appointment = ClaimedSchoolAppointment.objects.create(
-            registration=registration,
-            current_school=assignment.school,
-            employment_position=assignment.job_title,
-            teacher_level_type=assignment.teacher_level_type,
-            employment_status=assignment.employment_status,
-            start_date=assignment.start_date,
-            end_date=assignment.end_date,
-            created_by=request.user,
-            last_updated_by=request.user,
-        )
-
-        for duty in assignment.teaching_duties.all():
-            ClaimedDuty.objects.create(
-                appointment=appointment,
-                year_level=duty.year_level,
-                subject=duty.subject,
+        # Copy education records from StaffEducationRecord → EducationRecord
+        for edu in staff.education_records.all():
+            EducationRecord.objects.create(
+                registration=registration,
+                institution_name=edu.institution_name,
+                qualification=edu.qualification,
+                program_name=edu.program_name,
+                major=edu.major,
+                major2=edu.major2,
+                minor=edu.minor,
+                minor2=edu.minor2,
+                completion_year=edu.completion_year,
+                duration=edu.duration,
+                duration_unit=edu.duration_unit,
+                completed=edu.completed,
+                percentage_progress=edu.percentage_progress,
+                comment=edu.comment,
                 created_by=request.user,
                 last_updated_by=request.user,
             )
+
+        # Copy training records from StaffTrainingRecord → TrainingRecord
+        for training in staff.training_records.all():
+            TrainingRecord.objects.create(
+                registration=registration,
+                provider_institution=training.provider_institution,
+                title=training.title,
+                focus=training.focus,
+                general_focus_area=training.general_focus_area,
+                format=training.format,
+                completion_year=training.completion_year,
+                duration=training.duration,
+                duration_unit=training.duration_unit,
+                effective_date=training.effective_date,
+                expiration_date=training.expiration_date,
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+        # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
+        for assignment in staff.assignments.all():
+            appointment = ClaimedSchoolAppointment.objects.create(
+                registration=registration,
+                current_school=assignment.school,
+                employment_position=assignment.job_title,
+                teacher_level_type=assignment.teacher_level_type,
+                employment_status=assignment.employment_status,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                created_by=request.user,
+                last_updated_by=request.user,
+            )
+
+            for duty in assignment.teaching_duties.all():
+                ClaimedDuty.objects.create(
+                    appointment=appointment,
+                    year_level=duty.year_level,
+                    subject=duty.subject,
+                    created_by=request.user,
+                    last_updated_by=request.user,
+                )
 
     # Log creation
     RegistrationChangeLog.log_change(
@@ -3102,104 +3103,105 @@ def registration_renew(request):
         return redirect("teacher_registration:my_registration")
 
     # Create the renewal registration pre-filled from SchoolStaff
-    registration = TeacherRegistration.objects.create(
-        user=user,
-        registration_type=TeacherRegistration.RENEWAL,
-        teacher_category=TeacherRegistration.CURRENT_TEACHER,
-        status=constants.DRAFT,
-        approved_staff_profile=staff,
-        # Personal information
-        title=staff.title,
-        date_of_birth=staff.date_of_birth,
-        gender=staff.gender,
-        marital_status=staff.marital_status,
-        nationality=staff.nationality,
-        national_id_number=staff.national_id_number,
-        home_island=staff.home_island,
-        # Contact information
-        phone_number=staff.phone_number,
-        phone_home=staff.phone_home,
-        # Residential address
-        residential_address=staff.residential_address,
-        nearby_school=staff.nearby_school,
-        # Business address
-        business_address=staff.business_address,
-        # Professional information
-        teacher_payroll_number=staff.teacher_payroll_number,
-        highest_qualification=staff.highest_qualification,
-        years_of_experience=staff.years_of_experience,
-        # Audit
-        created_by=user,
-        last_updated_by=user,
-    )
-
-    # Copy education records from StaffEducationRecord → EducationRecord
-    for edu in staff.education_records.all():
-        EducationRecord.objects.create(
-            registration=registration,
-            institution_name=edu.institution_name,
-            qualification=edu.qualification,
-            program_name=edu.program_name,
-            major=edu.major,
-            major2=edu.major2,
-            minor=edu.minor,
-            minor2=edu.minor2,
-            completion_year=edu.completion_year,
-            duration=edu.duration,
-            duration_unit=edu.duration_unit,
-            completed=edu.completed,
-            percentage_progress=edu.percentage_progress,
-            comment=edu.comment,
+    with transaction.atomic():
+        registration = TeacherRegistration.objects.create(
+            user=user,
+            registration_type=TeacherRegistration.RENEWAL,
+            teacher_category=TeacherRegistration.CURRENT_TEACHER,
+            status=constants.DRAFT,
+            approved_staff_profile=staff,
+            # Personal information
+            title=staff.title,
+            date_of_birth=staff.date_of_birth,
+            gender=staff.gender,
+            marital_status=staff.marital_status,
+            nationality=staff.nationality,
+            national_id_number=staff.national_id_number,
+            home_island=staff.home_island,
+            # Contact information
+            phone_number=staff.phone_number,
+            phone_home=staff.phone_home,
+            # Residential address
+            residential_address=staff.residential_address,
+            nearby_school=staff.nearby_school,
+            # Business address
+            business_address=staff.business_address,
+            # Professional information
+            teacher_payroll_number=staff.teacher_payroll_number,
+            highest_qualification=staff.highest_qualification,
+            years_of_experience=staff.years_of_experience,
+            # Audit
             created_by=user,
             last_updated_by=user,
         )
 
-    # Copy training records from StaffTrainingRecord → TrainingRecord
-    for training in staff.training_records.all():
-        TrainingRecord.objects.create(
-            registration=registration,
-            provider_institution=training.provider_institution,
-            title=training.title,
-            focus=training.focus,
-            general_focus_area=training.general_focus_area,
-            format=training.format,
-            completion_year=training.completion_year,
-            duration=training.duration,
-            duration_unit=training.duration_unit,
-            effective_date=training.effective_date,
-            expiration_date=training.expiration_date,
-            created_by=user,
-            last_updated_by=user,
-        )
-
-    # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
-    for assignment in staff.assignments.all():
-        appointment = ClaimedSchoolAppointment.objects.create(
-            registration=registration,
-            current_school=assignment.school,
-            employment_position=assignment.job_title,
-            teacher_level_type=assignment.teacher_level_type,
-            employment_status=assignment.employment_status,
-            start_date=assignment.start_date,
-            end_date=assignment.end_date,
-            # Registration-only fields left blank (no equivalent on
-            # SchoolStaffAssignment): current_island_station, years_of_experience,
-            # class_type
-            created_by=user,
-            last_updated_by=user,
-        )
-
-        for duty in assignment.teaching_duties.all():
-            ClaimedDuty.objects.create(
-                appointment=appointment,
-                year_level=duty.year_level,
-                subject=duty.subject,
+        # Copy education records from StaffEducationRecord → EducationRecord
+        for edu in staff.education_records.all():
+            EducationRecord.objects.create(
+                registration=registration,
+                institution_name=edu.institution_name,
+                qualification=edu.qualification,
+                program_name=edu.program_name,
+                major=edu.major,
+                major2=edu.major2,
+                minor=edu.minor,
+                minor2=edu.minor2,
+                completion_year=edu.completion_year,
+                duration=edu.duration,
+                duration_unit=edu.duration_unit,
+                completed=edu.completed,
+                percentage_progress=edu.percentage_progress,
+                comment=edu.comment,
                 created_by=user,
                 last_updated_by=user,
             )
 
-    # Documents: do NOT copy. Existing docs stay on SchoolStaff.
-    # They will be shown as "already on file" on the renewal form.
+        # Copy training records from StaffTrainingRecord → TrainingRecord
+        for training in staff.training_records.all():
+            TrainingRecord.objects.create(
+                registration=registration,
+                provider_institution=training.provider_institution,
+                title=training.title,
+                focus=training.focus,
+                general_focus_area=training.general_focus_area,
+                format=training.format,
+                completion_year=training.completion_year,
+                duration=training.duration,
+                duration_unit=training.duration_unit,
+                effective_date=training.effective_date,
+                expiration_date=training.expiration_date,
+                created_by=user,
+                last_updated_by=user,
+            )
+
+        # Copy assignments from SchoolStaffAssignment → ClaimedSchoolAppointment + ClaimedDuty
+        for assignment in staff.assignments.all():
+            appointment = ClaimedSchoolAppointment.objects.create(
+                registration=registration,
+                current_school=assignment.school,
+                employment_position=assignment.job_title,
+                teacher_level_type=assignment.teacher_level_type,
+                employment_status=assignment.employment_status,
+                start_date=assignment.start_date,
+                end_date=assignment.end_date,
+                # Registration-only fields left blank (no equivalent on
+                # SchoolStaffAssignment): current_island_station, years_of_experience,
+                # class_type
+                created_by=user,
+                last_updated_by=user,
+            )
+
+            for duty in assignment.teaching_duties.all():
+                ClaimedDuty.objects.create(
+                    appointment=appointment,
+                    year_level=duty.year_level,
+                    subject=duty.subject,
+                    created_by=user,
+                    last_updated_by=user,
+                )
+
+        # Documents: do NOT copy. Existing docs stay on SchoolStaff.
+        # They will be shown as "already on file" on the renewal form.
 
     # Log creation
     RegistrationChangeLog.log_change(
