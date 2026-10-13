@@ -225,6 +225,8 @@ MATRIX = [
     ("accounts:post_login_router", None, login_only(302)),
     ("accounts:no_permissions", None, login_only(200)),
     ("admin:index", None, public(302, superuser=200)),
+    # core: own profile (login + profile; no group needed; profile-less superuser goes to admin)
+    ("core:my_profile", None, login_only(200, no_access=NOPERM, applicant=NOPERM, superuser=302)),
     # core: system users
     ("core:system_user_list", None, system_users()),
     ("core:system_user_detail", lambda w: {"pk": w.system_user_profile.pk}, system_users()),

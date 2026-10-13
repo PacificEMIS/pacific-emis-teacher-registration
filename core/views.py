@@ -51,6 +51,7 @@ from core.forms import (
     OrgSettingsForm,
     TestEmailForm,
     SystemUserEditForm,
+    MyProfileForm,
 )
 from core.permissions import (
     filter_staff_for_user,
@@ -64,6 +65,8 @@ from core.permissions import (
     can_edit_system_user,
     can_edit_system_user_groups,
     can_manage_pending_users,
+    can_edit_own_signature,
+    get_own_profile,
     is_admins_group,
     is_school_admin,
     GROUP_ADMINS,
@@ -586,6 +589,75 @@ def system_user_edit(request, pk):
         "active": "system_users",
     }
     return render(request, "core/system_user_edit.html", context)
+
+
+# ============================================================================
+# Self-service profile
+# ============================================================================
+
+
+@login_required
+def my_profile(request):
+    """
+    Let the signed-in user view and edit their *own* profile.
+
+    Access: any authenticated user with a SchoolStaff or SystemUser profile.
+    No group is required, so this view deliberately does not use
+    @require_app_access: a Registration Signatory with no other role, or an
+    approved teacher without a group, can still reach it. The subject is always
+    request.user (no pk in the URL), so there is nothing to scope.
+
+    Editable: first/last name; organization and position title for system
+    users; signature for Registration Signatories. Groups, email, username and
+    account flags are never editable here.
+    """
+    profile = get_own_profile(request.user)
+    if profile is None:
+        if request.user.is_superuser or request.user.is_staff:
+            return redirect("admin:auth_user_change", request.user.pk)
+        return redirect("accounts:no_permissions")
+
+    is_system_user = isinstance(profile, SystemUser)
+    can_edit_signature = can_edit_own_signature(request.user)
+
+    if request.method == "POST":
+        form = MyProfileForm(
+            request.POST,
+            request.FILES,
+            user=request.user,
+            profile=profile,
+            can_edit_signature=can_edit_signature,
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Your profile has been updated.")
+            return redirect("core:my_profile")
+    else:
+        form = MyProfileForm(
+            user=request.user,
+            profile=profile,
+            can_edit_signature=can_edit_signature,
+        )
+
+    # Link to the full administrative record for users allowed to see it.
+    full_profile_url = None
+    if is_system_user:
+        if can_access_system_users(request.user):
+            full_profile_url = reverse("core:system_user_detail", kwargs={"pk": profile.pk})
+    elif can_view_staff(request.user, profile):
+        full_profile_url = reverse("core:staff_detail", kwargs={"pk": profile.pk})
+
+    context = {
+        "form": form,
+        "profile": profile,
+        "is_system_user": is_system_user,
+        "can_edit_signature": can_edit_signature,
+        "current_signature": profile.signature if is_system_user else None,
+        "group_names": list(request.user.groups.order_by("name").values_list("name", flat=True)),
+        "full_profile_url": full_profile_url,
+        "active": "my_profile",
+    }
+    return render(request, "core/my_profile.html", context)
 
 
 # Note: SPECIAL_PERMISSIONS dictionary removed - no longer needed

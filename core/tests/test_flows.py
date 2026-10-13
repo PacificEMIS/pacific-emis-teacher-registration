@@ -439,6 +439,117 @@ class TestSystemUserAdministration:
         assert response.context["page_obj"].paginator.count == 1
 
 
+class TestMyProfile:
+    """Self-service profile page: own rows only, no privilege fields."""
+
+    @pytest.fixture
+    def signatory(self, groups):
+        """A system user whose only role is Registration Signatories."""
+        return system_user(p.GROUP_REGISTRATION_SIGNATORIES)
+
+    def test_header_links_signatory_to_own_profile(self, client, signatory):
+        client.force_login(signatory)
+        response = client.get(url("my_profile"))
+        assert response.status_code == 200
+        assert response.context["user_profile_url"] == url("my_profile")
+        assert response.context["can_edit_signature"] is True
+        assert "signature" in response.context["form"].fields
+
+    def test_signatory_cannot_open_system_user_pages(self, client, signatory):
+        client.force_login(signatory)
+        profile = signatory.system_user
+        assert client.get(url("system_user_detail", pk=profile.pk)).status_code == 403
+        assert client.get(url("system_user_edit", pk=profile.pk)).status_code == 403
+
+    def test_signatory_updates_name_title_and_signature(self, client, signatory):
+        client.force_login(signatory)
+        response = client.post(
+            url("my_profile"),
+            {
+                "first_name": "Ada", "last_name": "Lovelace",
+                "organization": "MoE", "position_title": "Registrar",
+                "signature": png_upload("sig.png"),
+            },
+        )
+        assert response["Location"] == url("my_profile")
+        signatory.refresh_from_db()
+        profile = signatory.system_user
+        assert (signatory.first_name, signatory.last_name) == ("Ada", "Lovelace")
+        assert (profile.organization, profile.position_title) == ("MoE", "Registrar")
+        assert profile.signature
+        assert profile.last_updated_by == signatory
+
+    def test_signature_can_be_cleared(self, client, signatory):
+        profile = signatory.system_user
+        profile.signature = png_upload("sig.png")
+        profile.save()
+        client.force_login(signatory)
+        client.post(
+            url("my_profile"),
+            {"first_name": "A", "last_name": "B", "signature-clear": "on"},
+        )
+        profile.refresh_from_db()
+        assert not profile.signature
+
+    def test_names_are_required(self, client, signatory):
+        client.force_login(signatory)
+        response = client.post(url("my_profile"), {"first_name": "", "last_name": ""})
+        assert response.status_code == 200
+        assert {"first_name", "last_name"} <= set(response.context["form"].errors)
+
+    def test_posted_privilege_fields_are_ignored(self, client, signatory, groups):
+        """Extra POST keys for groups or account flags change nothing."""
+        client.force_login(signatory)
+        client.post(
+            url("my_profile"),
+            {
+                "first_name": "A", "last_name": "B",
+                "groups": [groups[p.GROUP_ADMINS].pk], "is_superuser": "on",
+                "email": "other@example.org", "username": "root",
+            },
+        )
+        signatory.refresh_from_db()
+        assert list(signatory.groups.values_list("name", flat=True)) == [p.GROUP_REGISTRATION_SIGNATORIES]
+        assert not signatory.is_superuser
+        assert signatory.email != "other@example.org"
+        assert signatory.username != "root"
+
+    def test_non_signatory_system_user_gets_no_signature_field(self, client, groups):
+        user = system_user(p.GROUP_SYSTEM_STAFF)
+        client.force_login(user)
+        response = client.get(url("my_profile"))
+        assert response.status_code == 200
+        assert response.context["can_edit_signature"] is False
+        assert "signature" not in response.context["form"].fields
+        # A smuggled upload is ignored rather than stored.
+        client.post(
+            url("my_profile"),
+            {"first_name": "A", "last_name": "B", "signature": png_upload("sig.png")},
+        )
+        user.system_user.refresh_from_db()
+        assert not user.system_user.signature
+
+    def test_school_staff_edits_name_only(self, client, groups):
+        user = school_staff_user(p.GROUP_TEACHERS)
+        client.force_login(user)
+        response = client.get(url("my_profile"))
+        assert response.status_code == 200
+        assert set(response.context["form"].fields) == {"first_name", "last_name"}
+        client.post(url("my_profile"), {"first_name": "Grace", "last_name": "Hopper", "organization": "X"})
+        user.refresh_from_db()
+        assert user.get_full_name() == "Grace Hopper"
+        assert user.school_staff.last_updated_by == user
+
+    def test_approved_teacher_without_group_can_still_open_it(self, client):
+        staff = SchoolStaffFactory()
+        client.force_login(staff.user)
+        assert client.get(url("my_profile")).status_code == 200
+
+    def test_admin_sees_link_to_full_record(self, admins_client, admins_user):
+        response = admins_client.get(url("my_profile"))
+        assert response.context["full_profile_url"] == url("staff_detail", pk=admins_user.school_staff.pk)
+
+
 # ===========================================================================
 # Settings and utilities
 # ===========================================================================

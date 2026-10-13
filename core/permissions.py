@@ -543,3 +543,39 @@ def can_assign_admins_group(user) -> bool:
     if is_admins_group(user):
         return True
     return False
+
+
+# ============================================================================
+# Self-service profile
+# ============================================================================
+
+
+def get_own_profile(user):
+    """
+    Return the requesting user's own profile row, or None.
+
+    The SchoolStaff profile wins when a user somehow has both, matching the
+    order the header link context processor uses.
+    """
+    if not user or not user.is_authenticated:
+        return None
+    if hasattr(user, "school_staff"):
+        return user.school_staff
+    if hasattr(user, "system_user"):
+        return user.system_user
+    return None
+
+
+def can_edit_own_signature(user) -> bool:
+    """
+    Who may upload a signature on their *own* profile?
+
+    Only members of the Registration Signatories group: the signature is
+    printed on registration certificates and has no other use. Group
+    membership itself is still granted by an administrator.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if not hasattr(user, "system_user"):
+        return False
+    return _in_group(user, GROUP_REGISTRATION_SIGNATORIES)

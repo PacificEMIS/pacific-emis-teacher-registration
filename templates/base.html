@@ -184,7 +184,7 @@
                 {% if user_profile_url %}
                   <a href="{{ user_profile_url }}"
                      class="navbar-text text-light small d-flex align-items-center text-decoration-none"
-                     title="View your profile">
+                     title="View and edit your profile">
                     <i class="bi bi-person-circle me-1 d-none d-md-inline"></i>
                     {{ request.user.get_full_name|default:request.user.username }}
                     <span class="d-none d-md-inline">{% if request.user.email %} ({{ request.user.email }}){% endif %}</span>
