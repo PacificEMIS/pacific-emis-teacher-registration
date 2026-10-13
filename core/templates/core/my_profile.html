@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}My profile{% endblock title %}
+{% block content %}
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-0">My profile</h1>
+            <div class="small text-body-secondary">
+                Signed in as {{ request.user.username }}
+            </div>
+        </div>
+        {% if full_profile_url %}
+            <div class="d-flex gap-2">
+                <a href="{{ full_profile_url }}" class="btn btn-sm btn-outline-secondary">View full record</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h2 class="h6 mb-0">Profile details</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data" class="row g-3">
+                        {% csrf_token %}
+                        <div class="col-12 col-md-6">
+                            <label for="{{ form.first_name.id_for_label }}" class="form-label form-label-sm">First name</label>
+                            {{ form.first_name }}
+                            {% if form.first_name.errors %}<div class="invalid-feedback d-block">{{ form.first_name.errors|striptags }}</div>{% endif %}
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="{{ form.last_name.id_for_label }}" class="form-label form-label-sm">Last name</label>
+                            {{ form.last_name }}
+                            {% if form.last_name.errors %}<div class="invalid-feedback d-block">{{ form.last_name.errors|striptags }}</div>{% endif %}
+                        </div>
+
+                        {% if is_system_user %}
+                            <div class="col-12 col-md-6">
+                                <label for="{{ form.organization.id_for_label }}" class="form-label form-label-sm">Organization</label>
+                                {{ form.organization }}
+                                {% if form.organization.errors %}<div class="invalid-feedback d-block">{{ form.organization.errors|striptags }}</div>{% endif %}
+                                <div class="form-text">{{ form.organization.help_text }}</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="{{ form.position_title.id_for_label }}" class="form-label form-label-sm">Position title</label>
+                                {{ form.position_title }}
+                                {% if form.position_title.errors %}<div class="invalid-feedback d-block">{{ form.position_title.errors|striptags }}</div>{% endif %}
+                                <div class="form-text">{{ form.position_title.help_text }}</div>
+                            </div>
+                        {% endif %}
+
+                        {% if can_edit_signature %}
+                            <div class="col-12">
+                                {% include "core/includes/signature_field.html" with form=form current_signature=current_signature %}
+                            </div>
+                        {% endif %}
+
+                        <div class="col-12 d-flex justify-content-end mt-3">
+                            <button type="submit" class="btn btn-sm btn-primary">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h2 class="h6 mb-0">Account</h2>
+                </div>
+                <div class="card-body small">
+                    <dl class="row mb-2">
+                        <dt class="col-5 col-sm-4">Username</dt>
+                        <dd class="col-7 col-sm-8">{{ request.user.username }}</dd>
+                        <dt class="col-5 col-sm-4">Email</dt>
+                        <dd class="col-7 col-sm-8">
+                            {% if request.user.email %}
+                                {{ request.user.email }}
+                            {% else %}
+                                <span class="text-body-secondary">Not set</span>
+                            {% endif %}
+                        </dd>
+                        <dt class="col-5 col-sm-4">Profile type</dt>
+                        <dd class="col-7 col-sm-8">
+                            {% if is_system_user %}{{ terminology.system_users_singular }}{% else %}School Staff{% endif %}
+                        </dd>
+                        <dt class="col-5 col-sm-4">Groups</dt>
+                        <dd class="col-7 col-sm-8">
+                            {% if group_names %}
+                                {{ group_names|join:", " }}
+                            {% else %}
+                                <span class="text-body-secondary">None</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                    <p class="text-body-secondary mb-0">
+                        Your sign-in email, username and groups are managed by an administrator.
+                        Contact your system administrator to change them.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

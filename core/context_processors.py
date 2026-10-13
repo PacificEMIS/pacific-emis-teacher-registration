@@ -19,8 +19,9 @@ from core.permissions import (
 
 def staff_context(request: HttpRequest) -> dict[str, Any]:
     """
-    Adds user_profile_url for linking to the user's own profile page.
-    Checks for SchoolStaff, then SystemUser, then falls back to admin user page.
+    Adds user_profile_url for linking to the user's own profile page: the
+    self-service "My profile" page for anyone with a SchoolStaff or SystemUser
+    profile, falling back to the admin user page for profile-less staff.
 
     Also provides:
     - has_app_access: whether user has full app access (profile + group)
@@ -48,13 +49,13 @@ def staff_context(request: HttpRequest) -> dict[str, Any]:
         try:
             staff = SchoolStaff.objects.only("pk").get(user=user)
             context["staff_pk_for_request_user"] = staff.pk
-            context["user_profile_url"] = reverse("core:staff_detail", kwargs={"pk": staff.pk})
+            context["user_profile_url"] = reverse("core:my_profile")
         except SchoolStaff.DoesNotExist:
             # Check for SystemUser profile
             try:
                 system_user = SystemUser.objects.only("pk").get(user=user)
                 context["system_user_pk_for_request_user"] = system_user.pk
-                context["user_profile_url"] = reverse("core:system_user_detail", kwargs={"pk": system_user.pk})
+                context["user_profile_url"] = reverse("core:my_profile")
             except SystemUser.DoesNotExist:
                 # Fall back to admin user change page for superusers/staff without a profile
                 if user.is_superuser or user.is_staff:

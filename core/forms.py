@@ -369,3 +369,110 @@ class TestEmailForm(forms.Form):
         widget=forms.EmailInput(attrs={"class": "form-control", "autocomplete": "email"}),
         help_text="Defaults to your own address. Change it to test delivery to another mailbox.",
     )
+
+
+# ============================================================================
+# Self-service profile
+# ============================================================================
+
+
+class MyProfileForm(forms.Form):
+    """
+    Form for a user to edit their *own* profile.
+
+    Deliberately narrow: it never exposes groups, email, username or any
+    flag that affects access. The requesting user is always the subject, so
+    the form cannot be pointed at another account.
+
+    Fields offered depend on the profile type:
+    - Everyone: first_name, last_name (shown in the header and on certificates)
+    - SystemUser: organization, position_title
+    - SystemUser in the Registration Signatories group: signature
+    """
+
+    first_name = forms.CharField(
+        label="First name",
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+    )
+    last_name = forms.CharField(
+        label="Last name",
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control form-control-sm"}),
+    )
+    organization = forms.CharField(
+        label="Organization",
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control form-control-sm",
+                "placeholder": "e.g., Ministry of Education",
+            }
+        ),
+        help_text="Organization or department name.",
+    )
+    position_title = forms.CharField(
+        label="Position title",
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control form-control-sm",
+                "placeholder": "e.g., Registrar",
+            }
+        ),
+        help_text="Printed under your signature on registration certificates.",
+    )
+    signature = forms.ImageField(
+        label="Signature",
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={"class": "form-control form-control-sm", "accept": "image/*"}
+        ),
+        help_text="Signature image used on registration certificates. PNG with a transparent background recommended.",
+    )
+
+    def __init__(self, *args, user, profile, can_edit_signature=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.profile = profile
+        self.is_system_user = isinstance(profile, SystemUser)
+        self.can_edit_signature = self.is_system_user and can_edit_signature
+
+        if not self.is_system_user:
+            del self.fields["organization"]
+            del self.fields["position_title"]
+        if not self.can_edit_signature:
+            del self.fields["signature"]
+
+        if not self.is_bound:
+            self.initial["first_name"] = user.first_name
+            self.initial["last_name"] = user.last_name
+            if self.is_system_user:
+                self.initial["organization"] = profile.organization
+                self.initial["position_title"] = profile.position_title
+            if self.can_edit_signature:
+                self.initial["signature"] = profile.signature
+
+    def save(self):
+        """Apply the cleaned data to the user and their profile row."""
+        data = self.cleaned_data
+        self.user.first_name = data["first_name"].strip()
+        self.user.last_name = data["last_name"].strip()
+        self.user.save(update_fields=["first_name", "last_name"])
+
+        if self.is_system_user:
+            self.profile.organization = data["organization"]
+            self.profile.position_title = data["position_title"]
+        if self.can_edit_signature:
+            # ClearableFileInput: False when "clear" was ticked, an UploadedFile
+            # when a new file was chosen, None when untouched.
+            sig = data.get("signature")
+            if sig is False:
+                self.profile.signature.delete(save=False)
+            elif sig:
+                self.profile.signature = sig
+        self.profile.last_updated_by = self.user
+        self.profile.save()
+        return self.profile

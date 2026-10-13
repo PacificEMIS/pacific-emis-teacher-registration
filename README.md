@@ -112,6 +112,15 @@ Access is controlled through Django groups. Users must be assigned to at least o
 - SystemUser and Admins see all data
 - Enforced by permission functions in `teacher_registration.permissions`
 
+**Self-service profile (`/core/profile/`)**
+- Any signed-in user with a profile can edit their *own* first and last name;
+  SystemUsers can also edit their organization and position title, and members
+  of the **Registration Signatories** group can draw or upload the signature
+  printed on registration certificates.
+- The page is reached from the name/email link in the header. It only ever
+  acts on the requesting user, needs no group, and never exposes groups,
+  email, username or account flags; those stay with administrators.
+
 ### New User Workflow
 
 1. User signs in with Google OAuth → Django User account created

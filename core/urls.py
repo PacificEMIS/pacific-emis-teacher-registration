@@ -11,6 +11,8 @@ app_name = "core"
 urlpatterns = [
     # Dashboard
     path("dashboard/", views.dashboard, name="dashboard"),
+    # Own profile (self-service)
+    path("profile/", views.my_profile, name="my_profile"),
     # System Users
     path("system-users/", views.system_user_list, name="system_user_list"),
     path("system-users/<int:pk>/", views.system_user_detail, name="system_user_detail"),
