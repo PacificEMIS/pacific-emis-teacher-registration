@@ -502,6 +502,24 @@ def can_edit_system_user_groups(user, system_user) -> bool:
     return False
 
 
+def can_deactivate_system_user(user, system_user) -> bool:
+    """
+    Who can deactivate or reactivate a system user's account?
+
+    Same roles as can_edit_system_user, with two guards: nobody can change
+    their own account, and only a superuser can change a superuser's.
+    Deactivation keeps the profile, groups and audit history; it only blocks
+    sign-in and drops the account from notifications and signatory lists.
+    """
+    if not can_edit_system_user(user, system_user):
+        return False
+    if system_user.user_id == user.pk:
+        return False
+    if system_user.user.is_superuser and not user.is_superuser:
+        return False
+    return True
+
+
 # ============================================================================
 # Pending Users Permissions
 # ============================================================================
@@ -525,6 +543,28 @@ def can_manage_pending_users(user) -> bool:
     if _in_group(user, GROUP_SYSTEM_ADMINS):
         return True
     return False
+
+
+def is_system_account(user) -> bool:
+    """
+    Is this account an MOE/system staff account rather than a teacher's?
+
+    True for superusers, Django-admin staff, anyone with a SystemUser profile,
+    and members of the system-wide groups (Admins, System Admins, System
+    Staff). Such an account must never become the subject of a teacher
+    registration: the registration form writes the applicant's name and
+    email straight onto the User row, which would overwrite the staff
+    member's identity and every audit line that renders it (issue #116).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or user.is_staff:
+        return True
+    if hasattr(user, "system_user"):
+        return True
+    return user.groups.filter(
+        name__in=[GROUP_ADMINS, GROUP_SYSTEM_ADMINS, GROUP_SYSTEM_STAFF]
+    ).exists()
 
 
 def can_assign_admins_group(user) -> bool:

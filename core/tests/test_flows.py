@@ -438,6 +438,96 @@ class TestSystemUserAdministration:
         response = admins_client.get(url("system_user_list"), {"q": "quartz"})
         assert response.context["page_obj"].paginator.count == 1
 
+    def test_list_hides_inactive_unless_asked(self, admins_client, groups):
+        SystemUserFactory(user=UserFactory(last_name="Active"))
+        SystemUserFactory(user=UserFactory(last_name="Gone", is_active=False))
+
+        default = admins_client.get(url("system_user_list"))
+        assert [su.user.last_name for su in default.context["page_obj"]] == ["Active"]
+        assert default.context["status"] == "active"
+
+        inactive = admins_client.get(url("system_user_list"), {"status": "inactive"})
+        assert [su.user.last_name for su in inactive.context["page_obj"]] == ["Gone"]
+        assert b"Inactive</span>" in inactive.content
+
+        everyone = admins_client.get(url("system_user_list"), {"status": "all"})
+        assert everyone.context["page_obj"].paginator.count == 2
+
+        bogus = admins_client.get(url("system_user_list"), {"status": "nonsense"})
+        assert bogus.context["status"] == "active"
+
+    def test_deactivate_then_reactivate(self, admins_client, admins_user, groups):
+        profile = SystemUserFactory(user=UserFactory(first_name="Mereue", last_name="Teannaki"))
+        profile.user.groups.add(groups[p.GROUP_ADMINS])
+
+        detail = admins_client.get(url("system_user_detail", pk=profile.pk))
+        assert detail.context["can_deactivate"] is True
+        assert url("system_user_deactivate", pk=profile.pk).encode() in detail.content
+
+        confirm = admins_client.get(url("system_user_deactivate", pk=profile.pk))
+        assert confirm.status_code == 200
+        assert confirm.context["activate"] is False
+        profile.user.refresh_from_db()
+        assert profile.user.is_active, "GET must not change anything"
+
+        response = admins_client.post(url("system_user_deactivate", pk=profile.pk), follow=True)
+        assert response.redirect_chain[0][0] == url("system_user_detail", pk=profile.pk)
+        assert any("deactivated" in m for m in messages_of(response))
+        profile.refresh_from_db()
+        profile.user.refresh_from_db()
+        assert profile.user.is_active is False
+        assert profile.last_updated_by == admins_user
+        # Nothing else changed: profile, groups and name are intact.
+        assert profile.user.get_full_name() == "Mereue Teannaki"
+        assert list(profile.user.groups.values_list("name", flat=True)) == [p.GROUP_ADMINS]
+        assert url("system_user_reactivate", pk=profile.pk).encode() in response.content
+        assert b"This account is <strong>inactive</strong>" in response.content
+
+        response = admins_client.post(url("system_user_reactivate", pk=profile.pk), follow=True)
+        assert any("reactivated" in m for m in messages_of(response))
+        profile.user.refresh_from_db()
+        assert profile.user.is_active is True
+
+    def test_set_active_is_a_no_op_when_already_in_that_state(self, admins_client, groups):
+        profile = SystemUserFactory()
+        response = admins_client.post(url("system_user_reactivate", pk=profile.pk), follow=True)
+        assert any("already active" in m for m in messages_of(response))
+        profile.user.refresh_from_db()
+        assert profile.user.is_active is True
+
+    def test_cannot_deactivate_own_account(self, client, groups):
+        me = system_user(p.GROUP_SYSTEM_ADMINS)
+        client.force_login(me)
+        detail = client.get(url("system_user_detail", pk=me.system_user.pk))
+        assert detail.context["can_deactivate"] is False
+        assert client.post(url("system_user_deactivate", pk=me.system_user.pk)).status_code == 403
+        me.refresh_from_db()
+        assert me.is_active
+
+    def test_system_staff_cannot_deactivate(self, client, groups):
+        viewer = system_user(p.GROUP_SYSTEM_STAFF)
+        client.force_login(viewer)
+        target = SystemUserFactory()
+        assert client.get(url("system_user_deactivate", pk=target.pk)).status_code == 403
+        assert client.post(url("system_user_deactivate", pk=target.pk)).status_code == 403
+        target.user.refresh_from_db()
+        assert target.user.is_active
+
+    def test_deactivated_admin_drops_out_of_notifications(self, admins_client, groups):
+        from core.emails import send_new_pending_user_email
+
+        gone = SystemUserFactory(user=UserFactory(email="gone@example.org"))
+        gone.user.groups.add(groups[p.GROUP_SYSTEM_ADMINS])
+        admins_client.post(url("system_user_deactivate", pk=gone.pk))
+
+        still_here = SystemUserFactory(user=UserFactory(email="here@example.org"))
+        still_here.user.groups.add(groups[p.GROUP_SYSTEM_ADMINS])
+
+        send_new_pending_user_email(new_user=UserFactory())
+        recipients = {addr for m in mail.outbox for addr in m.to}
+        assert "here@example.org" in recipients
+        assert "gone@example.org" not in recipients
+
 
 class TestMyProfile:
     """Self-service profile page: own rows only, no privilege fields."""

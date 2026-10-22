@@ -231,6 +231,9 @@ MATRIX = [
     ("core:system_user_list", None, system_users()),
     ("core:system_user_detail", lambda w: {"pk": w.system_user_profile.pk}, system_users()),
     ("core:system_user_edit", lambda w: {"pk": w.system_user_profile.pk}, system_users(system_staff=302)),
+    ("core:system_user_deactivate", lambda w: {"pk": w.system_user_profile.pk}, manage()),
+    # target is already active, so managers are bounced back to the detail page
+    ("core:system_user_reactivate", lambda w: {"pk": w.system_user_profile.pk}, manage(ok=302)),
     # core: school staff
     ("core:staff_list", None, app_access()),
     ("core:staff_detail", lambda w: {"pk": w.staff.pk}, manage(denied=302)),

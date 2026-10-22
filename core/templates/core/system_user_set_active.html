@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{% if activate %}Reactivate{% else %}Deactivate{% endif %} — {{ system_user.user.get_full_name|default:system_user.user.username }}{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{% url 'core:system_user_list' %}">{{ terminology.system_users_plural }}</a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{% url 'core:system_user_detail' system_user.pk %}">{{ system_user.user.get_full_name|default:system_user.user.username }}</a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">{% if activate %}Reactivate{% else %}Deactivate{% endif %}</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm {% if activate %}border-success{% else %}border-danger{% endif %}">
+        <div class="card-header {% if activate %}bg-success{% else %}bg-danger{% endif %} text-white">
+          <h1 class="h5 mb-0">
+            {% if activate %}
+              <i class="bi bi-person-check me-2"></i> Reactivate account
+            {% else %}
+              <i class="bi bi-person-dash me-2"></i> Deactivate account
+            {% endif %}
+          </h1>
+        </div>
+        <div class="card-body">
+          {% if activate %}
+            <p class="mb-3">
+              Reactivating lets this person sign in again and puts them back on
+              admin notifications and the signatory list. Their groups and
+              permissions are exactly as they were.
+            </p>
+          {% else %}
+            <p class="mb-2">Deactivating this account:</p>
+            <ul class="mb-3">
+              <li>blocks sign-in immediately;</li>
+              <li>removes them from admin notification emails and the signatory list;</li>
+              <li>keeps their profile, groups and every history entry made under their name.</li>
+            </ul>
+            <p class="mb-3">Nothing is deleted. The account can be reactivated at any time.</p>
+          {% endif %}
+
+          <div class="border rounded p-3 bg-light mb-4">
+            <dl class="row mb-0 small">
+              <dt class="col-sm-4">Name</dt>
+              <dd class="col-sm-8">{{ system_user.user.get_full_name|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Email</dt>
+              <dd class="col-sm-8">{{ system_user.user.email|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Organization</dt>
+              <dd class="col-sm-8">{{ system_user.organization|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Position</dt>
+              <dd class="col-sm-8">{{ system_user.position_title|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Groups</dt>
+              <dd class="col-sm-8 mb-0">{{ system_user.user.groups.all|join:", "|default:"None" }}</dd>
+            </dl>
+          </div>
+
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-flex justify-content-between">
+              <a href="{% url 'core:system_user_detail' system_user.pk %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Cancel
+              </a>
+              {% if activate %}
+                <button type="submit" class="btn btn-success">
+                  <i class="bi bi-person-check me-1"></i> Reactivate
+                </button>
+              {% else %}
+                <button type="submit" class="btn btn-danger">
+                  <i class="bi bi-person-dash me-1"></i> Deactivate
+                </button>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

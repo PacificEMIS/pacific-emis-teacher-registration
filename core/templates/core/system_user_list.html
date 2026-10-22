@@ -47,6 +47,15 @@
                  value="{{ organization|default_if_none:'' }}"
                  {% if organization %}autofocus{% endif %}>
         </div>
+        <!-- Account status -->
+        <div class="col-12 col-md-3">
+          <label for="status" class="form-label form-label-sm mb-1">Account status</label>
+          <select id="status" class="form-select form-select-sm" name="status">
+            <option value="active" {% if status == "active" %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status == "inactive" %}selected{% endif %}>Inactive</option>
+            <option value="all" {% if status == "all" %}selected{% endif %}>All</option>
+          </select>
+        </div>
         <!-- Per page + Reset -->
         <div class="col-12 col-md-3 ms-auto d-flex justify-content-end gap-2">
           <div class="flex-grow-1">
@@ -80,7 +89,12 @@
         <tbody>
           {% for system_user in page_obj %}
             <tr>
-              <td>{{ system_user.user.get_full_name|default:system_user.user.username }}</td>
+              <td>
+                {{ system_user.user.get_full_name|default:system_user.user.username }}
+                {% if not system_user.user.is_active %}
+                  <span class="badge text-bg-secondary ms-1">Inactive</span>
+                {% endif %}
+              </td>
               <td>{{ system_user.user.email|default:"—" }}</td>
               <td>{{ system_user.organization|default:"—" }}</td>
               <td>{{ system_user.position_title|default:"—" }}</td>
@@ -109,7 +123,7 @@
             {% if page_obj.has_previous %}
               <li class="page-item">
                 <a class="page-link"
-                   href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">Previous</a>
+                   href="?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&status={{ status }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">Previous</a>
               </li>
             {% endif %}
             {% for p in page_links %}
@@ -120,14 +134,14 @@
               {% else %}
                 <li class="page-item {% if p == page_obj.number %}active{% endif %}">
                   <a class="page-link"
-                     href="?page={{ p }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">{{ p }}</a>
+                     href="?page={{ p }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&status={{ status }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">{{ p }}</a>
                 </li>
               {% endif %}
             {% endfor %}
             {% if page_obj.has_next %}
               <li class="page-item">
                 <a class="page-link"
-                   href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">Next</a>
+                   href="?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&email={{ email|urlencode }}&organization={{ organization|urlencode }}&status={{ status }}&sort={{ sort }}&dir={{ dir }}&per_page={{ per_page }}">Next</a>
               </li>
             {% endif %}
           </ul>

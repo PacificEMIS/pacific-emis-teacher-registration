@@ -64,6 +64,7 @@ from core.permissions import (
     can_access_system_users,
     can_edit_system_user,
     can_edit_system_user_groups,
+    can_deactivate_system_user,
     can_manage_pending_users,
     can_edit_own_signature,
     get_own_profile,
@@ -367,6 +368,9 @@ def system_user_list(request):
     # Filters
     email_filter = (request.GET.get("email") or "").strip()
     organization_filter = (request.GET.get("organization") or "").strip()
+    status_filter = (request.GET.get("status") or "active").strip().lower()
+    if status_filter not in ("active", "inactive", "all"):
+        status_filter = "active"
 
     # Sorting
     sort = (request.GET.get("sort") or "").strip().lower()
@@ -397,6 +401,10 @@ def system_user_list(request):
     # Filter by organization
     if organization_filter:
         system_users_qs = system_users_qs.filter(organization__icontains=organization_filter)
+
+    # Filter by account status (active accounts by default)
+    if status_filter != "all":
+        system_users_qs = system_users_qs.filter(user__is_active=(status_filter == "active"))
 
     # Sorting map
     sort_map = {
@@ -439,6 +447,7 @@ def system_user_list(request):
             # filters
             "email": email_filter,
             "organization": organization_filter,
+            "status": status_filter,
             # sorting
             "sort": sort,
             "dir": dir_,
@@ -502,8 +511,62 @@ def system_user_detail(request, pk):
         "group_permissions": group_permissions,
         "direct_permission_sections": direct_permission_sections,
         "can_edit": can_edit_system_user(request.user, system_user),
+        "can_deactivate": can_deactivate_system_user(request.user, system_user),
     }
     return render(request, "core/system_user_detail.html", context)
+
+
+@login_required
+@require_app_access
+def system_user_set_active(request, pk, active):
+    """
+    Deactivate or reactivate a system user's account (confirm page + POST).
+
+    Deactivation flips ``User.is_active`` only. The SystemUser profile, group
+    memberships and every audit reference are kept, so history keeps
+    rendering the person's name; they simply can no longer sign in and are
+    dropped from admin notifications and the signatory list. Reactivation
+    reverses it. Permissions: see can_deactivate_system_user.
+    """
+    if not can_access_system_users(request.user):
+        return render(request, "accounts/forbidden.html", status=403)
+
+    system_user = get_object_or_404(SystemUser.objects.select_related("user"), pk=pk)
+
+    if not can_deactivate_system_user(request.user, system_user):
+        raise PermissionDenied
+
+    target = system_user.user
+    display_name = target.get_full_name() or target.username
+
+    if target.is_active == active:
+        state = "active" if active else "inactive"
+        messages.info(request, f"{display_name} is already {state}.")
+        return redirect("core:system_user_detail", pk=system_user.pk)
+
+    if request.method == "POST":
+        target.is_active = active
+        target.save(update_fields=["is_active"])
+        system_user.last_updated_by = request.user
+        system_user.save(update_fields=["last_updated_by", "last_updated_at"])
+        if active:
+            messages.success(request, f"{display_name} has been reactivated and can sign in again.")
+        else:
+            messages.success(
+                request,
+                f"{display_name} has been deactivated. Their profile, groups and history are kept.",
+            )
+        return redirect("core:system_user_detail", pk=system_user.pk)
+
+    return render(
+        request,
+        "core/system_user_set_active.html",
+        {
+            "active": "system_users",
+            "system_user": system_user,
+            "activate": active,
+        },
+    )
 
 
 @login_required
