@@ -187,6 +187,20 @@ def test_can_manage_pending_users(role, expected):
 
 
 @matrix(
+    anonymous=False, superuser=True, admins=True, system_admins=True,
+    system_staff=True, school_admins=False, teachers=False, school_staff=False,
+    profile_no_group=False, group_no_profile=False,
+)
+def test_is_system_account(role, expected):
+    """Accounts that must never become the subject of a teacher registration (#116)."""
+    assert p.is_system_account(role) is expected
+
+
+def test_is_system_account_for_system_user_without_groups():
+    assert p.is_system_account(system_user()) is True
+
+
+@matrix(
     anonymous=False, superuser=True, admins=True, system_admins=False,
     system_staff=False, school_admins=False, teachers=False, school_staff=False,
     profile_no_group=False, group_no_profile=False,

@@ -17,7 +17,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.models import SchoolStaff, SchoolStaffAssignment, StaffEducationRecord, StaffTeachingDuty
-from core.tests.factories import SchoolStaffAssignmentFactory, UserFactory
+from core import permissions as p
+from core.tests.factories import SchoolStaffAssignmentFactory, UserFactory, add_to_groups, system_user
 from integrations.tests.factories import (
     EmisClassLevelFactory,
     EmisEducationLevelFactory,
@@ -138,6 +139,15 @@ class TestSelfRegistrationStart:
         response = client.get(url("create"))
         assert response["Location"] == reverse("dashboard")
 
+    def test_create_blocked_for_system_account(self, client):
+        """An MOE staff member cannot start a teacher registration on their own account (#116)."""
+        staff = system_user(p.GROUP_SYSTEM_STAFF)
+        client.force_login(staff)
+        response = client.get(url("create"), follow=True)
+        assert response.redirect_chain[0][0] == reverse("dashboard")
+        assert not TeacherRegistration.objects.filter(user=staff).exists()
+        assert any("MOE staff account" in m for m in messages_of(response))
+
     def test_my_registration_redirects_to_existing_draft(self, applicant_client, applicant):
         draft = TeacherRegistrationFactory(user=applicant)
         assert applicant_client.get(url("my_registration"))["Location"] == url("edit", pk=draft.pk)
@@ -222,6 +232,23 @@ class TestRegistrationEdit:
         data = registration_form_data(draft, gender, submit="1")
         response = admin_client.post(url("edit", pk=draft.pk), data)
         assert response["Location"] == url("pending_list")
+
+    def test_form_refuses_to_rename_system_account(self, admin_client, gender):
+        """Last line of defence: a draft wrongly attached to an MOE staff account
+        cannot rewrite that account's name or email through the form (#116)."""
+        staff = system_user(p.GROUP_ADMINS)
+        staff.first_name, staff.last_name = "Mereue", "Teannaki"
+        staff.save()
+        draft = TeacherRegistrationFactory(user=staff, national_id_number="")
+
+        data = registration_form_data(draft, gender, first_name="Miiri", last_name="Niata", email="other@example.org")
+        response = admin_client.post(url("edit", pk=draft.pk), data)
+
+        assert response.status_code == 200
+        assert any("MOE staff account" in m for m in messages_of(response))
+        staff.refresh_from_db()
+        assert (staff.first_name, staff.last_name) == ("Mereue", "Teannaki")
+        assert staff.email != "other@example.org"
 
     def test_education_formset_creates_record(self, applicant_client, draft, gender):
         qual = EmisTeacherQualFactory()
@@ -479,6 +506,38 @@ class TestStaffRegisterTeacher:
         response = admin_client.post(url("staff_register_teacher"), {"email": teacher.user.email}, follow=True)
         assert any("already registered" in m for m in messages_of(response))
         assert not teacher.user.teacher_registrations.exists()
+
+    @pytest.mark.parametrize(
+        "make_account",
+        [
+            lambda: system_user(p.GROUP_ADMINS),
+            lambda: system_user(p.GROUP_SYSTEM_ADMINS),
+            lambda: system_user(),
+            lambda: add_to_groups(UserFactory(), p.GROUP_SYSTEM_STAFF),
+            lambda: UserFactory(is_superuser=True, is_staff=True),
+        ],
+        ids=["admins", "system_admins", "system_user_no_group", "system_staff_no_profile", "superuser"],
+    )
+    def test_system_account_is_refused(self, admin_client, make_account):
+        """Issue #116: a registration must never be attached to an MOE staff account."""
+        account = make_account()
+        account.email = account.username = "registrar@moe.example.org"
+        account.first_name, account.last_name = "Mereue", "Teannaki"
+        account.save()
+
+        response = admin_client.post(
+            url("staff_register_teacher"),
+            {"email": "Registrar@moe.example.org", "first_name": "Miiri", "last_name": "Niata"},
+            follow=True,
+        )
+
+        assert response.redirect_chain[0][0] == url("staff_register_teacher")
+        assert any("MOE staff account" in m for m in messages_of(response))
+        account.refresh_from_db()
+        assert (account.first_name, account.last_name) == ("Mereue", "Teannaki")
+        assert not account.teacher_registrations.exists()
+        assert not User.objects.filter(first_name="Miiri").exists()
+        assert len(mail.outbox) == 0
 
     def test_expired_school_staff_points_to_renew_on_behalf(self, admin_client):
         teacher = approved_teacher()
