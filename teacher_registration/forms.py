@@ -13,7 +13,7 @@ from core.models import (
     StaffEducationRecord,
     StaffTrainingRecord,
 )
-from core.permissions import GROUP_REGISTRATION_SIGNATORIES
+from core.permissions import GROUP_REGISTRATION_SIGNATORIES, is_system_account
 
 from teacher_registration.models import (
     TeacherRegistration,
@@ -214,6 +214,18 @@ class TeacherRegistrationForm(forms.ModelForm):
         self.fields["nationality"].queryset = EmisNationality.objects.filter(
             active=True
         ).order_by("label")
+
+    def clean(self):
+        """Refuse to touch a User row that belongs to MOE/system staff."""
+        cleaned_data = super().clean()
+        user = self.instance.user if self.instance and self.instance.pk else None
+        if user and is_system_account(user):
+            raise forms.ValidationError(
+                f"This registration is linked to an MOE staff account ({user.email}). "
+                "Its name and email cannot be changed from the registration form; "
+                "the registration must be moved to the teacher's own account first."
+            )
+        return cleaned_data
 
     def save(self, commit=True):
         """Save the registration and update user's name and email."""

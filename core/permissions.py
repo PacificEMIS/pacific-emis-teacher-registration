@@ -527,6 +527,28 @@ def can_manage_pending_users(user) -> bool:
     return False
 
 
+def is_system_account(user) -> bool:
+    """
+    Is this account an MOE/system staff account rather than a teacher's?
+
+    True for superusers, Django-admin staff, anyone with a SystemUser profile,
+    and members of the system-wide groups (Admins, System Admins, System
+    Staff). Such an account must never become the subject of a teacher
+    registration: the registration form writes the applicant's name and
+    email straight onto the User row, which would overwrite the staff
+    member's identity and every audit line that renders it (issue #116).
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser or user.is_staff:
+        return True
+    if hasattr(user, "system_user"):
+        return True
+    return user.groups.filter(
+        name__in=[GROUP_ADMINS, GROUP_SYSTEM_ADMINS, GROUP_SYSTEM_STAFF]
+    ).exists()
+
+
 def can_assign_admins_group(user) -> bool:
     """
     Who can assign the 'Admins' group to users?

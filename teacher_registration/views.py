@@ -49,7 +49,7 @@ from core.emails import (
     send_teacher_registration_rejected_email_async,
     send_teacher_registration_expired_email,
 )
-from core.permissions import can_manage_pending_users
+from core.permissions import can_manage_pending_users, is_system_account
 from core.dateformat import app_date
 from teacher_registration import constants
 from teacher_registration.models import (
@@ -313,6 +313,15 @@ def registration_create(request):
     """
     user = request.user
 
+    # MOE/system staff accounts are never registration subjects (issue #116)
+    if is_system_account(user):
+        messages.error(
+            request,
+            "Your account is an MOE staff account. Teacher registration is not "
+            "available for it.",
+        )
+        return redirect("dashboard")
+
     # Check if user already has a SchoolStaff profile
     if hasattr(user, "school_staff"):
         messages.info(request, "You are already registered as school staff.")
@@ -397,6 +406,19 @@ def staff_register_teacher(request):
             existing_user = User.objects.filter(email__iexact=email).first()
 
             if existing_user:
+                # MOE/system staff accounts are never registration subjects.
+                # Attaching one would let the registration form overwrite the
+                # staff member's name and email (issue #116).
+                if is_system_account(existing_user):
+                    messages.error(
+                        request,
+                        f"{email} belongs to an MOE staff account "
+                        f"({existing_user.get_full_name() or existing_user.username}). "
+                        "A teacher registration cannot be created against it. "
+                        "If this person is a teacher, use their own email address.",
+                    )
+                    return redirect("teacher_registration:staff_register_teacher")
+
                 # Already registered as school staff
                 if hasattr(existing_user, "school_staff"):
                     staff = existing_user.school_staff
