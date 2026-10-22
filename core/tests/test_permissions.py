@@ -221,6 +221,29 @@ def test_can_edit_system_user(role, expected):
     assert p.can_edit_system_user_groups(role, target) is expected
 
 
+@matrix(
+    anonymous=False, superuser=True, admins=True, system_admins=True,
+    system_staff=False, school_admins=False, teachers=False, school_staff=False,
+    profile_no_group=False, group_no_profile=False,
+)
+def test_can_deactivate_system_user(role, expected):
+    target = system_user(p.GROUP_SYSTEM_STAFF).system_user
+    assert p.can_deactivate_system_user(role, target) is expected
+
+
+def test_can_deactivate_system_user_never_self():
+    me = system_user(p.GROUP_SYSTEM_ADMINS)
+    assert p.can_deactivate_system_user(me, me.system_user) is False
+
+
+def test_can_deactivate_system_user_superuser_target_needs_superuser():
+    target = system_user(p.GROUP_SYSTEM_STAFF)
+    target.is_superuser = True
+    target.save()
+    assert p.can_deactivate_system_user(system_user(p.GROUP_SYSTEM_ADMINS), target.system_user) is False
+    assert p.can_deactivate_system_user(UserFactory(is_superuser=True), target.system_user) is True
+
+
 # ---------------------------------------------------------------------------
 # School-scoped helpers
 # ---------------------------------------------------------------------------
