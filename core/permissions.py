@@ -502,6 +502,24 @@ def can_edit_system_user_groups(user, system_user) -> bool:
     return False
 
 
+def can_deactivate_system_user(user, system_user) -> bool:
+    """
+    Who can deactivate or reactivate a system user's account?
+
+    Same roles as can_edit_system_user, with two guards: nobody can change
+    their own account, and only a superuser can change a superuser's.
+    Deactivation keeps the profile, groups and audit history; it only blocks
+    sign-in and drops the account from notifications and signatory lists.
+    """
+    if not can_edit_system_user(user, system_user):
+        return False
+    if system_user.user_id == user.pk:
+        return False
+    if system_user.user.is_superuser and not user.is_superuser:
+        return False
+    return True
+
+
 # ============================================================================
 # Pending Users Permissions
 # ============================================================================

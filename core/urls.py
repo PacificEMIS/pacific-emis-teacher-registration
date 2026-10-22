@@ -17,6 +17,18 @@ urlpatterns = [
     path("system-users/", views.system_user_list, name="system_user_list"),
     path("system-users/<int:pk>/", views.system_user_detail, name="system_user_detail"),
     path("system-users/<int:pk>/edit/", views.system_user_edit, name="system_user_edit"),
+    path(
+        "system-users/<int:pk>/deactivate/",
+        views.system_user_set_active,
+        {"active": False},
+        name="system_user_deactivate",
+    ),
+    path(
+        "system-users/<int:pk>/reactivate/",
+        views.system_user_set_active,
+        {"active": True},
+        name="system_user_reactivate",
+    ),
     # School Staff
     path("staff/", views.staff_list, name="staff_list"),
     path("staff/<int:pk>/", views.staff_detail, name="staff_detail"),

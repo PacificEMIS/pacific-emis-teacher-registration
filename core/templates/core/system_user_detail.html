@@ -15,8 +15,26 @@
         <a href="{% url 'core:system_user_edit' system_user.pk %}"
            class="btn btn-sm btn-primary">Edit</a>
       {% endif %}
+      {% if can_deactivate %}
+        {% if system_user.user.is_active %}
+          <a href="{% url 'core:system_user_deactivate' system_user.pk %}"
+             class="btn btn-sm btn-outline-danger">Deactivate</a>
+        {% else %}
+          <a href="{% url 'core:system_user_reactivate' system_user.pk %}"
+             class="btn btn-sm btn-outline-success">Reactivate</a>
+        {% endif %}
+      {% endif %}
     </div>
   </div>
+  {% if not system_user.user.is_active %}
+    <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3" role="status">
+      <i class="bi bi-person-dash"></i>
+      <div>
+        This account is <strong>inactive</strong>. The user cannot sign in and receives no notifications.
+        Their profile, groups and history are kept.
+      </div>
+    </div>
+  {% endif %}
   {# FIRST ROW: Profile + Permissions #}
   <div class="row g-3">
     <!-- Profile / account summary -->
