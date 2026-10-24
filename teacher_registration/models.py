@@ -145,7 +145,11 @@ class TeacherRegistration(AuditModel):
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        # PROTECT, not CASCADE: a registration carries documents, review notes
+        # and the audit trail. Deleting the user account must never silently
+        # take those with it; the registration has to be removed deliberately
+        # first (issue #118).
+        on_delete=models.PROTECT,
         related_name="teacher_registrations",
         help_text="User submitting this registration",
     )

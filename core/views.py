@@ -24,7 +24,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db.models import Count, Q, Prefetch, OuterRef, Subquery
+from django.db import transaction
+from django.db.models import Count, Q, Prefetch, OuterRef, Subquery, ProtectedError
 from django.template.loader import render_to_string
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -66,6 +67,7 @@ from core.permissions import (
     can_edit_system_user_groups,
     can_deactivate_system_user,
     can_manage_pending_users,
+    is_system_account,
     can_edit_own_signature,
     get_own_profile,
     is_admins_group,
@@ -1146,28 +1148,31 @@ def pending_users_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
-    # Get user IDs with active registrations (these are tracked in Pending Registrations)
+    # Users whose application is tracked in Pending Registrations are excluded
+    # here. PENDING_LIST_STATUSES is the exact set that screen shows, so an
+    # applicant can never appear on both lists (issue #118).
     from teacher_registration import constants as reg_constants
     from teacher_registration.models import TeacherRegistration
 
     users_with_active_registration = TeacherRegistration.objects.filter(
-        status__in=[
-            reg_constants.DRAFT,
-            reg_constants.SUBMITTED,
-            reg_constants.UNDER_REVIEW,
-            reg_constants.REJECTED,
-        ]
+        status__in=reg_constants.PENDING_LIST_STATUSES
     ).values_list("user_id", flat=True)
 
-    # Users without either profile (exclude superusers - they have full access already)
-    # Also exclude users with active registrations
-    pending_users_qs = User.objects.filter(
-        school_staff__isnull=True,
-        system_user__isnull=True,
-        is_superuser=False,
-    ).exclude(
-        id__in=users_with_active_registration
-    ).order_by("-date_joined")
+    # Users without either profile (exclude superusers - they have full access already).
+    # registration_count flags accounts that still carry registration history
+    # (e.g. an approved registration whose teacher profile was later deleted);
+    # the template hides the delete action for those and the delete view
+    # refuses them regardless.
+    pending_users_qs = (
+        User.objects.filter(
+            school_staff__isnull=True,
+            system_user__isnull=True,
+            is_superuser=False,
+        )
+        .exclude(id__in=users_with_active_registration)
+        .annotate(registration_count=Count("teacher_registrations"))
+        .order_by("-date_joined")
+    )
 
     # Search by name or email
     if q:
@@ -1304,46 +1309,97 @@ def assign_system_user(request, user_id):
     )
 
 
+def pending_user_delete_blockers(target_user, acting_user):
+    """
+    Every reason ``target_user`` must NOT be deleted from Pending Users.
+
+    An empty list means the account is a genuine stray sign-in: no profile,
+    no system role, and no registration record in any status. All checks run
+    so the confirmation page can show the full picture.
+    """
+    from teacher_registration.models import TeacherRegistration
+
+    blockers = []
+    if hasattr(target_user, "school_staff"):
+        blockers.append("has a School Staff profile")
+    if hasattr(target_user, "system_user"):
+        blockers.append("has a System User profile")
+    if target_user.is_superuser:
+        blockers.append("is a superuser")
+    elif is_system_account(target_user):
+        blockers.append("is an MOE staff account (admin flag or system-wide group)")
+    if target_user == acting_user:
+        blockers.append("is your own account")
+    registration_count = TeacherRegistration.objects.filter(user=target_user).count()
+    if registration_count:
+        plural = "s" if registration_count != 1 else ""
+        blockers.append(
+            f"has {registration_count} teacher registration record{plural} "
+            "(any status counts; remove them via Pending Registrations first "
+            "if that is really intended)"
+        )
+    return blockers
+
+
 @login_required
 @require_app_access
 def delete_pending_user(request, user_id):
     """
-    Delete a pending user who has not been assigned a role.
+    Delete a pending user: an account that signed in but was never assigned a
+    role and never touched the registration workflow.
 
     Accessible to users in the Admins or System Admins groups.
-    Only users without SchoolStaff or SystemUser profiles can be deleted.
+
+    Defence in depth (issue #118):
+    - Refused when the account has a SchoolStaff or SystemUser profile, is a
+      superuser or MOE staff account, is the acting user, or has a
+      TeacherRegistration in ANY status (see pending_user_delete_blockers).
+    - The POST must repeat the account's email as a typed confirmation.
+    - TeacherRegistration.user is PROTECT, so even if a check is bypassed the
+      database refuses to cascade registration data away.
     """
     if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     target_user = get_object_or_404(User, pk=user_id)
-
-    # Safety check: only allow deletion of users without profiles
-    has_school_staff = hasattr(target_user, "school_staff") and target_user.school_staff is not None
-    has_system_user = hasattr(target_user, "system_user") and target_user.system_user is not None
-
-    if has_school_staff or has_system_user:
-        messages.error(
-            request,
-            f"{target_user} already has a role assigned and cannot be deleted from here. "
-            "Use the Django admin to manage this user.",
-        )
-        return redirect("core:pending_users_list")
-
-    # Prevent deleting yourself
-    if target_user == request.user:
-        messages.error(request, "You cannot delete your own account.")
-        return redirect("core:pending_users_list")
-
-    # Prevent deleting superusers
-    if target_user.is_superuser:
-        messages.error(request, "Superusers cannot be deleted from here. Use the Django admin.")
-        return redirect("core:pending_users_list")
+    blockers = pending_user_delete_blockers(target_user, request.user)
+    expected_confirmation = (target_user.email or target_user.username).strip().lower()
 
     if request.method == "POST":
+        if blockers:
+            messages.error(
+                request,
+                f"{target_user} cannot be deleted: " + "; ".join(blockers) + ".",
+            )
+            return redirect("core:pending_users_list")
+
+        typed = (request.POST.get("confirm_identifier") or "").strip().lower()
+        if typed != expected_confirmation:
+            messages.error(
+                request,
+                "The confirmation text did not match the account's email. Nothing was deleted.",
+            )
+            return redirect("core:delete_pending_user", user_id=target_user.pk)
+
         username = target_user.username
         full_name = target_user.get_full_name() or username
-        target_user.delete()
+        try:
+            with transaction.atomic():
+                target_user.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                f"'{full_name}' is still referenced by registration records and was not deleted.",
+            )
+            return redirect("core:pending_users_list")
+
+        logger.warning(
+            "Pending user %s (id=%s) deleted by %s (id=%s)",
+            username,
+            user_id,
+            request.user.username,
+            request.user.pk,
+        )
         messages.success(request, f"User '{full_name}' has been deleted.")
         return redirect("core:pending_users_list")
 
@@ -1353,6 +1409,8 @@ def delete_pending_user(request, user_id):
         {
             "active": "pending_users",
             "target_user": target_user,
+            "blockers": blockers,
+            "expected_confirmation": expected_confirmation,
         },
     )
 

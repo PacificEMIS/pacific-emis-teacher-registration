@@ -24,6 +24,20 @@ REGISTRATION_APPLICATION_STATUS_CHOICES = [
     (EXPIRED, "Expired"),
 ]
 
+# Status groupings shared by every screen that decides whether an applicant is
+# still "in the pipeline". Always use these instead of hand-written lists so the
+# Pending Registrations list and the Pending Users exclusion cannot drift apart
+# (issue #118: an applicant in READY_FOR_APPROVAL used to appear on both screens
+# and was deletable from Pending Users, cascading the finished review away).
+
+# The application is still moving through the workflow: the teacher or a
+# reviewer still has to act on it.
+IN_PROGRESS_STATUSES = (DRAFT, SUBMITTED, UNDER_REVIEW, READY_FOR_APPROVAL)
+
+# Everything the Pending Registrations screen shows. Rejected applications stay
+# visible there so admins can follow up or delete them deliberately.
+PENDING_LIST_STATUSES = IN_PROGRESS_STATUSES + (REJECTED,)
+
 # Section 7 Checklist items from the official Teacher Application Form.
 # Each tuple: (field_suffix, label, category_heading_or_None, renewal_required)
 #   - field_suffix: maps to model fields checklist_applicant_{suffix} / checklist_official_{suffix}

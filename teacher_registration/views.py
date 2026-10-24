@@ -439,12 +439,7 @@ def staff_register_teacher(request):
                 # Has an active registration
                 active_reg = TeacherRegistration.objects.filter(
                     user=existing_user,
-                    status__in=[
-                        constants.DRAFT,
-                        constants.SUBMITTED,
-                        constants.UNDER_REVIEW,
-                        constants.READY_FOR_APPROVAL,
-                    ],
+                    status__in=constants.IN_PROGRESS_STATUSES,
                 ).first()
                 if active_reg:
                     messages.info(
@@ -903,15 +898,10 @@ def pending_registrations_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
-    # Base queryset - include drafts, submitted, under review, ready for approval, and rejected
+    # Base queryset: every status still owned by this screen. The same tuple
+    # drives the Pending Users exclusion, so an applicant is never on both.
     registrations_qs = TeacherRegistration.objects.filter(
-        status__in=[
-            constants.DRAFT,
-            constants.SUBMITTED,
-            constants.UNDER_REVIEW,
-            constants.READY_FOR_APPROVAL,
-            constants.REJECTED,
-        ]
+        status__in=constants.PENDING_LIST_STATUSES
     ).select_related("user", "preferred_school", "reviewed_by")  # preferred_school: not currently in use
 
     # Apply status filter

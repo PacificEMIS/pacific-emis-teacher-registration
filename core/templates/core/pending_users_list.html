@@ -64,7 +64,15 @@
                   <span class="text-body-secondary">Not set</span>
                 {% endif %}
               </td>
-              <td>{{ user.email|default:"—" }}</td>
+              <td>
+                {{ user.email|default:"—" }}
+                {% if user.registration_count %}
+                  <span class="badge text-bg-warning ms-1"
+                        title="This account has {{ user.registration_count }} registration record{{ user.registration_count|pluralize }} and cannot be deleted from here">
+                    <i class="bi bi-file-earmark-text me-1"></i>Registration history
+                  </span>
+                {% endif %}
+              </td>
               <td>{{ user.username }}</td>
               <td>{{ user.date_joined|date:"Y-m-d H:i" }}</td>
               <td class="text-end">
@@ -79,11 +87,20 @@
                      title="Assign as {{ terminology.system_users_singular }}">
                     <i class="bi bi-building"></i> {{ terminology.system_users_singular }}
                   </a>
-                  <a href="{% url 'core:delete_pending_user' user.pk %}"
-                     class="btn btn-outline-danger"
-                     title="Delete user">
-                    <i class="bi bi-trash"></i>
-                  </a>
+                  {% if user.registration_count %}
+                    <button type="button"
+                            class="btn btn-outline-danger"
+                            disabled
+                            title="Cannot delete: this account has registration history">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  {% else %}
+                    <a href="{% url 'core:delete_pending_user' user.pk %}"
+                       class="btn btn-outline-danger"
+                       title="Delete user">
+                      <i class="bi bi-trash"></i>
+                    </a>
+                  {% endif %}
                 </div>
               </td>
             </tr>
@@ -139,6 +156,9 @@
       <strong>Tip:</strong> Users appear here after signing in via Google OAuth for the first time.
       Assign them as <strong>School Staff</strong> (for teachers, principals, school-based staff) or
       <strong>{{ terminology.system_users_singular }}</strong> (for ministry officials, analysts, system administrators).
+      Accounts with an application in progress are listed under Pending Registrations instead.
+      Deleting is only possible for accounts with no profile and no registration record of any kind;
+      a deleted teacher can simply sign in again with Google and start a new registration.
     </div>
   </div>
 {% endblock content %}
