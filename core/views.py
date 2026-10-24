@@ -24,7 +24,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db.models import Count, Q, Prefetch, OuterRef, Subquery
+from django.db import transaction
+from django.db.models import Count, Q, Prefetch, OuterRef, Subquery, ProtectedError
 from django.template.loader import render_to_string
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -66,6 +67,7 @@ from core.permissions import (
     can_edit_system_user_groups,
     can_deactivate_system_user,
     can_manage_pending_users,
+    is_system_account,
     can_edit_own_signature,
     get_own_profile,
     is_admins_group,
@@ -178,131 +180,56 @@ def dashboard(request):
     - Schools KPIs (active schools)
     - Recent activity feed across all core models
     """
-    # Time window for "recent" counts (e.g. last 30 days)
-    now = timezone.now()
-    start_period = now - timedelta(days=30)
+    from core import warehouse
+    from teacher_registration import constants
 
-    # --- SchoolStaff KPIs ---
-    total_staff = SchoolStaff.objects.count()
-    staff_added_recent = SchoolStaff.objects.filter(created_at__gte=start_period).count()
-
-    # SchoolStaff with no assignments (unassigned to any school)
-    staff_unassigned = SchoolStaff.objects.filter(assignments__isnull=True).distinct().count()
+    summary = warehouse.summary()
+    staff_counts = summary["staff"]
+    app_counts = {r["code"]: r["count"] for r in summary["applications"]["by_status"]}
 
     # Users by groups (count ALL users in these groups, not just SchoolStaff)
     admin_count = User.objects.filter(groups__name=GROUP_ADMINS).distinct().count()
-    staff_teacher_count = SchoolStaff.objects.filter(
-        staff_type=SchoolStaff.TEACHING_STAFF
-    ).count()
 
     # --- SystemUser (MOE Staff) KPIs ---
+    start_period = timezone.now() - timedelta(days=30)
     total_system_users = SystemUser.objects.count()
     system_users_added_recent = SystemUser.objects.filter(created_at__gte=start_period).count()
 
-    # --- Schools KPIs ---
-    active_schools = EmisSchool.objects.filter(active=True).count()
-
-    # --- Pending Registrations KPIs ---
-    from teacher_registration import constants
-    from teacher_registration.models import TeacherRegistration
-
-    pending_reg_draft = TeacherRegistration.objects.filter(
-        status=constants.DRAFT
-    ).count()
-    pending_reg_submitted = TeacherRegistration.objects.filter(
-        status=constants.SUBMITTED
-    ).count()
-    pending_reg_under_review = TeacherRegistration.objects.filter(
-        status=constants.UNDER_REVIEW
-    ).count()
-    pending_reg_rejected = TeacherRegistration.objects.filter(
-        status=constants.REJECTED
-    ).count()
-    pending_reg_total = (
-        pending_reg_draft + pending_reg_submitted + pending_reg_under_review + pending_reg_rejected
-    )
-
-    # --- Recent activity (simple unified event log across core models) ---
+    # --- Recent activity: the newest records across every audited model ---
+    detail_routes = {"school_staff": "core:staff_detail"}
     events = []
-
-    def add_events_from_queryset(qs, entity_label, detail_url_name=None):
-        for obj in qs:
-            when = getattr(obj, "last_updated_at", None) or getattr(
-                obj, "created_at", None
-            )
-            created_at = getattr(obj, "created_at", None)
-            last_updated_at = getattr(obj, "last_updated_at", None)
-
-            if created_at and last_updated_at and last_updated_at > created_at:
-                action = "Updated"
-            elif created_at:
-                action = "Created"
-            else:
-                action = "Activity"
-
-            by_user = getattr(obj, "last_updated_by", None) or getattr(
-                obj, "created_by", None
-            )
-            # Display full name, fallback to email, then username
-            by_display = None
-            if by_user:
-                full_name = by_user.get_full_name()
-                if full_name:
-                    by_display = full_name
-                elif by_user.email:
-                    by_display = by_user.email
-                else:
-                    by_display = by_user.username
-
-            url = None
-            if detail_url_name and when:
-                try:
-                    url = reverse(detail_url_name, args=[obj.pk])
-                except Exception:
-                    url = None
-
-            if when:
-                events.append(
-                    {
-                        "when": when,
-                        "entity": entity_label,
-                        "action": action,
-                        "by": by_display,
-                        "url": url,
-                    }
-                )
-
-    # Pull a few recent records from each core model
-    add_events_from_queryset(
-        SchoolStaff.objects.order_by("-last_updated_at")[:5],
-        "SchoolStaff",
-        detail_url_name="core:staff_detail",
-    )
-    add_events_from_queryset(
-        SchoolStaffAssignment.objects.order_by("-last_updated_at")[:5],
-        "SchoolStaff assignment",
-        detail_url_name=None,
-    )
-
-    # Sort all events by time and keep the latest 10
-    events = sorted(events, key=lambda e: e["when"], reverse=True)[:10]
+    for row in warehouse.recent_activity(limit=10):
+        created_at, updated_at = row["created_at"], row["last_updated_at"]
+        # auto_now and auto_now_add differ by microseconds on the first save
+        updated = created_at and updated_at and updated_at - created_at > timedelta(seconds=1)
+        route = detail_routes.get(row["record_type"])
+        events.append(
+            {
+                "when": updated_at or created_at,
+                "entity": f'{row["record_type"].replace("_", " ").capitalize()}: {row["label"]}',
+                "action": "Updated" if updated else "Created",
+                "by": row["last_updated_by"] or row["created_by"],
+                "url": reverse(route, args=[row["record_id"]]) if route else None,
+            }
+        )
 
     context = {
         "active": "dashboard",
         # User KPIs
         "admin_count": admin_count,
-        "staff_teacher_count": staff_teacher_count,
+        "staff_teacher_count": staff_counts["teaching"],
         # SystemUser (MOE Staff) KPIs
         "total_system_users": total_system_users,
         "system_users_added_recent": system_users_added_recent,
         # Schools KPIs
-        "active_schools": active_schools,
-        # Pending Registrations KPIs
-        "pending_reg_total": pending_reg_total,
-        "pending_reg_draft": pending_reg_draft,
-        "pending_reg_submitted": pending_reg_submitted,
-        "pending_reg_under_review": pending_reg_under_review,
-        "pending_reg_rejected": pending_reg_rejected,
+        "active_schools": summary["active_schools"],
+        # Pending Registrations KPIs (same statuses as the Pending Registrations list)
+        "pending_reg_total": sum(app_counts.get(s, 0) for s in constants.PENDING_LIST_STATUSES),
+        "pending_reg_draft": app_counts.get(constants.DRAFT, 0),
+        "pending_reg_submitted": app_counts.get(constants.SUBMITTED, 0),
+        "pending_reg_under_review": app_counts.get(constants.UNDER_REVIEW, 0),
+        "pending_reg_ready_for_approval": app_counts.get(constants.READY_FOR_APPROVAL, 0),
+        "pending_reg_rejected": app_counts.get(constants.REJECTED, 0),
         # Activity
         "recent_events": events,
     }
@@ -411,6 +338,7 @@ def system_user_list(request):
         "name": ("user__last_name", "user__first_name"),
         "email": ("user__email", "user__last_name", "user__first_name"),
         "organization": ("organization", "user__last_name", "user__first_name"),
+        "position": ("position_title", "user__last_name", "user__first_name"),
     }
 
     if sort in sort_map:
@@ -1138,6 +1066,11 @@ def pending_users_list(request):
 
     q = (request.GET.get("q") or "").strip()
 
+    # Sorting
+    sort = (request.GET.get("sort") or "").strip().lower()
+    dir_ = (request.GET.get("dir") or "asc").strip().lower()
+    dir_ = "desc" if dir_ == "desc" else "asc"
+
     # Per-page
     try:
         per_page = int(request.GET.get("per_page", 25))
@@ -1146,28 +1079,30 @@ def pending_users_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
-    # Get user IDs with active registrations (these are tracked in Pending Registrations)
+    # Users whose application is tracked in Pending Registrations are excluded
+    # here. PENDING_LIST_STATUSES is the exact set that screen shows, so an
+    # applicant can never appear on both lists (issue #118).
     from teacher_registration import constants as reg_constants
     from teacher_registration.models import TeacherRegistration
 
     users_with_active_registration = TeacherRegistration.objects.filter(
-        status__in=[
-            reg_constants.DRAFT,
-            reg_constants.SUBMITTED,
-            reg_constants.UNDER_REVIEW,
-            reg_constants.REJECTED,
-        ]
+        status__in=reg_constants.PENDING_LIST_STATUSES
     ).values_list("user_id", flat=True)
 
-    # Users without either profile (exclude superusers - they have full access already)
-    # Also exclude users with active registrations
-    pending_users_qs = User.objects.filter(
-        school_staff__isnull=True,
-        system_user__isnull=True,
-        is_superuser=False,
-    ).exclude(
-        id__in=users_with_active_registration
-    ).order_by("-date_joined")
+    # Users without either profile (exclude superusers - they have full access already).
+    # registration_count flags accounts that still carry registration history
+    # (e.g. an approved registration whose teacher profile was later deleted);
+    # the template hides the delete action for those and the delete view
+    # refuses them regardless.
+    pending_users_qs = (
+        User.objects.filter(
+            school_staff__isnull=True,
+            system_user__isnull=True,
+            is_superuser=False,
+        )
+        .exclude(id__in=users_with_active_registration)
+        .annotate(registration_count=Count("teacher_registrations"))
+    )
 
     # Search by name or email
     if q:
@@ -1177,6 +1112,23 @@ def pending_users_list(request):
             | Q(email__icontains=q)
             | Q(username__icontains=q)
         )
+
+    # Sorting map
+    sort_map = {
+        "name": ("last_name", "first_name"),
+        "email": ("email", "last_name", "first_name"),
+        "username": ("username",),
+        "joined": ("date_joined",),
+    }
+
+    if sort in sort_map:
+        order_fields = sort_map[sort]
+        if dir_ == "desc":
+            order_fields = tuple(f"-{f}" for f in order_fields)
+        pending_users_qs = pending_users_qs.order_by(*order_fields)
+    else:
+        # Default: newest sign-ins first
+        pending_users_qs = pending_users_qs.order_by("-date_joined")
 
     # Pagination
     paginator = Paginator(pending_users_qs, per_page)
@@ -1190,6 +1142,8 @@ def pending_users_list(request):
             "active": "pending_users",
             "page_obj": page_obj,
             "q": q,
+            "sort": sort,
+            "dir": dir_,
             "per_page": per_page,
             "page_size_options": PAGE_SIZE_OPTIONS,
             "page_links": _page_window(page_obj),
@@ -1304,46 +1258,97 @@ def assign_system_user(request, user_id):
     )
 
 
+def pending_user_delete_blockers(target_user, acting_user):
+    """
+    Every reason ``target_user`` must NOT be deleted from Pending Users.
+
+    An empty list means the account is a genuine stray sign-in: no profile,
+    no system role, and no registration record in any status. All checks run
+    so the confirmation page can show the full picture.
+    """
+    from teacher_registration.models import TeacherRegistration
+
+    blockers = []
+    if hasattr(target_user, "school_staff"):
+        blockers.append("has a School Staff profile")
+    if hasattr(target_user, "system_user"):
+        blockers.append("has a System User profile")
+    if target_user.is_superuser:
+        blockers.append("is a superuser")
+    elif is_system_account(target_user):
+        blockers.append("is an MOE staff account (admin flag or system-wide group)")
+    if target_user == acting_user:
+        blockers.append("is your own account")
+    registration_count = TeacherRegistration.objects.filter(user=target_user).count()
+    if registration_count:
+        plural = "s" if registration_count != 1 else ""
+        blockers.append(
+            f"has {registration_count} teacher registration record{plural} "
+            "(any status counts; remove them via Pending Registrations first "
+            "if that is really intended)"
+        )
+    return blockers
+
+
 @login_required
 @require_app_access
 def delete_pending_user(request, user_id):
     """
-    Delete a pending user who has not been assigned a role.
+    Delete a pending user: an account that signed in but was never assigned a
+    role and never touched the registration workflow.
 
     Accessible to users in the Admins or System Admins groups.
-    Only users without SchoolStaff or SystemUser profiles can be deleted.
+
+    Defence in depth (issue #118):
+    - Refused when the account has a SchoolStaff or SystemUser profile, is a
+      superuser or MOE staff account, is the acting user, or has a
+      TeacherRegistration in ANY status (see pending_user_delete_blockers).
+    - The POST must repeat the account's email as a typed confirmation.
+    - TeacherRegistration.user is PROTECT, so even if a check is bypassed the
+      database refuses to cascade registration data away.
     """
     if not can_manage_pending_users(request.user):
         raise PermissionDenied
 
     target_user = get_object_or_404(User, pk=user_id)
-
-    # Safety check: only allow deletion of users without profiles
-    has_school_staff = hasattr(target_user, "school_staff") and target_user.school_staff is not None
-    has_system_user = hasattr(target_user, "system_user") and target_user.system_user is not None
-
-    if has_school_staff or has_system_user:
-        messages.error(
-            request,
-            f"{target_user} already has a role assigned and cannot be deleted from here. "
-            "Use the Django admin to manage this user.",
-        )
-        return redirect("core:pending_users_list")
-
-    # Prevent deleting yourself
-    if target_user == request.user:
-        messages.error(request, "You cannot delete your own account.")
-        return redirect("core:pending_users_list")
-
-    # Prevent deleting superusers
-    if target_user.is_superuser:
-        messages.error(request, "Superusers cannot be deleted from here. Use the Django admin.")
-        return redirect("core:pending_users_list")
+    blockers = pending_user_delete_blockers(target_user, request.user)
+    expected_confirmation = (target_user.email or target_user.username).strip().lower()
 
     if request.method == "POST":
+        if blockers:
+            messages.error(
+                request,
+                f"{target_user} cannot be deleted: " + "; ".join(blockers) + ".",
+            )
+            return redirect("core:pending_users_list")
+
+        typed = (request.POST.get("confirm_identifier") or "").strip().lower()
+        if typed != expected_confirmation:
+            messages.error(
+                request,
+                "The confirmation text did not match the account's email. Nothing was deleted.",
+            )
+            return redirect("core:delete_pending_user", user_id=target_user.pk)
+
         username = target_user.username
         full_name = target_user.get_full_name() or username
-        target_user.delete()
+        try:
+            with transaction.atomic():
+                target_user.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                f"'{full_name}' is still referenced by registration records and was not deleted.",
+            )
+            return redirect("core:pending_users_list")
+
+        logger.warning(
+            "Pending user %s (id=%s) deleted by %s (id=%s)",
+            username,
+            user_id,
+            request.user.username,
+            request.user.pk,
+        )
         messages.success(request, f"User '{full_name}' has been deleted.")
         return redirect("core:pending_users_list")
 
@@ -1353,6 +1358,8 @@ def delete_pending_user(request, user_id):
         {
             "active": "pending_users",
             "target_user": target_user,
+            "blockers": blockers,
+            "expected_confirmation": expected_confirmation,
         },
     )
 
@@ -2058,32 +2065,23 @@ def report_teacher_summary(request):
         )
         return redirect("core:reports")
 
+    import math
+
+    from core import warehouse
     from teacher_registration import constants
-    from teacher_registration.models import TeacherRegistration
 
     now = timezone.now()
-    start_period = now - timedelta(days=30)
+    summary = warehouse.summary()
+    staff_counts = summary["staff"]
+    total_staff = staff_counts["total"]
+    teaching_staff = staff_counts["teaching"]
+    non_teaching_staff = staff_counts["non_teaching"]
+    staff_added_recent = staff_counts["added_last_30_days"]
+    staff_unassigned = staff_counts["unassigned_to_school"]
+    active_schools = summary["active_schools"]
+    expiring_next_12_months = sum(e["count"] for e in summary["expiring"])
 
-    # --- Registered teachers (SchoolStaff) ---
-    total_staff = SchoolStaff.objects.count()
-    teaching_staff = SchoolStaff.objects.filter(
-        staff_type=SchoolStaff.TEACHING_STAFF
-    ).count()
-    non_teaching_staff = total_staff - teaching_staff
-    staff_added_recent = SchoolStaff.objects.filter(
-        created_at__gte=start_period
-    ).count()
-
-    # Registration status breakdown
-    reg_status_qs = (
-        SchoolStaff.objects.filter(teacher_registration_status__isnull=False)
-        .values("teacher_registration_status__label")
-        .annotate(count=Count("pk"))
-        .order_by("-count")
-    )
-    reg_status_data = []
-    max_reg_count = max((r["count"] for r in reg_status_qs), default=1)
-
+    # --- Registration status breakdown (bars relative to the largest bucket) ---
     def _reg_status_color(label):
         # Mirror EmisTeacherRegistrationStatus.badge_class substring matching so the
         # real EMIS labels (e.g. "Limited authority to teach") resolve to a color
@@ -2101,69 +2099,47 @@ def report_teacher_summary(request):
             return "#757575"  # bg-reg-expired
         return "#6c757d"
 
-    for row in reg_status_qs:
-        label = row["teacher_registration_status__label"]
-        count = row["count"]
-        reg_status_data.append(
-            {
-                "label": label,
-                "count": count,
-                "pct": round(count / max_reg_count * 100) if max_reg_count else 0,
-                "color": _reg_status_color(label),
-            }
-        )
+    reg_status_rows = summary["registration_status"]
+    max_reg_count = max((r["count"] for r in reg_status_rows), default=1) or 1
+    reg_status_data = [
+        {
+            "label": r["label"],
+            "count": r["count"],
+            "pct": round(r["count"] / max_reg_count * 100),
+            "color": _reg_status_color(r["label"]),
+        }
+        for r in reg_status_rows
+    ]
 
     # --- Application pipeline ---
-    pipeline_statuses = [
-        (constants.DRAFT, "Draft", "#78909c"),
-        (constants.SUBMITTED, "Submitted", "#1565c0"),
-        (constants.UNDER_REVIEW, "Under Review", "#f9a825"),
-        (constants.READY_FOR_APPROVAL, "Ready for Decision Approval/Rejection", "#9e9d24"),
-        (constants.APPROVED, "Approved", "#43a047"),
-        (constants.REJECTED, "Rejected", "#e53935"),
+    pipeline_colors = {
+        constants.DRAFT: "#78909c",
+        constants.SUBMITTED: "#1565c0",
+        constants.UNDER_REVIEW: "#f9a825",
+        constants.READY_FOR_APPROVAL: "#9e9d24",
+        constants.APPROVED: "#43a047",
+        constants.REJECTED: "#e53935",
+    }
+    pipeline_data = [
+        {"label": r["label"], "count": r["count"], "color": pipeline_colors[r["code"]]}
+        for r in summary["applications"]["by_status"]
+        if r["code"] in pipeline_colors
     ]
-    pipeline_data = []
-    for status_val, label, color in pipeline_statuses:
-        count = TeacherRegistration.objects.filter(status=status_val).count()
-        pipeline_data.append({"label": label, "count": count, "color": color})
-    total_applications = sum(p["count"] for p in pipeline_data)
+    total_applications = summary["applications"]["total"]
     max_pipeline = max((p["count"] for p in pipeline_data), default=1) or 1
     for p in pipeline_data:
         p["pct"] = round(p["count"] / max_pipeline * 100)
 
-    # --- Teachers by island ---
-    island_qs = (
-        SchoolStaff.objects.filter(home_island__isnull=False)
-        .values("home_island__label")
-        .annotate(count=Count("pk"))
-        .order_by("-count")
-    )
-    island_data = list(island_qs)
+    # --- Teachers by island, top 10 schools ---
+    island_data = summary["home_island"]
+    school_data = warehouse.school_staff_counts(limit=10)
 
-    # --- Teachers by school (top 10) ---
-    school_qs = (
-        SchoolStaffAssignment.objects.filter(end_date__isnull=True)
-        .values("school__emis_school_name")
-        .annotate(count=Count("school_staff", distinct=True))
-        .order_by("-count")[:10]
-    )
-    school_data = list(school_qs)
-
-    # --- Active schools ---
-    active_schools = EmisSchool.objects.filter(active=True).count()
-
-    # --- Sample chart data (monthly registration trends) ---
-    import calendar
-    import math
-
-    monthly_trend = []
-    for i in range(5, -1, -1):
-        month_date = now - timedelta(days=30 * i)
-        month_label = calendar.month_abbr[month_date.month]
-        # Fake data: upward trend with variation
-        fake_count = 12 + (5 - i) * 8 + ((hash(month_label) % 15) - 7)
-        monthly_trend.append({"month": month_label, "count": max(5, fake_count)})
-    max_trend = max(m["count"] for m in monthly_trend) or 1
+    # --- Monthly approvals: the last six calendar months (UTC) ---
+    monthly_trend = [
+        {"month": r["month_start"].strftime("%b"), "count": r["approved"]}
+        for r in warehouse.last_months(warehouse.monthly(), 6, now=now)
+    ]
+    max_trend = max((m["count"] for m in monthly_trend), default=0) or 1
 
     # Pre-calculate SVG bar chart geometry
     chart_h = 110  # max bar height in SVG units
@@ -2177,30 +2153,21 @@ def report_teacher_summary(request):
         m["value_y"] = chart_baseline - bar_h - 3
         m["is_last"] = idx == len(monthly_trend) - 1
 
-    # Donut chart segments (staff composition)
+    # --- Donut: staff composition, teaching vs non-teaching ---
     donut_segments = []
-    donut_total = teaching_staff + non_teaching_staff or 1
     if teaching_staff:
-        donut_segments.append(
-            {"label": "Teaching", "count": teaching_staff, "color": "#1565c0"}
-        )
+        donut_segments.append({"label": "Teaching", "count": teaching_staff, "color": "#1565c0"})
     if non_teaching_staff:
-        donut_segments.append(
-            {"label": "Non-Teaching", "count": non_teaching_staff, "color": "#7b1fa2"}
-        )
-    # Add a sample "Unassigned" segment for visual interest
-    unassigned_count = max(3, round(donut_total * 0.08))
-    donut_segments.append(
-        {"label": "Pending Assignment", "count": unassigned_count, "color": "#f9a825"}
-    )
-    donut_total_with_pending = sum(s["count"] for s in donut_segments)
+        donut_segments.append({"label": "Non-Teaching", "count": non_teaching_staff, "color": "#7b1fa2"})
+    donut_total = sum(s["count"] for s in donut_segments) or 1
 
     # Pre-calculate SVG arc paths for the donut chart
     cx, cy, r_outer, r_inner = 80, 80, 70, 42
     start_angle = -90  # start at top (12 o'clock)
     for seg in donut_segments:
-        fraction = seg["count"] / donut_total_with_pending
-        sweep = fraction * 360
+        fraction = seg["count"] / donut_total
+        # A full circle has coincident end points and draws nothing; stop just short.
+        sweep = min(fraction * 360, 359.99)
         end_angle = start_angle + sweep
 
         # Outer arc
@@ -2247,6 +2214,8 @@ def report_teacher_summary(request):
         "teaching_staff": teaching_staff,
         "non_teaching_staff": non_teaching_staff,
         "staff_added_recent": staff_added_recent,
+        "staff_unassigned": staff_unassigned,
+        "expiring_next_12_months": expiring_next_12_months,
         "active_schools": active_schools,
         "total_applications": total_applications,
         # Breakdowns
@@ -2258,7 +2227,7 @@ def report_teacher_summary(request):
         "monthly_trend": monthly_trend,
         "max_trend": max_trend,
         "donut_segments": donut_segments,
-        "donut_total": donut_total_with_pending,
+        "donut_total": donut_total,
     }
 
     html_string = render_to_string(

@@ -127,7 +127,7 @@
 
     {# --- Vertical bar chart: Monthly Trends --- #}
     <div class="col-half">
-      <h2 class="section-heading">Monthly Registration Trends</h2>
+      <h2 class="section-heading">Monthly Approvals (last 6 months)</h2>
       <div class="chart-container">
         <svg width="240" height="150" viewBox="0 0 240 150">
           {# Grid #}
@@ -170,7 +170,7 @@
           <tbody>
             {% for row in island_data %}
               <tr>
-                <td>{{ row.home_island__label }}</td>
+                <td>{{ row.label }}</td>
                 <td>{{ row.count }}</td>
               </tr>
             {% endfor %}
@@ -197,9 +197,9 @@
               <tr>
                 <td>
                   <span class="rank">{{ forloop.counter }}</span>
-                  {{ row.school__emis_school_name }}
+                  {{ row.school_name }}
                 </td>
-                <td>{{ row.count }}</td>
+                <td>{{ row.staff_count }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -235,6 +235,14 @@
         <tr>
           <td>Active schools in system</td>
           <td>{{ active_schools }}</td>
+        </tr>
+        <tr>
+          <td>Staff without a school assignment</td>
+          <td>{{ staff_unassigned }}</td>
+        </tr>
+        <tr>
+          <td>Registrations expiring in the next 12 months</td>
+          <td>{{ expiring_next_12_months }}</td>
         </tr>
       </tbody>
     </table>

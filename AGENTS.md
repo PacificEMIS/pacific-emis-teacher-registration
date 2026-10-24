@@ -33,6 +33,16 @@ Do not hand-edit `requirements.txt`; edit `pyproject.toml` and run `uv lock` (or
 
 Migrations are never run automatically by agents. Inform the user when migrations are needed and let them run the commands (see README, Development Setup).
 
+### Warehouse views
+
+`core/migrations/0031_warehouse_views.py` creates a `warehouse` schema of read-only
+PostgreSQL views (one row per registered teacher, monthly counts, workflow events, record
+activity, headline counts). `core/warehouse.py` is the only module that queries them and
+feeds the summary report, the dashboard and the `/api/warehouse/` endpoints
+(docs/plans/kemis-data-feed.md). PostgreSQL refuses to alter the type of a column a view
+depends on: a migration that changes such a column must `DROP SCHEMA warehouse CASCADE`
+first and recreate the views afterwards in a new migration. Never edit 0031 in place.
+
 ## Testing
 
 Run tests with `uv run pytest` (see README, Testing). Tests live in each app's

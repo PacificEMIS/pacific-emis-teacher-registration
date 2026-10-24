@@ -32,7 +32,7 @@ from integrations.tests.factories import (
     EmisTeacherRegistrationStatusFactory,
 )
 from teacher_registration import constants
-from teacher_registration.models import LookupCondition
+from teacher_registration.models import LookupCondition, TeacherRegistration
 from teacher_registration.tests.factories import LookupConditionFactory, TeacherRegistrationFactory
 
 pytestmark = pytest.mark.django_db
@@ -221,11 +221,63 @@ class TestPendingUsers:
         response = admins_client.get(url("pending_users_list"))
         assert set(response.context["page_obj"].object_list) == {pending, approved_applicant}
 
+    @pytest.mark.parametrize("status", constants.PENDING_LIST_STATUSES)
+    def test_list_excludes_every_status_shown_by_pending_registrations(self, admins_client, status):
+        """Issue #118: READY_FOR_APPROVAL applicants used to appear on both screens."""
+        applicant = UserFactory(username="applicant@example.org")
+        TeacherRegistrationFactory(user=applicant, status=status)
+        response = admins_client.get(url("pending_users_list"))
+        assert applicant not in response.context["page_obj"].object_list
+
+    def test_list_flags_registration_history_and_hides_delete(self, admins_client):
+        stray = UserFactory(username="stray@example.org")
+        history = UserFactory(username="history@example.org")
+        TeacherRegistrationFactory(user=history, status=constants.APPROVED)
+
+        response = admins_client.get(url("pending_users_list"))
+        counts = {u.pk: u.registration_count for u in response.context["page_obj"].object_list}
+        assert counts == {stray.pk: 0, history.pk: 1}
+        html = response.content.decode()
+        assert url("delete_pending_user", user_id=stray.pk) in html
+        assert url("delete_pending_user", user_id=history.pk) not in html
+        assert "Registration history" in html
+
     def test_search(self, admins_client):
         UserFactory(username="a@example.org", first_name="Anna")
         UserFactory(username="b@example.org", first_name="Bob")
         response = admins_client.get(url("pending_users_list"), {"q": "ann"})
         assert [u.first_name for u in response.context["page_obj"].object_list] == ["Anna"]
+
+    def test_sort_columns(self, admins_client):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        b = UserFactory(username="m@example.org", last_name="Bravo", date_joined=now - timedelta(days=1))
+        a = UserFactory(username="z@example.org", last_name="Alpha", date_joined=now - timedelta(days=3))
+        c = UserFactory(username="a@example.org", last_name="Charlie", date_joined=now - timedelta(days=2))
+
+        def listed(**params):
+            return list(admins_client.get(url("pending_users_list"), params).context["page_obj"].object_list)
+
+        assert listed() == [b, c, a]  # default: newest first
+        assert listed(sort="name") == [a, b, c]
+        assert listed(sort="name", dir="desc") == [c, b, a]
+        assert listed(sort="email") == [c, b, a]
+        assert listed(sort="username", dir="desc") == [a, b, c]
+        assert listed(sort="joined") == [a, c, b]
+        assert listed(sort="joined", dir="desc") == [b, c, a]
+        assert listed(sort="bogus", dir="sideways") == [b, c, a]
+
+    def test_sort_state_is_echoed_and_kept_in_links(self, admins_client):
+        UserFactory(username="x@example.org")
+        response = admins_client.get(url("pending_users_list"), {"sort": "email", "dir": "desc", "q": "x"})
+        assert response.context["sort"] == "email"
+        assert response.context["dir"] == "desc"
+        html = response.content.decode()
+        assert 'name="sort" value="email"' in html
+        assert "?sort=email&dir=asc&q=x" in html  # clicking the active column flips direction
 
     def test_assign_school_staff(self, admins_client, admins_user, groups):
         target = UserFactory()
@@ -274,17 +326,81 @@ class TestPendingUsers:
         assert target.groups.filter(name=p.GROUP_SYSTEM_STAFF).exists()
 
     def test_delete_pending_user(self, admins_client):
-        target = UserFactory()
-        response = admins_client.post(url("delete_pending_user", user_id=target.pk))
+        target = UserFactory(email="Stray@Example.org")
+        response = admins_client.post(
+            url("delete_pending_user", user_id=target.pk),
+            {"confirm_identifier": " stray@example.org "},
+        )
         assert response["Location"] == url("pending_users_list")
         assert not User.objects.filter(pk=target.pk).exists()
+
+    def test_delete_page_shows_passed_checks_and_confirmation_field(self, admins_client):
+        target = UserFactory(email="stray@example.org")
+        response = admins_client.get(url("delete_pending_user", user_id=target.pk))
+        assert response.status_code == 200
+        assert response.context["blockers"] == []
+        assert response.context["expected_confirmation"] == "stray@example.org"
+        assert 'name="confirm_identifier"' in response.content.decode()
+
+    @pytest.mark.parametrize("typed", ["", "someone-else@example.org", "stray"])
+    def test_delete_requires_exact_typed_confirmation(self, admins_client, typed):
+        target = UserFactory(email="stray@example.org")
+        response = admins_client.post(
+            url("delete_pending_user", user_id=target.pk), {"confirm_identifier": typed}
+        )
+        assert response["Location"] == url("delete_pending_user", user_id=target.pk)
+        assert User.objects.filter(pk=target.pk).exists()
 
     def test_delete_refuses_profiled_self_and_superuser(self, admins_client, admins_user):
         profiled = SchoolStaffFactory().user
         superuser = UserFactory(is_superuser=True)
         for target in (profiled, admins_user, superuser):
-            admins_client.post(url("delete_pending_user", user_id=target.pk))
+            admins_client.post(
+                url("delete_pending_user", user_id=target.pk),
+                {"confirm_identifier": target.email},
+            )
             assert User.objects.filter(pk=target.pk).exists()
+
+    @pytest.mark.parametrize(
+        "status",
+        [s for s, _ in constants.REGISTRATION_APPLICATION_STATUS_CHOICES],
+    )
+    def test_delete_refuses_any_registration_record(self, admins_client, status):
+        """Approved/expired history (teacher profile deleted later) is protected too."""
+        target = UserFactory(email="history@example.org")
+        registration = TeacherRegistrationFactory(user=target, status=status)
+
+        page = admins_client.get(url("delete_pending_user", user_id=target.pk))
+        assert page.status_code == 200
+        assert any("registration record" in b for b in page.context["blockers"])
+        assert 'name="confirm_identifier"' not in page.content.decode()
+
+        response = admins_client.post(
+            url("delete_pending_user", user_id=target.pk),
+            {"confirm_identifier": "history@example.org"},
+            follow=True,
+        )
+        assert User.objects.filter(pk=target.pk).exists()
+        assert TeacherRegistration.objects.filter(pk=registration.pk).exists()
+        assert any("cannot be deleted" in m for m in messages_of(response))
+
+    def test_delete_refuses_system_group_member_without_profile(self, admins_client, groups):
+        target = UserFactory(email="ghost-admin@example.org")
+        target.groups.add(groups[p.GROUP_SYSTEM_STAFF])
+        admins_client.post(
+            url("delete_pending_user", user_id=target.pk),
+            {"confirm_identifier": "ghost-admin@example.org"},
+        )
+        assert User.objects.filter(pk=target.pk).exists()
+
+    def test_registration_user_fk_is_protected_at_orm_level(self):
+        """Last line of defence: no code path can cascade a registration away."""
+        from django.db.models import ProtectedError
+
+        registration = TeacherRegistrationFactory(status=constants.APPROVED)
+        with pytest.raises(ProtectedError):
+            registration.user.delete()
+        assert TeacherRegistration.objects.filter(pk=registration.pk).exists()
 
 
 # ===========================================================================
@@ -437,6 +553,34 @@ class TestSystemUserAdministration:
         SystemUserFactory()
         response = admins_client.get(url("system_user_list"), {"q": "quartz"})
         assert response.context["page_obj"].paginator.count == 1
+
+    def test_list_sort_columns(self, admins_client, groups):
+        b = SystemUserFactory(
+            user=UserFactory(last_name="Bravo", email="z@example.org"),
+            organization="Finance", position_title="Analyst",
+        )
+        a = SystemUserFactory(
+            user=UserFactory(last_name="Alpha", email="y@example.org"),
+            organization="Education", position_title="Director",
+        )
+        c = SystemUserFactory(
+            user=UserFactory(last_name="Charlie", email="x@example.org"),
+            organization="Health", position_title="Clerk",
+        )
+
+        def listed(**params):
+            return list(admins_client.get(url("system_user_list"), params).context["page_obj"].object_list)
+
+        assert listed() == [a, b, c]
+        assert listed(sort="name", dir="desc") == [c, b, a]
+        assert listed(sort="email") == [c, a, b]
+        assert listed(sort="organization") == [a, b, c]
+        assert listed(sort="organization", dir="desc") == [c, b, a]
+        assert listed(sort="position") == [b, c, a]
+        assert listed(sort="position", dir="desc") == [a, c, b]
+        assert listed(sort="bogus") == [a, b, c]
+        html = admins_client.get(url("system_user_list"), {"sort": "position"}).content.decode()
+        assert "?sort=position&dir=desc" in html
 
     def test_list_hides_inactive_unless_asked(self, admins_client, groups):
         SystemUserFactory(user=UserFactory(last_name="Active"))

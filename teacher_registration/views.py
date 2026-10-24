@@ -18,6 +18,7 @@ from django.contrib.messages import get_messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q, OuterRef, Subquery, Prefetch
+from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
@@ -439,12 +440,7 @@ def staff_register_teacher(request):
                 # Has an active registration
                 active_reg = TeacherRegistration.objects.filter(
                     user=existing_user,
-                    status__in=[
-                        constants.DRAFT,
-                        constants.SUBMITTED,
-                        constants.UNDER_REVIEW,
-                        constants.READY_FOR_APPROVAL,
-                    ],
+                    status__in=constants.IN_PROGRESS_STATUSES,
                 ).first()
                 if active_reg:
                     messages.info(
@@ -896,6 +892,11 @@ def pending_registrations_list(request):
     q = (request.GET.get("q") or "").strip()
     status_filter = (request.GET.get("status") or "").strip()
 
+    # Sorting
+    sort = (request.GET.get("sort") or "").strip().lower()
+    dir_ = (request.GET.get("dir") or "asc").strip().lower()
+    dir_ = "desc" if dir_ == "desc" else "asc"
+
     try:
         per_page = int(request.GET.get("per_page", 25))
     except ValueError:
@@ -903,15 +904,10 @@ def pending_registrations_list(request):
     if per_page not in PAGE_SIZE_OPTIONS:
         per_page = 25
 
-    # Base queryset - include drafts, submitted, under review, ready for approval, and rejected
+    # Base queryset: every status still owned by this screen. The same tuple
+    # drives the Pending Users exclusion, so an applicant is never on both.
     registrations_qs = TeacherRegistration.objects.filter(
-        status__in=[
-            constants.DRAFT,
-            constants.SUBMITTED,
-            constants.UNDER_REVIEW,
-            constants.READY_FOR_APPROVAL,
-            constants.REJECTED,
-        ]
+        status__in=constants.PENDING_LIST_STATUSES
     ).select_related("user", "preferred_school", "reviewed_by")  # preferred_school: not currently in use
 
     # Apply status filter
@@ -938,8 +934,30 @@ def pending_registrations_list(request):
             When(status=constants.DRAFT, then=Value(4)),
             default=Value(5),
             output_field=IntegerField(),
-        )
-    ).order_by("status_order", "-created_at")
+        ),
+        # The Date column shows submitted_at once submitted, created_at for drafts.
+        sort_date=Coalesce("submitted_at", "created_at"),
+    )
+
+    # Sorting map. "status" follows the workflow priority used by the default
+    # ordering rather than the alphabetical status code.
+    sort_map = {
+        "name": ("user__last_name", "user__first_name"),
+        "email": ("user__email", "user__last_name", "user__first_name"),
+        "status": ("status_order", "-created_at"),
+        "date": ("sort_date",),
+    }
+
+    if sort in sort_map:
+        order_fields = sort_map[sort]
+        if dir_ == "desc":
+            order_fields = tuple(
+                f[1:] if f.startswith("-") else f"-{f}" for f in order_fields
+            )
+        registrations_qs = registrations_qs.order_by(*order_fields)
+    else:
+        # Default: actionable first, newest first within a status
+        registrations_qs = registrations_qs.order_by("status_order", "-created_at")
 
     # Pagination
     paginator = Paginator(registrations_qs, per_page)
@@ -954,6 +972,8 @@ def pending_registrations_list(request):
             "page_obj": page_obj,
             "q": q,
             "status_filter": status_filter,
+            "sort": sort,
+            "dir": dir_,
             "per_page": per_page,
             "page_size_options": PAGE_SIZE_OPTIONS,
             "page_links": _page_window(page_obj),
@@ -1433,6 +1453,7 @@ def teachers_list(request):
     # Sorting map
     sort_map = {
         "name": ("user__last_name", "user__first_name"),
+        "email": ("user__email", "user__last_name", "user__first_name"),
         "school": (
             "latest_school_name",
             "user__last_name",

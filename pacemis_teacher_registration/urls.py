@@ -29,6 +29,8 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
     path("core/", include("core.urls")),
     path("registration/", include("teacher_registration.urls")),
+    # Read-only data feed for central KEMIS (bearer key, see core/api.py)
+    path("api/warehouse/", include("core.api_urls")),
     # allauth URLs (login, logout, Google, etc.)
     path("accounts/", include("allauth.urls")),
 ]
