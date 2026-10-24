@@ -248,6 +248,37 @@ class TestPendingUsers:
         response = admins_client.get(url("pending_users_list"), {"q": "ann"})
         assert [u.first_name for u in response.context["page_obj"].object_list] == ["Anna"]
 
+    def test_sort_columns(self, admins_client):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        b = UserFactory(username="m@example.org", last_name="Bravo", date_joined=now - timedelta(days=1))
+        a = UserFactory(username="z@example.org", last_name="Alpha", date_joined=now - timedelta(days=3))
+        c = UserFactory(username="a@example.org", last_name="Charlie", date_joined=now - timedelta(days=2))
+
+        def listed(**params):
+            return list(admins_client.get(url("pending_users_list"), params).context["page_obj"].object_list)
+
+        assert listed() == [b, c, a]  # default: newest first
+        assert listed(sort="name") == [a, b, c]
+        assert listed(sort="name", dir="desc") == [c, b, a]
+        assert listed(sort="email") == [c, b, a]
+        assert listed(sort="username", dir="desc") == [a, b, c]
+        assert listed(sort="joined") == [a, c, b]
+        assert listed(sort="joined", dir="desc") == [b, c, a]
+        assert listed(sort="bogus", dir="sideways") == [b, c, a]
+
+    def test_sort_state_is_echoed_and_kept_in_links(self, admins_client):
+        UserFactory(username="x@example.org")
+        response = admins_client.get(url("pending_users_list"), {"sort": "email", "dir": "desc", "q": "x"})
+        assert response.context["sort"] == "email"
+        assert response.context["dir"] == "desc"
+        html = response.content.decode()
+        assert 'name="sort" value="email"' in html
+        assert "?sort=email&dir=asc&q=x" in html  # clicking the active column flips direction
+
     def test_assign_school_staff(self, admins_client, admins_user, groups):
         target = UserFactory()
         response = admins_client.post(
@@ -522,6 +553,34 @@ class TestSystemUserAdministration:
         SystemUserFactory()
         response = admins_client.get(url("system_user_list"), {"q": "quartz"})
         assert response.context["page_obj"].paginator.count == 1
+
+    def test_list_sort_columns(self, admins_client, groups):
+        b = SystemUserFactory(
+            user=UserFactory(last_name="Bravo", email="z@example.org"),
+            organization="Finance", position_title="Analyst",
+        )
+        a = SystemUserFactory(
+            user=UserFactory(last_name="Alpha", email="y@example.org"),
+            organization="Education", position_title="Director",
+        )
+        c = SystemUserFactory(
+            user=UserFactory(last_name="Charlie", email="x@example.org"),
+            organization="Health", position_title="Clerk",
+        )
+
+        def listed(**params):
+            return list(admins_client.get(url("system_user_list"), params).context["page_obj"].object_list)
+
+        assert listed() == [a, b, c]
+        assert listed(sort="name", dir="desc") == [c, b, a]
+        assert listed(sort="email") == [c, a, b]
+        assert listed(sort="organization") == [a, b, c]
+        assert listed(sort="organization", dir="desc") == [c, b, a]
+        assert listed(sort="position") == [b, c, a]
+        assert listed(sort="position", dir="desc") == [a, c, b]
+        assert listed(sort="bogus") == [a, b, c]
+        html = admins_client.get(url("system_user_list"), {"sort": "position"}).content.decode()
+        assert "?sort=position&dir=desc" in html
 
     def test_list_hides_inactive_unless_asked(self, admins_client, groups):
         SystemUserFactory(user=UserFactory(last_name="Active"))

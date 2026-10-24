@@ -579,6 +579,58 @@ class TestPendingList:
         response = admin_client.get(url("pending_list"), {"q": "zel", "status": constants.SUBMITTED})
         assert list(response.context["page_obj"].object_list) == [match]
 
+    def test_sort_by_name_and_email(self, admin_client):
+        b = TeacherRegistrationFactory(user=UserFactory(last_name="Bravo", email="z@example.org"))
+        a = TeacherRegistrationFactory(user=UserFactory(last_name="Alpha", email="y@example.org"))
+        c = TeacherRegistrationFactory(user=UserFactory(last_name="Charlie", email="x@example.org"))
+
+        def listed(**params):
+            return list(admin_client.get(url("pending_list"), params).context["page_obj"].object_list)
+
+        assert listed(sort="name") == [a, b, c]
+        assert listed(sort="name", dir="desc") == [c, b, a]
+        assert listed(sort="email") == [c, a, b]
+        assert listed(sort="email", dir="desc") == [b, a, c]
+
+    def test_sort_by_status_follows_workflow_priority(self, admin_client):
+        draft = TeacherRegistrationFactory()
+        rejected = TeacherRegistrationFactory(status=constants.REJECTED)
+        ready = TeacherRegistrationFactory(ready=True)
+        submitted = TeacherRegistrationFactory(submitted=True)
+
+        def listed(**params):
+            return list(admin_client.get(url("pending_list"), params).context["page_obj"].object_list)
+
+        assert listed(sort="status") == [ready, submitted, rejected, draft]
+        assert listed(sort="status", dir="desc") == [draft, rejected, submitted, ready]
+
+    def test_sort_by_date_uses_submitted_then_created(self, admin_client):
+        now = timezone.now()
+        old_draft = TeacherRegistrationFactory()
+        TeacherRegistration.objects.filter(pk=old_draft.pk).update(created_at=now - timedelta(days=10))
+        mid = TeacherRegistrationFactory(submitted=True)
+        TeacherRegistration.objects.filter(pk=mid.pk).update(
+            created_at=now - timedelta(days=30), submitted_at=now - timedelta(days=5)
+        )
+        newest = TeacherRegistrationFactory(submitted=True)
+        TeacherRegistration.objects.filter(pk=newest.pk).update(
+            created_at=now - timedelta(days=20), submitted_at=now - timedelta(days=1)
+        )
+
+        def listed(**params):
+            return list(admin_client.get(url("pending_list"), params).context["page_obj"].object_list)
+
+        assert listed(sort="date") == [old_draft, mid, newest]
+        assert listed(sort="date", dir="desc") == [newest, mid, old_draft]
+
+    def test_unknown_sort_falls_back_to_default_and_echoes_state(self, admin_client):
+        draft = TeacherRegistrationFactory()
+        ready = TeacherRegistrationFactory(ready=True)
+        response = admin_client.get(url("pending_list"), {"sort": "bogus", "dir": "sideways"})
+        assert list(response.context["page_obj"].object_list) == [ready, draft]
+        assert response.context["sort"] == "bogus"
+        assert response.context["dir"] == "asc"
+
     def test_history_lists_everything(self, admin_client):
         TeacherRegistrationFactory(status=constants.APPROVED)
         TeacherRegistrationFactory()
@@ -1064,8 +1116,8 @@ class TestTeacherAdminActions:
 class TestTeachersList:
     def test_filters_and_sorting(self, admin_client, full_status):
         school_a, school_b = EmisSchoolFactory(), EmisSchoolFactory()
-        alpha = approved_teacher(user=UserFactory(last_name="Alpha"), national_id_number="A", teacher_registration_number="TR26-A-1")
-        beta = approved_teacher(user=UserFactory(last_name="Beta"), national_id_number="B", teacher_registration_number="TR26-B-2")
+        alpha = approved_teacher(user=UserFactory(last_name="Alpha", email="zz@example.org"), national_id_number="A", teacher_registration_number="TR26-A-1")
+        beta = approved_teacher(user=UserFactory(last_name="Beta", email="aa@example.org"), national_id_number="B", teacher_registration_number="TR26-B-2")
         SchoolStaffAssignmentFactory(school_staff=alpha, school=school_a)
         SchoolStaffAssignmentFactory(school_staff=beta, school=school_b)
         beta.registration_application_status = constants.EXPIRED
@@ -1074,6 +1126,8 @@ class TestTeachersList:
         rows = lambda params: list(admin_client.get(url("teachers_list"), params).context["page_obj"].object_list)
         assert rows({}) == [alpha, beta]
         assert rows({"sort": "name", "dir": "desc"}) == [beta, alpha]
+        assert rows({"sort": "email"}) == [beta, alpha]
+        assert rows({"sort": "email", "dir": "desc"}) == [alpha, beta]
         assert rows({"q": "bet"}) == [beta]
         assert rows({"school": school_a.emis_school_no}) == [alpha]
         assert rows({"registration_application_status": constants.EXPIRED}) == [beta]

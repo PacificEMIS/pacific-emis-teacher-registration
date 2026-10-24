@@ -413,6 +413,7 @@ def system_user_list(request):
         "name": ("user__last_name", "user__first_name"),
         "email": ("user__email", "user__last_name", "user__first_name"),
         "organization": ("organization", "user__last_name", "user__first_name"),
+        "position": ("position_title", "user__last_name", "user__first_name"),
     }
 
     if sort in sort_map:
@@ -1140,6 +1141,11 @@ def pending_users_list(request):
 
     q = (request.GET.get("q") or "").strip()
 
+    # Sorting
+    sort = (request.GET.get("sort") or "").strip().lower()
+    dir_ = (request.GET.get("dir") or "asc").strip().lower()
+    dir_ = "desc" if dir_ == "desc" else "asc"
+
     # Per-page
     try:
         per_page = int(request.GET.get("per_page", 25))
@@ -1171,7 +1177,6 @@ def pending_users_list(request):
         )
         .exclude(id__in=users_with_active_registration)
         .annotate(registration_count=Count("teacher_registrations"))
-        .order_by("-date_joined")
     )
 
     # Search by name or email
@@ -1182,6 +1187,23 @@ def pending_users_list(request):
             | Q(email__icontains=q)
             | Q(username__icontains=q)
         )
+
+    # Sorting map
+    sort_map = {
+        "name": ("last_name", "first_name"),
+        "email": ("email", "last_name", "first_name"),
+        "username": ("username",),
+        "joined": ("date_joined",),
+    }
+
+    if sort in sort_map:
+        order_fields = sort_map[sort]
+        if dir_ == "desc":
+            order_fields = tuple(f"-{f}" for f in order_fields)
+        pending_users_qs = pending_users_qs.order_by(*order_fields)
+    else:
+        # Default: newest sign-ins first
+        pending_users_qs = pending_users_qs.order_by("-date_joined")
 
     # Pagination
     paginator = Paginator(pending_users_qs, per_page)
@@ -1195,6 +1217,8 @@ def pending_users_list(request):
             "active": "pending_users",
             "page_obj": page_obj,
             "q": q,
+            "sort": sort,
+            "dir": dir_,
             "per_page": per_page,
             "page_size_options": PAGE_SIZE_OPTIONS,
             "page_links": _page_window(page_obj),
