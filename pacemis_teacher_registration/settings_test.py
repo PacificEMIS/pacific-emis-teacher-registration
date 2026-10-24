@@ -39,6 +39,9 @@ EMIS = {
 EMIS["LOGIN_URL"] = f'{EMIS["BASE_URL"]}/api/token'
 EMIS["LOOKUPS_URL"] = f'{EMIS["BASE_URL"]}/api/lookups/collection/core'
 
+# The warehouse feed key tests present, whatever .env says.
+WAREHOUSE_API_KEYS = ["test-warehouse-key", "test-warehouse-key-rotated"]
+
 # Fast password hashing makes user creation in tests an order of magnitude cheaper.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 

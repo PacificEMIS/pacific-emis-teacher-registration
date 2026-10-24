@@ -252,6 +252,11 @@ EMIS = {
 EMIS["LOGIN_URL"] = f'{EMIS["BASE_URL"]}/api/token'
 EMIS["LOOKUPS_URL"] = f'{EMIS["BASE_URL"]}/api/lookups/collection/core'
 
+# Bearer keys accepted by the /api/warehouse/ feed that central KEMIS pulls
+# (core/api.py). Comma-separated so a key can be rotated by adding the new one
+# before removing the old. Empty means the feed is switched off.
+WAREHOUSE_API_KEYS = [key.strip() for key in os.getenv("WAREHOUSE_API_KEYS", "").split(",") if key.strip()]
+
 ###############################################################################
 # Application settings
 ###############################################################################

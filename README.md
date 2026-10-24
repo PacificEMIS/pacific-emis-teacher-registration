@@ -142,6 +142,44 @@ Access is controlled through Django groups. Users must be assigned to at least o
 | **System Admins** | SystemUser | System-wide | ✓ | ✓ | ✓ | ✓ |
 | **System Staff** | SystemUser | System-wide | ✗ | ✗ | ✗ | ✓ |
 
+## KEMIS Data Feed
+
+Central KEMIS (the pineapples repository) pulls summary figures, the registered-teacher
+list, the workflow change log and record activity from this application through a
+read-only JSON API under `/api/warehouse/`. The data comes from a `warehouse` schema of
+PostgreSQL views created by a migration; `core/warehouse.py` reads them and the same figures
+drive the Teacher Registration Summary report and the dashboard. The full contract and the
+consumer-side plan are in `docs/plans/kemis-data-feed.md`.
+
+Every request needs a bearer key:
+
+```bash
+curl -H "Authorization: Bearer <key>" https://<host>/api/warehouse/version
+curl -H "Authorization: Bearer <key>" "https://<host>/api/warehouse/teacherregistration/current?format=csv"
+```
+
+| Endpoint | Returns |
+|---|---|
+| `version` | freshness probe: `last_change_at` and headline counts |
+| `teacherregistration/summary` | the report and dashboard figures as one object |
+| `teacherregistration/monthly` | one row per calendar month: submitted, approved, rejected, granted, expiring |
+| `teacherregistration/current` | one row per registered teacher (approved or expired) |
+| `teacherregistration/events?after_id=&limit=` | registration workflow change log, cursor on `id` |
+| `teacherregistration/activity?since=&limit=` | who created or last updated each audited record |
+
+List endpoints accept `?format=csv`. The feed carries no names, national IDs or birth dates
+of teachers; acting users appear by display name only.
+
+Keys are configured in `.env` as `WAREHOUSE_API_KEYS`, comma-separated so a key can be
+rotated by adding the new one before removing the old. Leave it empty to switch the feed
+off (every request then gets `401`). Generate a key with `openssl rand -hex 32` and give
+it to the KEMIS administrator, who stores it in the pineapples `web.config`, never in
+`sysParams` (that table is exported to browser clients).
+
+```
+WAREHOUSE_API_KEYS=<production-key>
+```
+
 ## System Dependencies
 
 Beyond Python packages (declared in `pyproject.toml`, locked in `uv.lock`, installed via `uv sync`), this application requires system-level libraries.
