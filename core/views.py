@@ -180,131 +180,56 @@ def dashboard(request):
     - Schools KPIs (active schools)
     - Recent activity feed across all core models
     """
-    # Time window for "recent" counts (e.g. last 30 days)
-    now = timezone.now()
-    start_period = now - timedelta(days=30)
+    from core import warehouse
+    from teacher_registration import constants
 
-    # --- SchoolStaff KPIs ---
-    total_staff = SchoolStaff.objects.count()
-    staff_added_recent = SchoolStaff.objects.filter(created_at__gte=start_period).count()
-
-    # SchoolStaff with no assignments (unassigned to any school)
-    staff_unassigned = SchoolStaff.objects.filter(assignments__isnull=True).distinct().count()
+    summary = warehouse.summary()
+    staff_counts = summary["staff"]
+    app_counts = {r["code"]: r["count"] for r in summary["applications"]["by_status"]}
 
     # Users by groups (count ALL users in these groups, not just SchoolStaff)
     admin_count = User.objects.filter(groups__name=GROUP_ADMINS).distinct().count()
-    staff_teacher_count = SchoolStaff.objects.filter(
-        staff_type=SchoolStaff.TEACHING_STAFF
-    ).count()
 
     # --- SystemUser (MOE Staff) KPIs ---
+    start_period = timezone.now() - timedelta(days=30)
     total_system_users = SystemUser.objects.count()
     system_users_added_recent = SystemUser.objects.filter(created_at__gte=start_period).count()
 
-    # --- Schools KPIs ---
-    active_schools = EmisSchool.objects.filter(active=True).count()
-
-    # --- Pending Registrations KPIs ---
-    from teacher_registration import constants
-    from teacher_registration.models import TeacherRegistration
-
-    pending_reg_draft = TeacherRegistration.objects.filter(
-        status=constants.DRAFT
-    ).count()
-    pending_reg_submitted = TeacherRegistration.objects.filter(
-        status=constants.SUBMITTED
-    ).count()
-    pending_reg_under_review = TeacherRegistration.objects.filter(
-        status=constants.UNDER_REVIEW
-    ).count()
-    pending_reg_rejected = TeacherRegistration.objects.filter(
-        status=constants.REJECTED
-    ).count()
-    pending_reg_total = (
-        pending_reg_draft + pending_reg_submitted + pending_reg_under_review + pending_reg_rejected
-    )
-
-    # --- Recent activity (simple unified event log across core models) ---
+    # --- Recent activity: the newest records across every audited model ---
+    detail_routes = {"school_staff": "core:staff_detail"}
     events = []
-
-    def add_events_from_queryset(qs, entity_label, detail_url_name=None):
-        for obj in qs:
-            when = getattr(obj, "last_updated_at", None) or getattr(
-                obj, "created_at", None
-            )
-            created_at = getattr(obj, "created_at", None)
-            last_updated_at = getattr(obj, "last_updated_at", None)
-
-            if created_at and last_updated_at and last_updated_at > created_at:
-                action = "Updated"
-            elif created_at:
-                action = "Created"
-            else:
-                action = "Activity"
-
-            by_user = getattr(obj, "last_updated_by", None) or getattr(
-                obj, "created_by", None
-            )
-            # Display full name, fallback to email, then username
-            by_display = None
-            if by_user:
-                full_name = by_user.get_full_name()
-                if full_name:
-                    by_display = full_name
-                elif by_user.email:
-                    by_display = by_user.email
-                else:
-                    by_display = by_user.username
-
-            url = None
-            if detail_url_name and when:
-                try:
-                    url = reverse(detail_url_name, args=[obj.pk])
-                except Exception:
-                    url = None
-
-            if when:
-                events.append(
-                    {
-                        "when": when,
-                        "entity": entity_label,
-                        "action": action,
-                        "by": by_display,
-                        "url": url,
-                    }
-                )
-
-    # Pull a few recent records from each core model
-    add_events_from_queryset(
-        SchoolStaff.objects.order_by("-last_updated_at")[:5],
-        "SchoolStaff",
-        detail_url_name="core:staff_detail",
-    )
-    add_events_from_queryset(
-        SchoolStaffAssignment.objects.order_by("-last_updated_at")[:5],
-        "SchoolStaff assignment",
-        detail_url_name=None,
-    )
-
-    # Sort all events by time and keep the latest 10
-    events = sorted(events, key=lambda e: e["when"], reverse=True)[:10]
+    for row in warehouse.recent_activity(limit=10):
+        created_at, updated_at = row["created_at"], row["last_updated_at"]
+        # auto_now and auto_now_add differ by microseconds on the first save
+        updated = created_at and updated_at and updated_at - created_at > timedelta(seconds=1)
+        route = detail_routes.get(row["record_type"])
+        events.append(
+            {
+                "when": updated_at or created_at,
+                "entity": f'{row["record_type"].replace("_", " ").capitalize()}: {row["label"]}',
+                "action": "Updated" if updated else "Created",
+                "by": row["last_updated_by"] or row["created_by"],
+                "url": reverse(route, args=[row["record_id"]]) if route else None,
+            }
+        )
 
     context = {
         "active": "dashboard",
         # User KPIs
         "admin_count": admin_count,
-        "staff_teacher_count": staff_teacher_count,
+        "staff_teacher_count": staff_counts["teaching"],
         # SystemUser (MOE Staff) KPIs
         "total_system_users": total_system_users,
         "system_users_added_recent": system_users_added_recent,
         # Schools KPIs
-        "active_schools": active_schools,
-        # Pending Registrations KPIs
-        "pending_reg_total": pending_reg_total,
-        "pending_reg_draft": pending_reg_draft,
-        "pending_reg_submitted": pending_reg_submitted,
-        "pending_reg_under_review": pending_reg_under_review,
-        "pending_reg_rejected": pending_reg_rejected,
+        "active_schools": summary["active_schools"],
+        # Pending Registrations KPIs (same statuses as the Pending Registrations list)
+        "pending_reg_total": sum(app_counts.get(s, 0) for s in constants.PENDING_LIST_STATUSES),
+        "pending_reg_draft": app_counts.get(constants.DRAFT, 0),
+        "pending_reg_submitted": app_counts.get(constants.SUBMITTED, 0),
+        "pending_reg_under_review": app_counts.get(constants.UNDER_REVIEW, 0),
+        "pending_reg_ready_for_approval": app_counts.get(constants.READY_FOR_APPROVAL, 0),
+        "pending_reg_rejected": app_counts.get(constants.REJECTED, 0),
         # Activity
         "recent_events": events,
     }
@@ -2140,32 +2065,23 @@ def report_teacher_summary(request):
         )
         return redirect("core:reports")
 
+    import math
+
+    from core import warehouse
     from teacher_registration import constants
-    from teacher_registration.models import TeacherRegistration
 
     now = timezone.now()
-    start_period = now - timedelta(days=30)
+    summary = warehouse.summary()
+    staff_counts = summary["staff"]
+    total_staff = staff_counts["total"]
+    teaching_staff = staff_counts["teaching"]
+    non_teaching_staff = staff_counts["non_teaching"]
+    staff_added_recent = staff_counts["added_last_30_days"]
+    staff_unassigned = staff_counts["unassigned_to_school"]
+    active_schools = summary["active_schools"]
+    expiring_next_12_months = sum(e["count"] for e in summary["expiring"])
 
-    # --- Registered teachers (SchoolStaff) ---
-    total_staff = SchoolStaff.objects.count()
-    teaching_staff = SchoolStaff.objects.filter(
-        staff_type=SchoolStaff.TEACHING_STAFF
-    ).count()
-    non_teaching_staff = total_staff - teaching_staff
-    staff_added_recent = SchoolStaff.objects.filter(
-        created_at__gte=start_period
-    ).count()
-
-    # Registration status breakdown
-    reg_status_qs = (
-        SchoolStaff.objects.filter(teacher_registration_status__isnull=False)
-        .values("teacher_registration_status__label")
-        .annotate(count=Count("pk"))
-        .order_by("-count")
-    )
-    reg_status_data = []
-    max_reg_count = max((r["count"] for r in reg_status_qs), default=1)
-
+    # --- Registration status breakdown (bars relative to the largest bucket) ---
     def _reg_status_color(label):
         # Mirror EmisTeacherRegistrationStatus.badge_class substring matching so the
         # real EMIS labels (e.g. "Limited authority to teach") resolve to a color
@@ -2183,69 +2099,47 @@ def report_teacher_summary(request):
             return "#757575"  # bg-reg-expired
         return "#6c757d"
 
-    for row in reg_status_qs:
-        label = row["teacher_registration_status__label"]
-        count = row["count"]
-        reg_status_data.append(
-            {
-                "label": label,
-                "count": count,
-                "pct": round(count / max_reg_count * 100) if max_reg_count else 0,
-                "color": _reg_status_color(label),
-            }
-        )
+    reg_status_rows = summary["registration_status"]
+    max_reg_count = max((r["count"] for r in reg_status_rows), default=1) or 1
+    reg_status_data = [
+        {
+            "label": r["label"],
+            "count": r["count"],
+            "pct": round(r["count"] / max_reg_count * 100),
+            "color": _reg_status_color(r["label"]),
+        }
+        for r in reg_status_rows
+    ]
 
     # --- Application pipeline ---
-    pipeline_statuses = [
-        (constants.DRAFT, "Draft", "#78909c"),
-        (constants.SUBMITTED, "Submitted", "#1565c0"),
-        (constants.UNDER_REVIEW, "Under Review", "#f9a825"),
-        (constants.READY_FOR_APPROVAL, "Ready for Decision Approval/Rejection", "#9e9d24"),
-        (constants.APPROVED, "Approved", "#43a047"),
-        (constants.REJECTED, "Rejected", "#e53935"),
+    pipeline_colors = {
+        constants.DRAFT: "#78909c",
+        constants.SUBMITTED: "#1565c0",
+        constants.UNDER_REVIEW: "#f9a825",
+        constants.READY_FOR_APPROVAL: "#9e9d24",
+        constants.APPROVED: "#43a047",
+        constants.REJECTED: "#e53935",
+    }
+    pipeline_data = [
+        {"label": r["label"], "count": r["count"], "color": pipeline_colors[r["code"]]}
+        for r in summary["applications"]["by_status"]
+        if r["code"] in pipeline_colors
     ]
-    pipeline_data = []
-    for status_val, label, color in pipeline_statuses:
-        count = TeacherRegistration.objects.filter(status=status_val).count()
-        pipeline_data.append({"label": label, "count": count, "color": color})
-    total_applications = sum(p["count"] for p in pipeline_data)
+    total_applications = summary["applications"]["total"]
     max_pipeline = max((p["count"] for p in pipeline_data), default=1) or 1
     for p in pipeline_data:
         p["pct"] = round(p["count"] / max_pipeline * 100)
 
-    # --- Teachers by island ---
-    island_qs = (
-        SchoolStaff.objects.filter(home_island__isnull=False)
-        .values("home_island__label")
-        .annotate(count=Count("pk"))
-        .order_by("-count")
-    )
-    island_data = list(island_qs)
+    # --- Teachers by island, top 10 schools ---
+    island_data = summary["home_island"]
+    school_data = warehouse.school_staff_counts(limit=10)
 
-    # --- Teachers by school (top 10) ---
-    school_qs = (
-        SchoolStaffAssignment.objects.filter(end_date__isnull=True)
-        .values("school__emis_school_name")
-        .annotate(count=Count("school_staff", distinct=True))
-        .order_by("-count")[:10]
-    )
-    school_data = list(school_qs)
-
-    # --- Active schools ---
-    active_schools = EmisSchool.objects.filter(active=True).count()
-
-    # --- Sample chart data (monthly registration trends) ---
-    import calendar
-    import math
-
-    monthly_trend = []
-    for i in range(5, -1, -1):
-        month_date = now - timedelta(days=30 * i)
-        month_label = calendar.month_abbr[month_date.month]
-        # Fake data: upward trend with variation
-        fake_count = 12 + (5 - i) * 8 + ((hash(month_label) % 15) - 7)
-        monthly_trend.append({"month": month_label, "count": max(5, fake_count)})
-    max_trend = max(m["count"] for m in monthly_trend) or 1
+    # --- Monthly approvals: the last six calendar months (UTC) ---
+    monthly_trend = [
+        {"month": r["month_start"].strftime("%b"), "count": r["approved"]}
+        for r in warehouse.last_months(warehouse.monthly(), 6, now=now)
+    ]
+    max_trend = max((m["count"] for m in monthly_trend), default=0) or 1
 
     # Pre-calculate SVG bar chart geometry
     chart_h = 110  # max bar height in SVG units
@@ -2259,30 +2153,21 @@ def report_teacher_summary(request):
         m["value_y"] = chart_baseline - bar_h - 3
         m["is_last"] = idx == len(monthly_trend) - 1
 
-    # Donut chart segments (staff composition)
+    # --- Donut: staff composition, teaching vs non-teaching ---
     donut_segments = []
-    donut_total = teaching_staff + non_teaching_staff or 1
     if teaching_staff:
-        donut_segments.append(
-            {"label": "Teaching", "count": teaching_staff, "color": "#1565c0"}
-        )
+        donut_segments.append({"label": "Teaching", "count": teaching_staff, "color": "#1565c0"})
     if non_teaching_staff:
-        donut_segments.append(
-            {"label": "Non-Teaching", "count": non_teaching_staff, "color": "#7b1fa2"}
-        )
-    # Add a sample "Unassigned" segment for visual interest
-    unassigned_count = max(3, round(donut_total * 0.08))
-    donut_segments.append(
-        {"label": "Pending Assignment", "count": unassigned_count, "color": "#f9a825"}
-    )
-    donut_total_with_pending = sum(s["count"] for s in donut_segments)
+        donut_segments.append({"label": "Non-Teaching", "count": non_teaching_staff, "color": "#7b1fa2"})
+    donut_total = sum(s["count"] for s in donut_segments) or 1
 
     # Pre-calculate SVG arc paths for the donut chart
     cx, cy, r_outer, r_inner = 80, 80, 70, 42
     start_angle = -90  # start at top (12 o'clock)
     for seg in donut_segments:
-        fraction = seg["count"] / donut_total_with_pending
-        sweep = fraction * 360
+        fraction = seg["count"] / donut_total
+        # A full circle has coincident end points and draws nothing; stop just short.
+        sweep = min(fraction * 360, 359.99)
         end_angle = start_angle + sweep
 
         # Outer arc
@@ -2329,6 +2214,8 @@ def report_teacher_summary(request):
         "teaching_staff": teaching_staff,
         "non_teaching_staff": non_teaching_staff,
         "staff_added_recent": staff_added_recent,
+        "staff_unassigned": staff_unassigned,
+        "expiring_next_12_months": expiring_next_12_months,
         "active_schools": active_schools,
         "total_applications": total_applications,
         # Breakdowns
@@ -2340,7 +2227,7 @@ def report_teacher_summary(request):
         "monthly_trend": monthly_trend,
         "max_trend": max_trend,
         "donut_segments": donut_segments,
-        "donut_total": donut_total_with_pending,
+        "donut_total": donut_total,
     }
 
     html_string = render_to_string(
