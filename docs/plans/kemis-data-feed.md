@@ -43,7 +43,7 @@ Design decisions, with reasons:
 
 - Base path: `/api/warehouse/` on the application host.
   Production: `https://kemis-registration.moe.gov.ki/api/warehouse/`.
-  Local development: `http://127.0.0.1:8001/api/warehouse/`.
+  Local development: `http://lvh.me:8001/api/warehouse/`.
 - Authentication: `Authorization: Bearer <key>` on every request. Missing or unknown key
   returns `401` with `{"detail": "..."}`. There are no sessions, cookies or CSRF.
 - Keys are configured on the provider in the environment variable `WAREHOUSE_API_KEYS`
@@ -315,11 +315,12 @@ marker style is a natural extension once the school-dimension view exists.
 
 ### 4.4 Developing against the provider locally
 
-- Provider dev server: `http://127.0.0.1:8001`, key `dev-local-key`. Endpoints appear as
-  provider phase 2 lands; until then, build against the shapes in section 2.
+- Provider dev server: `http://lvh.me:8001`, key `dev-local-key`. All endpoints are live.
+  Use the `lvh.me` name rather than the loopback address so the traffic can be routed through a
+  local debugging proxy (browsers and .NET both bypass proxies for loopback).
 - Smoke test:
 
 ```
-curl -H "Authorization: Bearer dev-local-key" http://127.0.0.1:8001/api/warehouse/version
-curl -H "Authorization: Bearer dev-local-key" "http://127.0.0.1:8001/api/warehouse/teacherregistration/current?format=csv" | head
+curl -H "Authorization: Bearer dev-local-key" http://lvh.me:8001/api/warehouse/version
+curl -H "Authorization: Bearer dev-local-key" "http://lvh.me:8001/api/warehouse/teacherregistration/current?format=csv" | head
 ```
