@@ -13,6 +13,7 @@ from core.models import (
     StaffEducationRecord,
     StaffTrainingRecord,
 )
+from core.login_email import account_using_email
 from core.permissions import GROUP_REGISTRATION_SIGNATORIES, is_system_account
 
 from teacher_registration.models import (
@@ -214,6 +215,27 @@ class TeacherRegistrationForm(forms.ModelForm):
         self.fields["nationality"].queryset = EmisNationality.objects.filter(
             active=True
         ).order_by("label")
+
+    def clean_email(self):
+        """
+        Refuse an address another account already uses. The email is also the
+        username for Google sign-ins, so a collision would otherwise surface as
+        a database integrity error. A second account for the same person must
+        be sorted out by staff, never merged or overwritten from this form.
+        """
+        email = self.cleaned_data.get("email", "")
+        if self.fields["email"].disabled or not email:
+            return email
+        email = email.strip().lower()
+        current_user = self.instance.user if self.instance and self.instance.pk else None
+        other = account_using_email(email, exclude_user=current_user)
+        if other:
+            who = other.get_full_name() or other.username
+            raise forms.ValidationError(
+                f"{email} already belongs to another account ({who}, id {other.pk}). "
+                "Review that account before changing this one."
+            )
+        return email
 
     def clean(self):
         """Refuse to touch a User row that belongs to MOE/system staff."""
