@@ -461,3 +461,43 @@ def send_test_email(*, recipient, sent_by):
     msg.attach_alternative(html_body, "text/html")
     msg.send(fail_silently=False)
     logger.info("send_test_email: sent to %s by %s", recipient, sent_by)
+
+
+def send_login_email_changed(*, user, old_email, new_email, changed_by, login_url=None):
+    """
+    Tell both the old and the new address that the sign-in email changed.
+
+    The old mailbox is usually lost, but if it is merely in someone else's
+    hands the real owner learns about the change. Best effort: delivery
+    problems are logged, never raised, because the change itself is done.
+    """
+    app_name = getattr(settings, "APP_NAME", "Teacher Registration")
+    emis_context = settings.EMIS.get("CONTEXT", "Pacific EMIS")
+    context = {
+        "user": user,
+        "old_email": old_email,
+        "new_email": new_email,
+        "changed_by": changed_by,
+        "changed_at": timezone.now(),
+        "login_url": login_url,
+        "emis_context": emis_context,
+        "app_name": app_name,
+    }
+    subject = f"{emis_context} {app_name}: Your sign-in email was changed"
+    text_body = render_to_string("emails/login_email_changed.txt", context)
+    html_body = render_to_string("emails/login_email_changed.html", context)
+
+    recipients = [addr for addr in dict.fromkeys([new_email, old_email]) if addr]
+    for recipient in recipients:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient],
+        )
+        msg.attach_alternative(html_body, "text/html")
+        try:
+            msg.send(fail_silently=False)
+            logger.info("send_login_email_changed: sent to %s for user id=%s", recipient, user.pk)
+        except Exception:
+            logger.exception("send_login_email_changed: failed to send to %s for user id=%s", recipient, user.pk)

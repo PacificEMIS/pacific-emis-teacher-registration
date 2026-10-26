@@ -61,6 +61,12 @@ urlpatterns = [
         views.delete_pending_user,
         name="delete_pending_user",
     ),
+    # Account administration (any user kind; Admins group only)
+    path(
+        "users/<int:user_id>/change-login-email/",
+        views.change_login_email,
+        name="change_login_email",
+    ),
     # Utilities
     path("utilities/split-pdf/", views.pdf_split, name="pdf_split"),
     path(

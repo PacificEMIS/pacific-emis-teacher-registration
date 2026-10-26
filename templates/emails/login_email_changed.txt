@@ -1,0 +1,28 @@
+{{ emis_context }} {{ app_name }}: Your sign-in email was changed
+================================================================================
+
+Hello{% if user.first_name %} {{ user.first_name }}{% endif %},
+
+An administrator changed the email address used to sign in to the
+{{ emis_context }} {{ app_name }} app for your account.
+
+Change Details
+--------------
+Previous sign-in email: {{ old_email|default:"none" }}
+New sign-in email: {{ new_email }}
+Changed by: {{ changed_by.get_full_name|default:changed_by.username }}
+Changed on: {{ changed_at|date:"Y-m-d H:i" }} UTC
+
+From now on, sign in with the new address. If you use "Sign in with Google",
+use the Google account for the new address; it will be linked to your existing
+registration automatically. Your application, registration and documents are
+unchanged.
+{% if login_url %}
+Sign in: {{ login_url }}
+{% endif %}
+If you did not ask for this change, contact the Ministry of Education
+registration office immediately.
+
+--------------------------------------------------------------------------------
+This message was sent by the {{ emis_context }} {{ app_name }} app.
+If you believe you received it in error, please contact your EMIS administrator.

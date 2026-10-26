@@ -43,8 +43,14 @@
         {% endif %}
       </div>
     </div>
-    <a href="{% url 'teacher_registration:teachers_list' %}"
-       class="btn btn-sm btn-outline-secondary">← Back to teachers</a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'teacher_registration:teachers_list' %}"
+         class="btn btn-sm btn-outline-secondary">← Back to teachers</a>
+      {% if is_admins_group %}
+        <a href="{% url 'core:change_login_email' teacher.user.pk %}?next={{ request.get_full_path|urlencode }}"
+           class="btn btn-sm btn-outline-warning">Change sign-in email</a>
+      {% endif %}
+    </div>
   </div>
 
   {# FIRST ROW: Profile + Registration Info #}
