@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Change Sign-in Email{% endblock title %}
+{% block content %}
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ next_url }}">Back</a>
+      </li>
+      <li class="breadcrumb-item active" aria-current="page">Change Sign-in Email</li>
+    </ol>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-9 col-lg-7">
+      <div class="card shadow-sm border-warning">
+        <div class="card-header bg-warning">
+          <h1 class="h5 mb-0">
+            <i class="bi bi-envelope-at me-2"></i>
+            Change Sign-in Email
+          </h1>
+        </div>
+        <div class="card-body">
+          <div class="border rounded p-3 bg-light mb-3">
+            <dl class="row mb-0 small">
+              <dt class="col-sm-4">Name</dt>
+              <dd class="col-sm-8">
+                {% if target_user.first_name or target_user.last_name %}
+                  {{ target_user.first_name }} {{ target_user.last_name }}
+                {% else %}
+                  <span class="text-body-secondary">Not set</span>
+                {% endif %}
+              </dd>
+              <dt class="col-sm-4">Current sign-in email</dt>
+              <dd class="col-sm-8">{{ target_user.email|default:"Not set" }}</dd>
+              <dt class="col-sm-4">Username</dt>
+              <dd class="col-sm-8">{{ target_user.username }}</dd>
+              <dt class="col-sm-4">Account kind</dt>
+              <dd class="col-sm-8">
+                {% if has_school_staff %}School Staff / Teacher{% endif %}
+                {% if has_system_user %}{% if has_school_staff %}, {% endif %}MOE Staff{% endif %}
+                {% if not has_school_staff and not has_system_user %}
+                  Pending user (no role yet)
+                {% endif %}
+              </dd>
+              <dt class="col-sm-4">Registration records</dt>
+              <dd class="col-sm-8">{{ registration_count }}</dd>
+              <dt class="col-sm-4">Linked sign-in</dt>
+              <dd class="col-sm-8 mb-0">
+                {% if social_providers %}
+                  {{ social_providers|join:", "|capfirst }}
+                {% else %}
+                  Password only
+                {% endif %}
+              </dd>
+            </dl>
+          </div>
+
+          {% if blockers %}
+            <div class="alert alert-danger">
+              <i class="bi bi-shield-lock me-1"></i>
+              <strong>This account's sign-in email cannot be changed here.</strong> It:
+              <ul class="mb-0 mt-2">
+                {% for reason in blockers %}
+                  <li>{{ reason }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            <a href="{{ next_url }}" class="btn btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i> Back
+            </a>
+          {% else %}
+            <div class="alert alert-info small">
+              <i class="bi bi-info-circle me-1"></i>
+              <strong>What this does.</strong> Only the account's sign-in email changes.
+              Registration applications, the teacher or staff record and every uploaded document stay
+              exactly as they are, because they are attached to the account, not to the address.
+              Notifications go to the new address from now on.
+            </div>
+
+            <div class="alert alert-warning small">
+              <i class="bi bi-exclamation-circle me-1"></i>
+              <strong>What else happens.</strong>
+              <ul class="mb-0 mt-1">
+                {% if social_providers %}
+                  <li>
+                    The current {{ social_providers|join:", "|capfirst }} sign-in link is removed, so the
+                    old address can no longer sign in. The person signs in with Google using the new
+                    address and it links to this account automatically.
+                  </li>
+                {% else %}
+                  <li>The person signs in with the new address and their existing password.</li>
+                {% endif %}
+                <li>Any open sessions of this account are ended.</li>
+                <li>Both the old and the new address receive a notice of the change.</li>
+                <li>
+                  If the new address already belongs to another account (for example a second sign-up
+                  by the same person), the change is refused so staff can resolve that account first.
+                </li>
+              </ul>
+            </div>
+
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ next_url }}">
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger small">{{ form.non_field_errors }}</div>
+              {% endif %}
+              <div class="mb-3">
+                <label for="{{ form.new_email.id_for_label }}" class="form-label">{{ form.new_email.label }}</label>
+                {{ form.new_email }}
+                {% for error in form.new_email.errors %}
+                  <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div class="mb-3">
+                <label for="{{ form.new_email_confirm.id_for_label }}" class="form-label">{{ form.new_email_confirm.label }}</label>
+                {{ form.new_email_confirm }}
+                {% for error in form.new_email_confirm.errors %}
+                  <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div class="form-check mb-3">
+                {{ form.verified_with_person }}
+                <label for="{{ form.verified_with_person.id_for_label }}" class="form-check-label">
+                  {{ form.verified_with_person.label }}
+                </label>
+                {% for error in form.verified_with_person.errors %}
+                  <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div class="d-flex justify-content-between">
+                <a href="{{ next_url }}" class="btn btn-outline-secondary">
+                  <i class="bi bi-arrow-left me-1"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-warning">
+                  <i class="bi bi-envelope-at me-1"></i> Change Sign-in Email
+                </button>
+              </div>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

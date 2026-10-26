@@ -22,8 +22,14 @@
         </span>
       </div>
     </div>
-    <a href="{% url 'teacher_registration:pending_list' %}"
-       class="btn btn-sm btn-outline-secondary">← Back to pending list</a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'teacher_registration:pending_list' %}"
+         class="btn btn-sm btn-outline-secondary">← Back to pending list</a>
+      {% if is_admins_group %}
+        <a href="{% url 'core:change_login_email' registration.user.pk %}?next={{ request.get_full_path|urlencode }}"
+           class="btn btn-sm btn-outline-warning">Change sign-in email</a>
+      {% endif %}
+    </div>
   </div>
 
   <div class="row">

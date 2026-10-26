@@ -43,7 +43,12 @@ except ImportError:
 
 from core.models import OrgSettings, SystemUser, SchoolStaff, SchoolStaffAssignment
 from core.decorators import require_app_access
-from core.emails import send_test_email
+from core.emails import send_login_email_changed, send_test_email
+from core.login_email import (
+    ChangeLoginEmailForm,
+    apply_login_email_change,
+    login_email_change_blockers,
+)
 from core.forms import (
     SchoolStaffAssignmentForm,
     SchoolStaffEditForm,
@@ -1360,6 +1365,86 @@ def delete_pending_user(request, user_id):
             "target_user": target_user,
             "blockers": blockers,
             "expected_confirmation": expected_confirmation,
+        },
+    )
+
+
+def _safe_next_url(request, fallback):
+    """A same-host ``next`` from the query string or the posted form, else ``fallback``."""
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+    candidate = request.POST.get("next") or request.GET.get("next") or ""
+    if candidate and url_has_allowed_host_and_scheme(
+        candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return candidate
+    return fallback
+
+
+@login_required
+@require_app_access
+def change_login_email(request, user_id):
+    """
+    Change the sign-in email of any user account (issue #122).
+
+    Admins group only (System Admins are refused). Works for teachers, MOE
+    staff, applicants with a pending registration and pending users alike,
+    because the email lives on the account, not on the role. The application
+    and its documents are never touched; see core/login_email.py for what is
+    changed and what is refused.
+    """
+    if not is_admins_group(request.user):
+        raise PermissionDenied
+
+    target_user = get_object_or_404(User, pk=user_id)
+    blockers = login_email_change_blockers(target_user, request.user)
+    next_url = _safe_next_url(request, reverse("core:pending_users_list"))
+
+    if request.method == "POST":
+        if blockers:
+            messages.error(
+                request,
+                f"The sign-in email of {target_user} cannot be changed here: " + "; ".join(blockers) + ".",
+            )
+            return redirect(next_url)
+        form = ChangeLoginEmailForm(request.POST, target_user=target_user)
+        if form.is_valid():
+            result = apply_login_email_change(target_user, form.cleaned_data["new_email"], request.user)
+            send_login_email_changed(
+                user=target_user,
+                old_email=result["old_email"],
+                new_email=result["new_email"],
+                changed_by=request.user,
+                login_url=request.build_absolute_uri(reverse("accounts:login")),
+            )
+            messages.success(
+                request,
+                f"Sign-in email changed from {result['old_email'] or 'none'} to {result['new_email']}. "
+                "The person can now sign in with the new address; their previous Google link was removed "
+                "and any open sessions were ended.",
+            )
+            return redirect(next_url)
+    else:
+        form = ChangeLoginEmailForm(target_user=target_user)
+
+    from allauth.socialaccount.models import SocialAccount
+    from teacher_registration.models import TeacherRegistration
+
+    return render(
+        request,
+        "core/change_login_email.html",
+        {
+            "active": "pending_users",
+            "target_user": target_user,
+            "blockers": blockers,
+            "form": form,
+            "next_url": next_url,
+            "social_providers": sorted(
+                set(SocialAccount.objects.filter(user=target_user).values_list("provider", flat=True))
+            ),
+            "registration_count": TeacherRegistration.objects.filter(user=target_user).count(),
+            "has_school_staff": hasattr(target_user, "school_staff"),
+            "has_system_user": hasattr(target_user, "system_user"),
         },
     )
 

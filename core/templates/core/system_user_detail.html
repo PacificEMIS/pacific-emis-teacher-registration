@@ -15,6 +15,10 @@
         <a href="{% url 'core:system_user_edit' system_user.pk %}"
            class="btn btn-sm btn-primary">Edit</a>
       {% endif %}
+      {% if is_admins_group %}
+        <a href="{% url 'core:change_login_email' system_user.user.pk %}?next={{ request.get_full_path|urlencode }}"
+           class="btn btn-sm btn-outline-warning">Change sign-in email</a>
+      {% endif %}
       {% if can_deactivate %}
         {% if system_user.user.is_active %}
           <a href="{% url 'core:system_user_deactivate' system_user.pk %}"

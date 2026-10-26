@@ -146,6 +146,13 @@
                      title="Assign as {{ terminology.system_users_singular }}">
                     <i class="bi bi-building"></i> {{ terminology.system_users_singular }}
                   </a>
+                  {% if is_admins_group %}
+                    <a href="{% url 'core:change_login_email' user.pk %}?next={{ request.get_full_path|urlencode }}"
+                       class="btn btn-outline-warning"
+                       title="Change sign-in email">
+                      <i class="bi bi-envelope-at"></i>
+                    </a>
+                  {% endif %}
                   {% if user.registration_count %}
                     <button type="button"
                             class="btn btn-outline-danger"

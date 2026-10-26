@@ -117,6 +117,34 @@ class TestTeacherRegistrationForm:
         registration.user.refresh_from_db()
         assert registration.user.email == "keep@example.org"
 
+    @pytest.mark.parametrize("how", ["email", "username"])
+    def test_email_owned_by_another_account_is_refused(self, how):
+        registration = TeacherRegistrationFactory(user=UserFactory(email="mine@example.org"))
+        other = UserFactory(username="other-user", email="other@example.org", first_name="Other", last_name="Person")
+        if how == "username":
+            other.username = "Taken@Example.org"
+        else:
+            other.email = "Taken@Example.org"
+        other.save()
+        form = TeacherRegistrationForm(
+            {"first_name": "X", "last_name": "Y", "email": "taken@example.org", "teacher_category": "new"},
+            instance=registration,
+        )
+        assert not form.is_valid()
+        (error,) = form.errors["email"]
+        assert "already belongs to another account" in error
+        assert f"id {other.pk}" in error
+        registration.user.refresh_from_db()
+        assert registration.user.email == "mine@example.org"
+
+    def test_own_email_in_another_case_is_not_a_conflict(self):
+        registration = TeacherRegistrationFactory(user=UserFactory(username="mine@example.org", email="mine@example.org"))
+        form = TeacherRegistrationForm(
+            {"first_name": "X", "last_name": "Y", "email": "Mine@Example.org", "teacher_category": "new"},
+            instance=registration,
+        )
+        assert form.is_valid(), form.errors
+
     def test_applicant_checklist_fields_cover_every_checklist_item(self):
         fields = set(TeacherRegistrationForm.Meta.fields)
         for suffix, *_ in constants.CHECKLIST_ITEMS:

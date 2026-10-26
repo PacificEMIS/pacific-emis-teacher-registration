@@ -246,6 +246,8 @@ MATRIX = [
     ("core:assign_school_staff", lambda w: {"user_id": w.pending_user.pk}, manage()),
     ("core:assign_system_user", lambda w: {"user_id": w.pending_user.pk}, manage()),
     ("core:delete_pending_user", lambda w: {"user_id": w.pending_user.pk}, manage()),
+    # core: account administration (Admins group only, System Admins refused)
+    ("core:change_login_email", lambda w: {"user_id": w.pending_user.pk}, admins_only()),
     # core: utilities
     ("core:pdf_split", None, manage()),
     ("core:pdf_split_results", lambda w: {"job_id": "0" * 32}, manage(302)),
