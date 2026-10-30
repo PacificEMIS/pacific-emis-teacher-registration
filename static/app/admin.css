@@ -135,6 +135,78 @@
   font-weight: 500;
 }
 
+/* ==========================================================
+   Not production: a dev or test deployment says so loudly, everywhere
+   ========================================================== */
+
+/* The banner over the whole page */
+.app-env-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: #d50000;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  animation: app-env-flash 1.6s ease-in-out infinite;
+}
+
+.app-env-banner .bi {
+  font-size: 1.25rem;
+  animation: app-env-blink 1.6s step-end infinite;
+}
+
+/* The badge that stays in view in the toolbar and under the seal */
+.app-env-badge {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border-radius: var(--emis-sys-corner-full);
+  background: #d50000;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: app-env-flash 1.6s ease-in-out infinite;
+}
+
+.sidebar .app-env-badge {
+  margin-top: 0.5rem;
+}
+
+@keyframes app-env-flash {
+  0%,
+  100% {
+    background-color: #d50000;
+    box-shadow: 0 0 0 0 rgba(213, 0, 0, 0.6);
+  }
+
+  50% {
+    background-color: #ff1744;
+    box-shadow: 0 0 0 6px rgba(213, 0, 0, 0);
+  }
+}
+
+@keyframes app-env-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-env-banner,
+  .app-env-banner .bi,
+  .app-env-badge {
+    animation: none;
+  }
+}
+
 /* The licence line under every page */
 .app-footer {
   font-size: 12px;
