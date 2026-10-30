@@ -245,6 +245,29 @@ h1, h2, h3, h4, h5, h6,
   --bs-btn-active-border-color: var(--emis-sys-outline);
 }
 
+/* a caution: a dark amber that reads on white, the same outline and tint as the rest */
+.btn-outline-warning {
+  --bs-btn-color: #9a5b00;
+  --bs-btn-border-color: var(--emis-sys-outline);
+  --bs-btn-hover-color: #9a5b00;
+  --bs-btn-hover-bg: rgba(154, 91, 0, 0.08);
+  --bs-btn-hover-border-color: var(--emis-sys-outline);
+  --bs-btn-active-color: #9a5b00;
+  --bs-btn-active-bg: rgba(154, 91, 0, 0.12);
+  --bs-btn-active-border-color: var(--emis-sys-outline);
+}
+
+.btn-outline-dark {
+  --bs-btn-color: var(--emis-sys-on-surface);
+  --bs-btn-border-color: var(--emis-sys-outline);
+  --bs-btn-hover-color: var(--emis-sys-on-surface);
+  --bs-btn-hover-bg: rgba(26, 27, 31, 0.08);
+  --bs-btn-hover-border-color: var(--emis-sys-outline);
+  --bs-btn-active-color: var(--emis-sys-on-surface);
+  --bs-btn-active-bg: rgba(26, 27, 31, 0.12);
+  --bs-btn-active-border-color: var(--emis-sys-outline);
+}
+
 .btn-link {
   --bs-btn-color: var(--emis-sys-primary);
   --bs-btn-hover-color: var(--emis-sys-on-primary-container);
