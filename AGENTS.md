@@ -93,11 +93,19 @@ The `badge_class` property on `EmisTeacherRegistrationStatus` maps status labels
 ## CSS and Styles
 
 **IMPORTANT**: Never put CSS in Django templates — no inline `style=""` attributes and no `<style>` blocks. All styles must go in the appropriate static CSS file:
-- `static/app/admin.css` — layout, sidebar, login page, general UI
+- `static/app/theme.css` — the Pacific EMIS look: brand and Material system tokens, Roboto, and Bootstrap variable overrides (type, colour, buttons, cards, tables, forms)
+- `static/app/admin.css` — layout, side menu, toolbar, login page, general UI
 - `static/teacher_registration/teacher_registration.css` — registration-specific styles, badge palettes
 - `static/app/reports.css` — PDF report styles
 
 Always create CSS classes in these files and reference them in templates.
+
+The theme mirrors the Pacific EMIS web client (`pineapples/PacificEMIS.UI/src/styles.scss`,
+Angular Material, azure palette, Roboto): the `--emis-*` tokens in `theme.css` carry the
+same names and values, and the `--emis-sys-*` tokens are the Material system tokens that
+client resolves to. Keep them in step when the client's change. Theme a Bootstrap
+component through its `--bs-*` variables in `theme.css` rather than restyling markup, so
+templates stay untouched; use the tokens, never a bare hex, for anything new.
 
 ## Date Formatting
 

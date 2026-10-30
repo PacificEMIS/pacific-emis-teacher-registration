@@ -18,6 +18,11 @@ Configuration is read from `.env` (see existing keys for the database, EMIS API,
 email, and OAuth settings). See **System Dependencies** below for the native
 libraries WeasyPrint and the PostgreSQL driver require.
 
+`EMIS_CONTEXT` names the deployment, and its parenthetical names the environment:
+`KEMIS` is production, `KEMIS (Test)` or `KEMIS (Dev)` is not. Outside production every
+page carries a red strip at the top and the environment under the seal, and the tab
+title is prefixed with it, so nobody mistakes a test system for the real one.
+
 ## Testing
 
 Tests use [pytest](https://docs.pytest.org/) with pytest-django and run against
