@@ -57,20 +57,65 @@
   border: 0;
 }
 
+/* The user's button: a Material text button, icon then name, no caret */
 .app-toolbar .app-toolbar-user {
-  color: var(--emis-sys-primary);
-  font-size: 0.875rem;
+  --bs-btn-color: var(--emis-sys-primary);
+  --bs-btn-hover-color: var(--emis-sys-primary);
+  --bs-btn-hover-bg: rgba(0, 92, 187, 0.08);
+  --bs-btn-active-color: var(--emis-sys-primary);
+  --bs-btn-active-bg: rgba(0, 92, 187, 0.12);
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-padding-x: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.app-toolbar .app-toolbar-user .bi {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.app-toolbar .app-toolbar-user.dropdown-toggle::after {
+  display: none;
+}
+
+/* The menu that opens from it: the client's menu, a white sheet with 48px rows */
+.app-user-menu {
+  --bs-dropdown-min-width: 14rem;
+  --bs-dropdown-padding-y: 0.5rem;
+  --bs-dropdown-item-padding-y: 0;
+  --bs-dropdown-item-padding-x: 0.75rem;
+  --bs-dropdown-link-color: var(--emis-sys-on-surface);
+  --bs-dropdown-link-hover-bg: rgba(26, 27, 31, 0.08);
+  --bs-dropdown-header-color: var(--emis-sys-on-surface);
+  --bs-dropdown-header-padding-x: 0.75rem;
+  --bs-dropdown-header-padding-y: 0.5rem;
+  --bs-dropdown-divider-bg: var(--emis-sys-outline-variant);
+}
+
+.app-user-menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 48px;
   font-weight: 500;
 }
 
-.app-toolbar .app-toolbar-user:hover {
-  color: var(--emis-sys-on-primary-container);
-  text-decoration: none;
+.app-user-menu .dropdown-item .bi {
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--emis-sys-on-surface-variant);
 }
 
-.app-toolbar .nav-link {
-  font-size: 0.875rem;
+.app-user-menu-name {
   font-weight: 500;
+}
+
+.app-user-menu-email {
+  font-size: 0.75rem;
+  color: var(--emis-sys-on-surface-variant);
 }
 
 /* The bar over a page shown without the menu (sign-in, public registration):
