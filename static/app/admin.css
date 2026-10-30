@@ -81,7 +81,13 @@
   display: none;
 }
 
-/* The menu that opens from it: the client's menu, a white sheet with 48px rows */
+/* The menu that opens from it: the client's menu, a white sheet with 48px rows.
+   A navbar that never expands keeps its menus in the flow, which would grow the
+   bar; this one floats over the page like any other dropdown */
+.app-toolbar .navbar-nav .app-user-menu {
+  position: absolute;
+}
+
 .app-user-menu {
   --bs-dropdown-min-width: 14rem;
   --bs-dropdown-padding-y: 0.5rem;
