@@ -38,7 +38,7 @@
       {# Not production: say so where nobody can miss it #}
       <div class="app-env-banner" role="alert">
         <i class="bi bi-exclamation-triangle-fill"></i>
-        {{ emis_environment|upper }} environment &mdash; this is not the production {{ emis_name }}. Nothing entered here is real.
+        {{ emis_environment|upper }} environment &mdash; this is not the production {{ emis_name }}
         <i class="bi bi-exclamation-triangle-fill"></i>
       </div>
     {% endif %}
@@ -66,7 +66,7 @@
               <div class="sidebar-app-title fw-bold">{{ emis_name }}</div>
               <div class="sidebar-app-subtitle">{{ app_name }}</div>
               {% if emis_environment %}
-                <div class="app-env-badge">{{ emis_environment|upper }} &mdash; not production</div>
+                <div class="app-env-badge">{{ emis_environment|upper }}</div>
               {% endif %}
             </div>
             <!-- Navigation -->
@@ -189,9 +189,6 @@
                     aria-label="Toggle navigation">
               <span class="navbar-toggler-icon"></span>
             </button>
-            {% if emis_environment %}
-              <span class="app-env-badge app-env-badge-toolbar ms-3">{{ emis_environment|upper }} &mdash; not production</span>
-            {% endif %}
             <div class="flex-grow-1"></div>
             <div class="navbar-nav flex-row align-items-center">
               <!-- The user: a menu with the profile and sign out, as the Pacific EMIS client has -->
@@ -233,9 +230,6 @@
           <header class="navbar navbar-dark sticky-top app-brand-bar flex-md-nowrap p-0">
             <a class="navbar-brand me-0 px-3"
                href="{% url 'dashboard' %}">{{ emis_context }} &mdash; {{ app_name }}</a>
-            {% if emis_environment %}
-              <span class="app-env-badge app-env-badge-toolbar me-3">{{ emis_environment|upper }} &mdash; not production</span>
-            {% endif %}
           </header>
         {% endif %}
 

@@ -20,8 +20,8 @@ libraries WeasyPrint and the PostgreSQL driver require.
 
 `EMIS_CONTEXT` names the deployment, and its parenthetical names the environment:
 `KEMIS` is production, `KEMIS (Test)` or `KEMIS (Dev)` is not. Outside production every
-page carries a red warning banner and badges, and the tab title is prefixed with the
-environment, so nobody mistakes a test system for the real one.
+page carries a red strip at the top and the environment under the seal, and the tab
+title is prefixed with it, so nobody mistakes a test system for the real one.
 
 ## Testing
 
